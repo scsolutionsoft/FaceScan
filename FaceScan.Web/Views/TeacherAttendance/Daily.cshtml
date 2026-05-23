@@ -1,0 +1,301 @@
+@model TeacherAttendanceDailyViewModel
+@{
+    ViewData["Title"] = "สรุปการมาปฏิบัติราชการรายวัน";
+    var lateCount = Model.Rows.Count(x => x.IsLate);
+    var presentCount = Model.Rows.Count(x => x.AttendanceStatus == AttendanceStatus.Present && !x.IsLate);
+    var absentCount = Model.Rows.Count(x => x.AttendanceStatus == AttendanceStatus.Absent);
+}
+
+<div class="teacher-shell">
+    <section class="teacher-hero teacher-hero-indigo mb-3">
+        <div class="teacher-hero-body">
+            <div class="teacher-hero-copy">
+                <div class="teacher-kicker">Daily Teacher Attendance</div>
+                <h1 class="teacher-hero-title">สรุปการมาปฏิบัติราชการรายวัน</h1>
+                <p class="teacher-hero-text">
+                    ดูเวลามา-กลับ สถานะการปฏิบัติราชการ และกรองข้อมูลครูที่มาสายหรือยังไม่ลงเวลากลับได้จากหน้าเดียว
+                </p>
+            </div>
+            <div class="teacher-hero-stack">
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">วันที่</span>
+                    <strong>@Model.Filter.Date?.ToThaiDate("dd MMMM yyyy")</strong>
+                </div>
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">เริ่มนับมาสาย</span>
+                    <strong>@Model.LateAfterTime.ToString(@"hh\:mm") น.</strong>
+                </div>
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">ครูทั้งหมดในผลลัพธ์</span>
+                    <strong>@Model.Rows.Count คน</strong>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="teacher-stat-grid mb-3">
+        <article class="teacher-stat-card">
+            <div class="teacher-stat-label">มาปฏิบัติราชการ</div>
+            <div class="teacher-stat-value">@presentCount คน</div>
+            <div class="teacher-stat-meta">เช็คเข้าและไม่ถูกจัดเป็นมาสาย</div>
+        </article>
+        <article class="teacher-stat-card">
+            <div class="teacher-stat-label">มาสาย</div>
+            <div class="teacher-stat-value">@lateCount คน</div>
+            <div class="teacher-stat-meta">เช็คเข้าหลังเวลา @Model.LateAfterTime.ToString(@"hh\:mm") น.</div>
+        </article>
+        <article class="teacher-stat-card">
+            <div class="teacher-stat-label">ขาดปฏิบัติราชการ</div>
+            <div class="teacher-stat-value">@absentCount คน</div>
+            <div class="teacher-stat-meta">ยังไม่พบการสแกนเข้าในวันนั้น</div>
+        </article>
+    </section>
+
+    <div class="teacher-note-banner mb-3">
+        <strong>เกณฑ์มาสาย</strong> ครูที่เช็คเข้าหลังเวลา <strong>@Model.LateAfterTime.ToString(@"hh\:mm")</strong> น. จะถูกจัดเป็นมาสายโดยอัตโนมัติ
+    </div>
+
+    <form method="get" class="teacher-filter-card mb-3">
+        <div class="teacher-section-head">
+            <div>
+                <div class="teacher-section-kicker">Filters</div>
+                <h2 class="teacher-section-title">กรองสรุปรายวัน</h2>
+            </div>
+            <div class="teacher-page-actions">
+                <a asp-action="Index"
+                   asp-route-Date="@Model.Filter.Date?.ToString("yyyy-MM-dd")"
+                   asp-route-RoleName="@Model.Filter.RoleName"
+                   asp-route-AssignedClassroomId="@Model.Filter.AssignedClassroomId"
+                   asp-route-TeacherKeyword="@Model.Filter.TeacherKeyword"
+                   class="btn btn-outline-secondary">ดูรายการสแกน</a>
+                <a asp-action="Late"
+                   asp-route-Date="@Model.Filter.Date?.ToString("yyyy-MM-dd")"
+                   asp-route-RoleName="@Model.Filter.RoleName"
+                   asp-route-AssignedClassroomId="@Model.Filter.AssignedClassroomId"
+                   asp-route-TeacherKeyword="@Model.Filter.TeacherKeyword"
+                   class="btn btn-outline-danger">ดูเฉพาะมาสาย</a>
+            </div>
+        </div>
+
+        <div class="row g-2">
+            <div class="col-md-2">
+                <input type="date" class="form-control" name="Date" value="@Model.Filter.Date?.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" name="RoleName">
+                    <option value="">ทุกบทบาท</option>
+                    @foreach (var role in Model.Roles)
+                    {
+                        <option value="@role" selected="@(Model.Filter.RoleName == role ? "selected" : null)">@role</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" name="AssignedClassroomId">
+                    <option value="">ทุกห้อง</option>
+                    @foreach (var item in Model.Classrooms)
+                    {
+                        <option value="@item.Value" selected="@(Model.Filter.AssignedClassroomId == item.Value ? "selected" : null)">@item.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" name="Status">
+                    <option value="">ทุกสถานะ</option>
+                    <option value="late" selected="@(Model.Filter.Status == "late" ? "selected" : null)">มาสาย</option>
+                    <option value="present" selected="@(Model.Filter.Status == "present" ? "selected" : null)">มาปฏิบัติราชการ</option>
+                    <option value="pendingcheckout" selected="@(Model.Filter.Status == "pendingcheckout" ? "selected" : null)">ยังไม่ลงเวลากลับ</option>
+                    <option value="absent" selected="@(Model.Filter.Status == "absent" ? "selected" : null)">ขาดปฏิบัติราชการ</option>
+                    <option value="partial" selected="@(Model.Filter.Status == "partial" ? "selected" : null)">ข้อมูลไม่สมบูรณ์</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" name="SortBy">
+                    <option value="status" selected="@(Model.Filter.SortBy == "status" ? "selected" : null)">เรียงตามสถานะ</option>
+                    <option value="username" selected="@(Model.Filter.SortBy == "username" ? "selected" : null)">เรียงตามบัญชี</option>
+                    <option value="name" selected="@(Model.Filter.SortBy == "name" ? "selected" : null)">เรียงตามชื่อ</option>
+                    <option value="checkin" selected="@(Model.Filter.SortBy == "checkin" ? "selected" : null)">เรียงตามเวลาเข้า</option>
+                    <option value="checkout" selected="@(Model.Filter.SortBy == "checkout" ? "selected" : null)">เรียงตามเวลากลับ</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <input type="text" class="form-control" name="TeacherKeyword" value="@Model.Filter.TeacherKeyword" placeholder="ค้นหาบัญชีหรือชื่อครู" />
+            </div>
+            <div class="col-md-2 d-grid">
+                <button type="submit" class="btn btn-primary">กรองข้อมูล</button>
+            </div>
+        </div>
+    </form>
+
+    <section class="teacher-section-card">
+        <div class="teacher-section-head">
+            <div>
+                <div class="teacher-section-kicker">Results</div>
+                <h2 class="teacher-section-title">สรุปผลการมาปฏิบัติราชการ</h2>
+            </div>
+            <div class="teacher-section-note">บนมือถือจะแสดงเป็นการ์ดแยกรายคนเพื่อให้อ่านเวลาและสถานะได้ชัดขึ้น</div>
+        </div>
+
+        <div class="d-none d-lg-block table-responsive">
+            <table class="table table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th>บัญชีผู้ใช้</th>
+                        <th>ชื่อครู</th>
+                        <th>บทบาท</th>
+                        <th>ห้องที่รับผิดชอบ</th>
+                        <th>เวลาเข้า</th>
+                        <th>พิกัดเข้า</th>
+                        <th>เวลากลับ</th>
+                        <th>พิกัดกลับ</th>
+                        <th>มาสาย</th>
+                        <th>สถานะ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Rows.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="10" class="text-center text-muted">ไม่พบข้อมูล</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var item in Model.Rows)
+                        {
+                            <tr>
+                                <td>@item.Username</td>
+                                <td>@item.FullName</td>
+                                <td>@item.RoleName</td>
+                                <td>@item.AssignedClassroomName</td>
+                                <td>@item.FirstCheckInTime?.ToString("HH:mm:ss")</td>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(item.CheckInMapUrl))
+                                    {
+                                        <a href="@item.CheckInMapUrl" target="_blank">ดูแผนที่</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td>@item.LastCheckOutTime?.ToString("HH:mm:ss")</td>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(item.CheckOutMapUrl))
+                                    {
+                                        <a href="@item.CheckOutMapUrl" target="_blank">ดูแผนที่</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (item.IsLate)
+                                    {
+                                        <span class="badge bg-danger">มาสาย</span>
+                                    }
+                                    else if (item.FirstCheckInTime.HasValue)
+                                    {
+                                        <span class="badge bg-success">ปกติ</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary">-</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (item.IsLate)
+                                    {
+                                        <span class="badge bg-danger">@item.StatusLabel</span>
+                                    }
+                                    else if (item.AttendanceStatus == AttendanceStatus.Present)
+                                    {
+                                        <span class="badge bg-success">@item.StatusLabel</span>
+                                    }
+                                    else if (item.AttendanceStatus == AttendanceStatus.Absent)
+                                    {
+                                        <span class="badge bg-secondary">@item.StatusLabel</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-warning text-dark">@item.StatusLabel</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="teacher-mobile-list d-lg-none">
+            @if (Model.Rows.Count == 0)
+            {
+                <div class="teacher-note-banner">
+                    <strong>ไม่พบข้อมูล</strong> ลองปรับตัวกรองแล้วค้นหาอีกครั้ง
+                </div>
+            }
+            else
+            {
+                @foreach (var item in Model.Rows)
+                {
+                    <article class="teacher-data-card">
+                        <div class="teacher-data-card-head">
+                            <div>
+                                <div class="teacher-data-title">@item.FullName</div>
+                                <div class="teacher-data-subtitle">@item.Username</div>
+                            </div>
+                            @if (item.IsLate)
+                            {
+                                <span class="badge bg-danger">@item.StatusLabel</span>
+                            }
+                            else if (item.AttendanceStatus == AttendanceStatus.Present)
+                            {
+                                <span class="badge bg-success">@item.StatusLabel</span>
+                            }
+                            else if (item.AttendanceStatus == AttendanceStatus.Absent)
+                            {
+                                <span class="badge bg-secondary">@item.StatusLabel</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-warning text-dark">@item.StatusLabel</span>
+                            }
+                        </div>
+
+                        <div class="teacher-data-grid">
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">บทบาท</div>
+                                <div class="teacher-data-value">@item.RoleName</div>
+                            </div>
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">ห้องที่รับผิดชอบ</div>
+                                <div class="teacher-data-value">@item.AssignedClassroomName</div>
+                            </div>
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">เวลาเข้า</div>
+                                <div class="teacher-data-value">@item.FirstCheckInTime?.ToString("HH:mm:ss")</div>
+                            </div>
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">เวลากลับ</div>
+                                <div class="teacher-data-value">@item.LastCheckOutTime?.ToString("HH:mm:ss")</div>
+                            </div>
+                        </div>
+
+                        <div class="teacher-action-row mt-3">
+                            @if (!string.IsNullOrWhiteSpace(item.CheckInMapUrl))
+                            {
+                                <a href="@item.CheckInMapUrl" target="_blank" class="btn btn-outline-primary">ดูพิกัดเข้า</a>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(item.CheckOutMapUrl))
+                            {
+                                <a href="@item.CheckOutMapUrl" target="_blank" class="btn btn-outline-secondary">ดูพิกัดกลับ</a>
+                            }
+                        </div>
+                    </article>
+                }
+            }
+        </div>
+    </section>
+</div>

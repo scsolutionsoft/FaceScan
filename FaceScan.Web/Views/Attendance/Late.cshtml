@@ -1,0 +1,133 @@
+@model AttendanceDailyViewModel
+@{
+    ViewData["Title"] = "รายงานนักเรียนมาสาย";
+}
+
+<div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">รายงานนักเรียนมาสาย</h2>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-success" asp-action="ExportLateCsv"
+           asp-route-Date="@Model.Filter.Date?.ToString("yyyy-MM-dd")"
+           asp-route-AcademicYearId="@Model.Filter.AcademicYearId"
+           asp-route-GradeLevelId="@Model.Filter.GradeLevelId"
+           asp-route-ClassroomId="@Model.Filter.ClassroomId"
+           asp-route-StudentKeyword="@Model.Filter.StudentKeyword"
+           asp-route-SortBy="@Model.Filter.SortBy">ส่งออกไฟล์ซีเอสวี</a>
+        <a class="btn btn-outline-primary" asp-action="Daily"
+           asp-route-Date="@Model.Filter.Date?.ToString("yyyy-MM-dd")"
+           asp-route-AcademicYearId="@Model.Filter.AcademicYearId"
+           asp-route-GradeLevelId="@Model.Filter.GradeLevelId"
+           asp-route-ClassroomId="@Model.Filter.ClassroomId"
+           asp-route-StudentKeyword="@Model.Filter.StudentKeyword">กลับหน้าสรุปรายวัน</a>
+    </div>
+</div>
+
+<div class="alert alert-warning py-2">
+    เงื่อนไขมาสาย: เช็คอินหลังเวลา <strong>@Model.LateAfterTime.ToString(@"hh\:mm")</strong> น.
+</div>
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-2">
+        <input type="date" class="form-control" name="Date" value="@Model.Filter.Date?.ToString("yyyy-MM-dd")" />
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" name="AcademicYearId">
+            <option value="">ปีการศึกษา</option>
+            @foreach (var x in Model.AcademicYears)
+            {
+                <option value="@x.Value" selected="@(Model.Filter.AcademicYearId == x.Value ? "selected" : null)">@x.Text</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" name="GradeLevelId">
+            <option value="">ระดับชั้น</option>
+            @foreach (var x in Model.GradeLevels)
+            {
+                <option value="@x.Value" selected="@(Model.Filter.GradeLevelId == x.Value ? "selected" : null)">@x.Text</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" name="ClassroomId">
+            <option value="">ห้อง</option>
+            @foreach (var x in Model.Classrooms)
+            {
+                <option value="@x.Value" selected="@(Model.Filter.ClassroomId == x.Value ? "selected" : null)">@x.Text</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <input type="text" class="form-control" name="StudentKeyword" value="@Model.Filter.StudentKeyword" placeholder="รหัส/ชื่อ-นามสกุล" />
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" name="SortBy">
+            <option value="status" selected="@(Model.Filter.SortBy == "status" ? "selected" : null)">เรียงตามสถานะ</option>
+            <option value="studentcode" selected="@(Model.Filter.SortBy == "studentcode" ? "selected" : null)">เรียงตามรหัส</option>
+            <option value="name" selected="@(Model.Filter.SortBy == "name" ? "selected" : null)">เรียงตามชื่อ</option>
+            <option value="checkin" selected="@(Model.Filter.SortBy == "checkin" ? "selected" : null)">เรียงตามเวลาเข้า</option>
+        </select>
+    </div>
+    <div class="col-md-2 d-grid">
+        <button class="btn btn-primary" type="submit">กรองข้อมูล</button>
+    </div>
+</form>
+
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>รหัส</th>
+                <th>ชื่อ</th>
+                <th>ชั้น</th>
+                <th>ห้อง</th>
+                <th>เวลาเข้า</th>
+                <th>พิกัดเข้า</th>
+                <th>เวลากลับ</th>
+                <th>พิกัดกลับ</th>
+                <th>สถานะ</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Rows.Count == 0)
+            {
+                <tr><td colspan="9" class="text-center text-muted">ไม่พบข้อมูลนักเรียนมาสาย</td></tr>
+            }
+            else
+            {
+                @foreach (var item in Model.Rows)
+                {
+                    <tr>
+                        <td>@item.StudentCode</td>
+                        <td>@item.StudentName</td>
+                        <td>@item.GradeLevel</td>
+                        <td>@item.Classroom</td>
+                        <td>@item.FirstCheckInTime?.ToString("HH:mm:ss")</td>
+                        <td>
+                            @if (!string.IsNullOrWhiteSpace(item.CheckInMapUrl))
+                            {
+                                <a href="@item.CheckInMapUrl" target="_blank">ดูแผนที่</a>
+                            }
+                            else
+                            {
+                                <span class="text-muted">-</span>
+                            }
+                        </td>
+                        <td>@item.LastCheckOutTime?.ToString("HH:mm:ss")</td>
+                        <td>
+                            @if (!string.IsNullOrWhiteSpace(item.CheckOutMapUrl))
+                            {
+                                <a href="@item.CheckOutMapUrl" target="_blank">ดูแผนที่</a>
+                            }
+                            else
+                            {
+                                <span class="text-muted">-</span>
+                            }
+                        </td>
+                        <td><span class="badge bg-danger">@item.StatusLabel</span></td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>

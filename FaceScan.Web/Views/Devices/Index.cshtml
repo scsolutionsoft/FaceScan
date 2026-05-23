@@ -1,0 +1,695 @@
+@model IReadOnlyList<DeviceListItemViewModel>
+@{
+    ViewData["Title"] = "อุปกรณ์สแกน";
+}
+
+<div class="row g-3">
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header">เพิ่ม/แก้ไขอุปกรณ์</div>
+            <div class="card-body">
+                <form asp-action="Save" method="post" class="row g-2" id="deviceForm">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="Id" id="editId" />
+                    <div class="col-12">
+                        <label class="form-label">ชื่ออุปกรณ์</label>
+                        <input class="form-control" name="Name" id="editName" required />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">รหัสสถานี</label>
+                        <input class="form-control" name="StationCode" id="editStationCode" required />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">โทเคนสำหรับอุปกรณ์</label>
+                        <input class="form-control" name="AccessToken" id="editAccessToken" placeholder="ปล่อยว่างได้ ระบบจะสร้างอัตโนมัติ" />
+                        <div class="form-text">ถ้าไม่กรอก ระบบจะสร้างโทเคนให้อัตโนมัติ และจะไม่ลบโทเคนเดิมตอนแก้ไข</div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">ตำแหน่งติดตั้ง</label>
+                        <input class="form-control" name="Location" id="editLocation" />
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">หมายเหตุ</label>
+                        <textarea class="form-control" name="Notes" id="editNotes" rows="2"></textarea>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">อัลกอริทึ่มสแกนใบหน้า</label>
+                        <select class="form-select" name="RecognitionProfile" id="editRecognitionProfile">
+                            <option value="auto">อัตโนมัติ</option>
+                            <option value="fast">เร็ว</option>
+                            <option value="stable">เสถียร</option>
+                            <option value="accurate">แม่นยำสูง</option>
+                        </select>
+                        <div class="form-text">ถ้าเลือกอัตโนมัติ ระบบจะเลือกโหมดที่เหมาะกับการใช้งานให้เอง</div>
+                    </div>
+                    <div class="col-12" id="scanFaceModeBlock" style="display:none">
+                        <label class="form-label">โหมดการจับใบหน้า</label>
+                        <select class="form-select" name="ScanFaceMode" id="editScanFaceMode">
+                            <option value="single">ใบหน้าเดี่ยว (แนะนำสำหรับจุดผ่านประตู)</option>
+                            <option value="multi">หลายใบหน้า (เลือกใบหน้าเด่นสุด)</option>
+                        </select>
+                    </div>
+                    <div class="col-12" id="scanEngineBlock" style="display:none">
+                        <label class="form-label">วิธีการสแกน</label>
+                        <select class="form-select" name="ScanEngine" id="editScanEngine">
+                            <option value="classic">โหมดคลาสสิก (เสถียร)</option>
+                            <option value="buffered">โหมดคิวบัฟเฟอร์ (เร็ว)</option>
+                        </select>
+                    </div>
+                    <div class="col-6" id="scanMultiFaceMaxBlock" style="display:none">
+                        <label class="form-label">จำนวนใบหน้าสูงสุดต่อเฟรม</label>
+                        <input class="form-control" type="number" name="ScanMultiFaceMax" id="editScanMultiFaceMax" value="3" min="2" max="6" />
+                    </div>
+                    <div class="col-6 d-flex align-items-end" id="scanAutoTuneBlock" style="display:none">
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" name="ScanAutoTuneEnabled" id="editScanAutoTuneEnabled" checked value="true" />
+                            <label class="form-check-label" for="editScanAutoTuneEnabled">Auto tuning (เร็ว+เสถียรอัตโนมัติ)</label>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="IsActive" id="editIsActive" checked value="true" />
+                            <label class="form-check-label" for="editIsActive">เปิดใช้งาน</label>
+                        </div>
+                    </div>
+
+                    <!-- IP Camera section -->
+                    <div class="col-12 mt-1">
+                        <hr class="my-1" />
+                        <div class="fw-semibold text-muted small mb-2">
+                            <i class="bi bi-camera-video me-1"></i>ตั้งค่า IP Camera (ไม่จำเป็น)
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small">ประเภทกล้อง</label>
+                        <select class="form-select form-select-sm" name="CameraType" id="editCameraType">
+                            <option value="">-- ไม่ใช้ IP Camera --</option>
+                            <option value="hikvision">Hikvision (Snapshot URL)</option>
+                            <option value="dahua">Dahua (Snapshot URL)</option>
+                            <option value="generic">Generic / อื่นๆ (Snapshot URL)</option>
+                            <option value="onvif">ONVIF Discovery (Snapshot)</option>
+                            <option value="rtsp">RTSP Stream (Port 554)</option>
+                            <option value="onvif-rtsp">ONVIF RTSP Discovery</option>
+                        </select>
+                    </div>
+
+                    <!-- ONVIF Discovery Section -->
+                    <div class="col-12" id="onvifDiscoveryBlock" style="display:none">
+                        <div class="card card-sm mb-2 bg-light">
+                            <div class="card-body p-2">
+                                <div class="small fw-semibold mb-2">
+                                    <i class="bi bi-search"></i> ค้นหากล้อง ONVIF
+                                </div>
+                                <div class="row g-1">
+                                    <div class="col-8">
+                                        <input class="form-control form-control-sm" id="onvifDiscoveryIp" placeholder="IP Address (เช่น 192.168.1.100)" />
+                                    </div>
+                                    <div class="col-4">
+                                        <input class="form-control form-control-sm" type="number" id="onvifDiscoveryPort" placeholder="Port" value="8899" min="1" max="65535" />
+                                    </div>
+                                    <div class="col-6">
+                                        <input class="form-control form-control-sm" id="onvifDiscoveryUsername" placeholder="Username (ไม่จำเป็น)" />
+                                    </div>
+                                    <div class="col-6">
+                                        <input class="form-control form-control-sm" type="password" id="onvifDiscoveryPassword" placeholder="Password" autocomplete="new-password" />
+                                    </div>
+                                    <div class="col-12">
+                                        <button type="button" class="btn btn-sm btn-info w-100" id="btnOnvifDiscover">
+                                            <i class="bi bi-search me-1"></i>ค้นหากล้อง ONVIF
+                                        </button>
+                                    </div>
+                                    <div class="col-12" id="onvifDiscoveryResult" style="display:none">
+                                        <div class="alert alert-info small py-1 mb-0" id="onvifDiscoveryResultText"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- RTSP Discovery Section -->
+                    <div class="col-12" id="rtspDiscoveryBlock" style="display:none">
+                        <div class="card card-sm mb-2 bg-light border-warning">
+                            <div class="card-body p-2">
+                                <div class="small fw-semibold mb-2">
+                                    <i class="bi bi-film"></i> ค้นหา RTSP Stream (Port 554)
+                                </div>
+                                <div class="row g-1">
+                                    <div class="col-8">
+                                        <input class="form-control form-control-sm" id="rtspDiscoveryIp" placeholder="IP Address (เช่น 192.168.1.100)" />
+                                    </div>
+                                    <div class="col-4">
+                                        <input class="form-control form-control-sm" type="number" id="rtspDiscoveryPort" placeholder="Port" value="554" min="1" max="65535" />
+                                    </div>
+                                    <div class="col-6">
+                                        <input class="form-control form-control-sm" id="rtspDiscoveryUsername" placeholder="Username (ไม่จำเป็น)" />
+                                    </div>
+                                    <div class="col-6">
+                                        <input class="form-control form-control-sm" type="password" id="rtspDiscoveryPassword" placeholder="Password" autocomplete="new-password" />
+                                    </div>
+                                    <div class="col-12">
+                                        <button type="button" class="btn btn-sm btn-warning w-100" id="btnRtspDiscover">
+                                            <i class="bi bi-film me-1"></i>ค้นหา RTSP Stream
+                                        </button>
+                                    </div>
+                                    <div class="col-12" id="rtspDiscoveryResult" style="display:none">
+                                        <div class="alert alert-warning small py-1 mb-0" id="rtspDiscoveryResultText"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small">RTSP Stream URL</label>
+                            <input class="form-control form-control-sm font-monospace" name="RtspStreamUrl" id="editRtspStreamUrl" placeholder="rtsp://192.168.x.x:554/..." />
+                            <div class="form-text small">เช่น: rtsp://192.168.1.100:554/h264/ch1/main/av_stream</div>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">RTSP Port</label>
+                            <input class="form-control form-control-sm" type="number" name="RtspPort" id="editRtspPort" value="554" min="1" max="65535" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small">RTSP Username (ไม่จำเป็น)</label>
+                            <input class="form-control form-control-sm" name="RtspUsername" id="editRtspUsername" placeholder="admin" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label small">RTSP Password (ไม่จำเป็น)</label>
+                            <input class="form-control form-control-sm" type="password" name="RtspPassword" id="editRtspPassword" placeholder="(ว่าง = ไม่เปลี่ยน)" autocomplete="new-password" />
+                        </div>
+                    </div>
+
+                    <!-- ONVIF RTSP Discovery Section -->
+                    <div class="col-12" id="onvifRtspDiscoveryBlock" style="display:none">
+                        <div class="card card-sm mb-2 bg-light border-success">
+                            <div class="card-body p-2">
+                                <div class="small fw-semibold mb-2">
+                                    <i class="bi bi-search"></i> ค้นหา ONVIF RTSP (ไม่ต้องใส่ Token)
+                                </div>
+                                <div class="row g-1">
+                                    <div class="col-8">
+                                        <input class="form-control form-control-sm" id="onvifRtspDiscoveryIp" placeholder="IP Address (เช่น 192.168.1.100)" />
+                                    </div>
+                                    <div class="col-4">
+                                        <input class="form-control form-control-sm" type="number" id="onvifRtspDiscoveryPort" placeholder="Port" value="8899" min="1" max="65535" />
+                                    </div>
+                                    <div class="col-6">
+                                        <input class="form-control form-control-sm" id="onvifRtspDiscoveryUsername" placeholder="Username (ไม่จำเป็น)" />
+                                    </div>
+                                    <div class="col-6">
+                                        <input class="form-control form-control-sm" type="password" id="onvifRtspDiscoveryPassword" placeholder="Password" autocomplete="new-password" />
+                                    </div>
+                                    <div class="col-12">
+                                        <button type="button" class="btn btn-sm btn-success w-100" id="btnOnvifRtspDiscover">
+                                            <i class="bi bi-search me-1"></i>ค้นหา ONVIF RTSP
+                                        </button>
+                                    </div>
+                                    <div class="col-12" id="onvifRtspDiscoveryResult" style="display:none">
+                                        <div class="alert alert-success small py-1 mb-0" id="onvifRtspDiscoveryResultText"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-12" id="cameraUrlBlock" style="display:none">
+                        <label class="form-label small">
+                            URL Snapshot กล้อง
+                            <span class="text-muted fst-italic" id="cameraUrlHint"></span>
+                        </label>
+                        <input class="form-control form-control-sm font-monospace" name="CameraSnapshotUrl"
+                               id="editCameraSnapshotUrl" placeholder="http://192.168.x.x/..." />
+                    </div>
+                    <div class="col-6" id="cameraCredsBlock" style="display:none">
+                        <label class="form-label small">Username กล้อง</label>
+                        <input class="form-control form-control-sm" name="CameraUsername" id="editCameraUsername" placeholder="admin" />
+                    </div>
+                    <div class="col-6" id="cameraPassBlock" style="display:none">
+                        <label class="form-label small">Password กล้อง</label>
+                        <input class="form-control form-control-sm" type="password" name="CameraPassword"
+                               id="editCameraPassword" placeholder="(ว่าง = ไม่เปลี่ยน)" autocomplete="new-password" />
+                    </div>
+                    <div class="col-12" id="cameraIntervalBlock" style="display:none">
+                        <label class="form-label small">ช่วงห่างการสแกน (ms)</label>
+                        <input class="form-control form-control-sm" type="number" name="CameraIntervalMs"
+                               id="editCameraIntervalMs" value="1500" min="500" max="10000" step="100" />
+                        <div class="form-text">แนะนำ 1500ms สำหรับ walk-by</div>
+                    </div>
+                    <div class="col-6" id="cameraConfidenceBlock" style="display:none">
+                        <label class="form-label small">ขั้นต่ำความมั่นใจ (0-1)</label>
+                        <input class="form-control form-control-sm" type="number" name="CameraMinConfidence"
+                               id="editCameraMinConfidence" value="0.60" min="0" max="1" step="0.01" />
+                    </div>
+                    <div class="col-6" id="cameraSkipFramesBlock" style="display:none">
+                        <label class="form-label small">ข้ามเฟรม (1-10)</label>
+                        <input class="form-control form-control-sm" type="number" name="CameraSkipFrames"
+                               id="editCameraSkipFrames" value="1" min="1" max="10" step="1" />
+                    </div>
+                    <div class="col-12" id="cameraOverlayBlock" style="display:none">
+                        <div class="form-check mt-1">
+                            <input class="form-check-input" type="checkbox" name="CameraOverlayEnabled" id="editCameraOverlayEnabled" checked value="true" />
+                            <label class="form-check-label small" for="editCameraOverlayEnabled">แสดงกรอบใบหน้าบนภาพกล้อง (Overlay)</label>
+                        </div>
+                    </div>
+
+                    <div class="col-12 d-grid mt-1">
+                        <button type="submit" class="btn btn-primary">บันทึก</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header">รายการอุปกรณ์</div>
+            <div class="table-responsive">
+                <table class="table table-striped mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>ชื่ออุปกรณ์</th>
+                            <th>รหัสสถานี</th>
+                            <th>ตำแหน่ง</th>
+                            <th>อัลกอริทึ่ม</th>
+                            <th>Edge Agent</th>
+                            <th>ล่าสุด</th>
+                            <th>กล้อง IP</th>
+                            <th>สถานะ</th>
+                            <th class="text-end">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Count == 0)
+                        {
+                            <tr><td colspan="9" class="text-center text-muted">ไม่มีข้อมูล</td></tr>
+                        }
+                        else
+                        {
+                            @foreach (var item in Model)
+                            {
+                                <tr>
+                                    <td>@item.Name</td>
+                                    <td><code class="small">@item.StationCode</code></td>
+                                    <td>@item.Location</td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border">@item.RecognitionProfile</span>
+                                        @if (item.HasCamera)
+                                        {
+                                            <div class="small text-muted mt-1">
+                                                โหมดหน้า: @(item.ScanFaceMode == "multi" ? "หลายหน้า" : "หน้าเดี่ยว")
+                                                · สแกน: @(item.ScanEngine == "buffered" ? "คิวบัฟเฟอร์" : "คลาสสิก")
+                                                · @(item.ScanAutoTuneEnabled ? "Auto tune" : "Fixed")
+                                            </div>
+                                        }
+                                    </td>
+                                    <td class="small text-nowrap">
+                                        @if (item.EdgeAgentLastSeenAtUtc.HasValue)
+                                        {
+                                            var localSeen = item.EdgeAgentLastSeenAtUtc.Value.ToLocalTime();
+                                            if (item.EdgeAgentOnline)
+                                            {
+                                                <span class="badge bg-success me-1">ออนไลน์</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-secondary me-1">ออฟไลน์</span>
+                                            }
+                                            <span class="text-muted">@localSeen.ToThaiDate("HH:mm:ss")</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-light text-dark border">ไม่มี heartbeat</span>
+                                        }
+                                    </td>
+                                    <td class="small text-nowrap">@item.LastSeenAt?.ToLocalTime().ToThaiDate("yyyy-MM-dd HH:mm")</td>
+                                    <td>
+                                        @if (item.HasCamera)
+                                        {
+                                            <span class="badge bg-info text-dark me-1">
+                                                <i class="bi bi-camera-video-fill me-1"></i>@item.CameraType
+                                            </span>
+                                            <a href="/IpCamera/Index?stationCode=@Uri.EscapeDataString(item.StationCode)&stationToken=@Uri.EscapeDataString(item.AccessToken)"
+                                               class="btn btn-xs btn-outline-secondary" target="_blank" title="เปิดสถานีสแกน IP Camera">
+                                                <i class="bi bi-box-arrow-up-right"></i>
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted small">–</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (item.IsActive)
+                                        {
+                                            <span class="badge bg-success">ใช้งาน</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger">ปิดใช้งาน</span>
+                                        }
+                                    </td>
+                                    <td class="text-end text-nowrap">
+                                        <button type="button"
+                                            class="btn btn-sm btn-outline-primary me-1 js-edit-device"
+                                            data-id="@item.Id"
+                                            data-name="@item.Name"
+                                            data-station-code="@item.StationCode"
+                                            data-access-token="@item.AccessToken"
+                                            data-location="@item.Location"
+                                            data-notes="@item.Notes"
+                                            data-recognition-profile="@item.RecognitionProfile"
+                                            data-camera-type="@(item.CameraType ?? string.Empty)"
+                                            data-camera-interval-ms="@item.CameraIntervalMs"
+                                            data-camera-min-confidence="@item.CameraMinConfidence.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                            data-camera-skip-frames="@item.CameraSkipFrames"
+                                            data-camera-overlay-enabled="@item.CameraOverlayEnabled.ToString().ToLowerInvariant()"
+                                            data-scan-face-mode="@item.ScanFaceMode"
+                                            data-scan-engine="@item.ScanEngine"
+                                            data-scan-auto-tune-enabled="@item.ScanAutoTuneEnabled.ToString().ToLowerInvariant()"
+                                            data-scan-multi-face-max="@item.ScanMultiFaceMax"
+                                            data-is-active="@item.IsActive.ToString().ToLowerInvariant()">
+                                            แก้ไข
+                                        </button>
+                                        <form asp-action="Delete" asp-route-id="@item.Id" method="post" class="d-inline" onsubmit="return confirm('ยืนยันลบอุปกรณ์?');">
+                                            @Html.AntiForgeryToken()
+                                            <button class="btn btn-sm btn-outline-danger">ลบ</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+    const cameraHints = {
+        hikvision: 'เช่น http://192.168.x.x/ISAPI/Streaming/channels/101/picture',
+        dahua:     'เช่น http://192.168.x.x/cgi-bin/snapshot.cgi?channel=1',
+        generic:   'URL snapshot JPEG ของกล้อง',
+        onvif:     'auto-detected from ONVIF discovery',
+        rtsp:      'auto-detected from RTSP discovery',
+        'onvif-rtsp': 'auto-detected from ONVIF RTSP discovery'
+    };
+
+    const selType = document.getElementById('editCameraType');
+    const selRecognitionProfile = document.getElementById('editRecognitionProfile');
+    const urlBlock = document.getElementById('cameraUrlBlock');
+    const credsBlock = document.getElementById('cameraCredsBlock');
+    const passBlock = document.getElementById('cameraPassBlock');
+    const intBlock = document.getElementById('cameraIntervalBlock');
+    const confidenceBlock = document.getElementById('cameraConfidenceBlock');
+    const skipFramesBlock = document.getElementById('cameraSkipFramesBlock');
+    const overlayBlock = document.getElementById('cameraOverlayBlock');
+    const scanFaceModeBlock = document.getElementById('scanFaceModeBlock');
+    const scanEngineBlock = document.getElementById('scanEngineBlock');
+    const scanMultiFaceMaxBlock = document.getElementById('scanMultiFaceMaxBlock');
+    const scanAutoTuneBlock = document.getElementById('scanAutoTuneBlock');
+    const onvifDiscoveryBlock = document.getElementById('onvifDiscoveryBlock');
+    const rtspDiscoveryBlock = document.getElementById('rtspDiscoveryBlock');
+    const onvifRtspDiscoveryBlock = document.getElementById('onvifRtspDiscoveryBlock');
+    const urlHint = document.getElementById('cameraUrlHint');
+
+    async function readApiResponse(response) {
+        const raw = await response.text();
+        if (!raw || !raw.trim()) {
+            return { payload: null, raw: '' };
+        }
+
+        try {
+            return { payload: JSON.parse(raw), raw };
+        } catch {
+            return { payload: null, raw };
+        }
+    }
+
+    function buildApiErrorMessage(response, payload, rawFallback, defaultMessage) {
+        const serverMessage = payload?.error || payload?.message || null;
+        if (serverMessage) {
+            return serverMessage;
+        }
+
+        if (rawFallback && rawFallback.trim()) {
+            return `HTTP ${response.status}: ${rawFallback.substring(0, 180)}`;
+        }
+
+        return `${defaultMessage} (HTTP ${response.status})`;
+    }
+
+    function toggleCameraFields() {
+        const val = selType.value;
+        const hasCamera = val !== '';
+        const isSnapshot = ['hikvision', 'dahua', 'generic', 'onvif'].includes(val);
+        const isRtsp = val === 'rtsp';
+        const isOnvifRtsp = val === 'onvif-rtsp';
+        
+        [urlBlock, credsBlock, passBlock, intBlock, confidenceBlock, skipFramesBlock, overlayBlock].forEach(el => 
+            el.style.display = isSnapshot ? '' : 'none'
+        );
+        onvifDiscoveryBlock.style.display = val === 'onvif' ? '' : 'none';
+        rtspDiscoveryBlock.style.display = isRtsp ? '' : 'none';
+        onvifRtspDiscoveryBlock.style.display = isOnvifRtsp ? '' : 'none';
+        scanFaceModeBlock.style.display = hasCamera ? '' : 'none';
+        scanEngineBlock.style.display = hasCamera ? '' : 'none';
+        scanMultiFaceMaxBlock.style.display = hasCamera ? '' : 'none';
+        scanAutoTuneBlock.style.display = hasCamera ? '' : 'none';
+        
+        urlHint.textContent = isSnapshot && cameraHints[val] ? ('— ' + cameraHints[val]) : '';
+    }
+    selType.addEventListener('change', toggleCameraFields);
+    toggleCameraFields();
+
+    // ONVIF Discovery
+    document.getElementById('btnOnvifDiscover').addEventListener('click', async () => {
+        const ip = document.getElementById('onvifDiscoveryIp').value.trim();
+        const port = parseInt(document.getElementById('onvifDiscoveryPort').value) || 8899;
+        const username = document.getElementById('onvifDiscoveryUsername').value.trim();
+        const password = document.getElementById('onvifDiscoveryPassword').value.trim();
+
+        if (!ip) {
+            alert('กรุณาใส่ IP Address ของกล้อง');
+            return;
+        }
+
+        const btn = document.getElementById('btnOnvifDiscover');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="spinner-border spinner-border-sm me-1"></i>ค้นหา...';
+        const resultDiv = document.getElementById('onvifDiscoveryResult');
+        const resultText = document.getElementById('onvifDiscoveryResultText');
+
+        try {
+            const response = await fetch('/api/devices/onvif/discover', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ipAddress: ip, port, username: username || null, password: password || null })
+            });
+
+            const { payload, raw } = await readApiResponse(response);
+
+            if (!response.ok) {
+                resultText.textContent = '❌ ค้นหาไม่สำเร็จ: ' + buildApiErrorMessage(response, payload, raw, 'ไม่มี ONVIF camera');
+                resultDiv.style.display = '';
+                return;
+            }
+
+            if (!payload?.data) {
+                resultText.textContent = '❌ ค้นหาไม่สำเร็จ: รูปแบบข้อมูลตอบกลับไม่ถูกต้อง';
+                resultDiv.style.display = '';
+                return;
+            }
+
+            document.getElementById('editCameraSnapshotUrl').value = payload.data.snapshotUri || '';
+            document.getElementById('editCameraUsername').value = username;
+            if (password) document.getElementById('editCameraPassword').value = password;
+
+            resultText.innerHTML = `✅ <strong>ค้นหาสำเร็จ!</strong>
+                <br>ผู้ผลิต: ${payload.data.manufacturer || 'Unknown'}
+                <br>รุ่น: ${payload.data.model || 'Unknown'}
+                <br>Snapshot URL: <code class="small">${payload.data.snapshotUri || 'auto'}</code>`;
+            resultDiv.style.display = '';
+        } catch (error) {
+            resultText.textContent = '❌ ข้อผิดพลาด: ' + error.message;
+            resultDiv.style.display = '';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-search me-1"></i>ค้นหากล้อง ONVIF';
+        }
+    });
+
+    // RTSP Discovery
+    document.getElementById('btnRtspDiscover').addEventListener('click', async () => {
+        const ip = document.getElementById('rtspDiscoveryIp').value.trim();
+        const port = parseInt(document.getElementById('rtspDiscoveryPort').value) || 554;
+        const username = document.getElementById('rtspDiscoveryUsername').value.trim();
+        const password = document.getElementById('rtspDiscoveryPassword').value.trim();
+
+        if (!ip) {
+            alert('กรุณาใส่ IP Address ของกล้อง');
+            return;
+        }
+
+        const btn = document.getElementById('btnRtspDiscover');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="spinner-border spinner-border-sm me-1"></i>ค้นหา...';
+        const resultDiv = document.getElementById('rtspDiscoveryResult');
+        const resultText = document.getElementById('rtspDiscoveryResultText');
+
+        try {
+            const response = await fetch('/api/devices/rtsp/discover', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ipAddress: ip, port, username: username || null, password: password || null })
+            });
+
+            const { payload, raw } = await readApiResponse(response);
+
+            if (!response.ok) {
+                resultText.textContent = '❌ ค้นหาไม่สำเร็จ: ' + buildApiErrorMessage(response, payload, raw, 'ไม่พบ RTSP stream');
+                resultDiv.style.display = '';
+                return;
+            }
+
+            if (!payload) {
+                resultText.textContent = '❌ ค้นหาไม่สำเร็จ: รูปแบบข้อมูลตอบกลับไม่ถูกต้อง';
+                resultDiv.style.display = '';
+                return;
+            }
+
+            document.getElementById('editRtspStreamUrl').value = payload.rtspUri || '';
+            document.getElementById('editRtspPort').value = port;
+
+            resultText.innerHTML = `✅ <strong>ค้นหาสำเร็จ!</strong>
+                <br>RTSP URI: <code class="small">${payload.rtspUri || 'ไม่พบ'}</code>
+                <br>${payload.message || ''}`;
+            resultDiv.style.display = '';
+        } catch (error) {
+            resultText.textContent = '❌ ข้อผิดพลาด: ' + error.message;
+            resultDiv.style.display = '';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-film me-1"></i>ค้นหา RTSP Stream';
+        }
+    });
+
+    // ONVIF RTSP Discovery
+    document.getElementById('btnOnvifRtspDiscover').addEventListener('click', async () => {
+        const ip = document.getElementById('onvifRtspDiscoveryIp').value.trim();
+        const port = parseInt(document.getElementById('onvifRtspDiscoveryPort').value) || 8899;
+        const username = document.getElementById('onvifRtspDiscoveryUsername').value.trim();
+        const password = document.getElementById('onvifRtspDiscoveryPassword').value.trim();
+
+        if (!ip) {
+            alert('กรุณาใส่ IP Address ของกล้อง');
+            return;
+        }
+
+        const btn = document.getElementById('btnOnvifRtspDiscover');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="spinner-border spinner-border-sm me-1"></i>ค้นหา...';
+        const resultDiv = document.getElementById('onvifRtspDiscoveryResult');
+        const resultText = document.getElementById('onvifRtspDiscoveryResultText');
+
+        try {
+            const response = await fetch('/api/devices/onvif/discover-rtsp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ipAddress: ip, port, username: username || null, password: password || null })
+            });
+
+            const { payload, raw } = await readApiResponse(response);
+
+            if (!response.ok) {
+                resultText.textContent = '❌ ค้นหาไม่สำเร็จ: ' + buildApiErrorMessage(response, payload, raw, 'ไม่มี ONVIF camera');
+                resultDiv.style.display = '';
+                return;
+            }
+
+            if (!payload?.data) {
+                resultText.textContent = '❌ ค้นหาไม่สำเร็จ: รูปแบบข้อมูลตอบกลับไม่ถูกต้อง';
+                resultDiv.style.display = '';
+                return;
+            }
+
+            document.getElementById('editRtspStreamUrl').value = payload.data.rtspUri || payload.data.snapshotUri || '';
+            document.getElementById('editRtspPort').value = 554;
+
+            resultText.innerHTML = `✅ <strong>ค้นหาสำเร็จ!</strong>
+                <br>ผู้ผลิต: ${payload.data.manufacturer || 'Unknown'}
+                <br>รุ่น: ${payload.data.model || 'Unknown'}
+                <br>RTSP URI: <code class="small">${payload.data.rtspUri || 'ไม่พบ'}</code>`;
+            resultDiv.style.display = '';
+        } catch (error) {
+            resultText.textContent = '❌ ข้อผิดพลาด: ' + error.message;
+            resultDiv.style.display = '';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-search me-1"></i>ค้นหา ONVIF RTSP';
+        }
+    });
+
+    function editDevice(id, name, stationCode, accessToken, location, notes, recognitionProfile, cameraType, intervalMs, minConfidence, skipFrames, overlayEnabled, scanFaceMode, scanEngine, scanAutoTuneEnabled, scanMultiFaceMax, isActive) {
+        document.getElementById('editId').value = id;
+        document.getElementById('editName').value = name;
+        document.getElementById('editStationCode').value = stationCode;
+        document.getElementById('editAccessToken').value = accessToken;
+        document.getElementById('editLocation').value = location || '';
+        document.getElementById('editNotes').value = notes || '';
+        selRecognitionProfile.value = recognitionProfile || 'auto';
+        document.getElementById('editIsActive').checked = isActive;
+        document.getElementById('editCameraType').value = cameraType || '';
+        document.getElementById('editCameraIntervalMs').value = intervalMs || 1500;
+        document.getElementById('editCameraMinConfidence').value = minConfidence || 0.60;
+        document.getElementById('editCameraSkipFrames').value = skipFrames || 1;
+        document.getElementById('editCameraOverlayEnabled').checked = overlayEnabled;
+        document.getElementById('editScanFaceMode').value = (scanFaceMode === 'multi' ? 'multi' : 'single');
+        document.getElementById('editScanEngine').value = (scanEngine === 'buffered' ? 'buffered' : 'classic');
+        document.getElementById('editScanAutoTuneEnabled').checked = scanAutoTuneEnabled;
+        document.getElementById('editScanMultiFaceMax').value = scanMultiFaceMax || 3;
+        document.getElementById('editCameraPassword').value = '';
+        document.getElementById('editRtspPassword').value = '';
+        document.getElementById('editRtspUsername').value = '';
+        // Clear discovery forms
+        document.getElementById('onvifDiscoveryIp').value = '';
+        document.getElementById('onvifDiscoveryPort').value = '8899';
+        document.getElementById('onvifDiscoveryUsername').value = '';
+        document.getElementById('onvifDiscoveryPassword').value = '';
+        document.getElementById('onvifDiscoveryResult').style.display = 'none';
+        document.getElementById('rtspDiscoveryIp').value = '';
+        document.getElementById('rtspDiscoveryPort').value = '554';
+        document.getElementById('rtspDiscoveryUsername').value = '';
+        document.getElementById('rtspDiscoveryPassword').value = '';
+        document.getElementById('rtspDiscoveryResult').style.display = 'none';
+        document.getElementById('onvifRtspDiscoveryIp').value = '';
+        document.getElementById('onvifRtspDiscoveryPort').value = '8899';
+        document.getElementById('onvifRtspDiscoveryUsername').value = '';
+        document.getElementById('onvifRtspDiscoveryPassword').value = '';
+        document.getElementById('onvifRtspDiscoveryResult').style.display = 'none';
+        toggleCameraFields();
+        document.getElementById('deviceForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    document.querySelectorAll('.js-edit-device').forEach((button) => {
+        button.addEventListener('click', () => {
+            editDevice(
+                Number.parseInt(button.dataset.id || '0', 10),
+                button.dataset.name || '',
+                button.dataset.stationCode || '',
+                button.dataset.accessToken || '',
+                button.dataset.location || '',
+                button.dataset.notes || '',
+                button.dataset.recognitionProfile || 'auto',
+                button.dataset.cameraType || '',
+                Number.parseInt(button.dataset.cameraIntervalMs || '1500', 10),
+                button.dataset.cameraMinConfidence || '0.60',
+                Number.parseInt(button.dataset.cameraSkipFrames || '1', 10),
+                (button.dataset.cameraOverlayEnabled || 'true') === 'true',
+                (button.dataset.scanFaceMode || 'single'),
+                (button.dataset.scanEngine || 'classic'),
+                (button.dataset.scanAutoTuneEnabled || 'true') === 'true',
+                Number.parseInt(button.dataset.scanMultiFaceMax || '3', 10),
+                (button.dataset.isActive || 'true') === 'true'
+            );
+        });
+    });
+</script>
+}

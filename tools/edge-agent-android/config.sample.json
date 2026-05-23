@@ -1,0 +1,14 @@
+{
+  "serverUrl": "https://scan.school.ac.th",
+  "stationCode": "MAIN-GATE",
+  "stationToken": "CHANGE_ME",
+  "snapshotUrl": "http://192.168.1.50/ISAPI/Streaming/channels/101/picture",
+  "cameraAuthType": "auto",
+  "cameraUser": "admin",
+  "cameraPassword": "CHANGE_ME",
+  "intervalMs": 1500,
+  "minConfidence": 0.6,
+  "heartbeatEveryNFrames": 10,
+  "timeoutSeconds": 8,
+  "enablePreview": true
+}

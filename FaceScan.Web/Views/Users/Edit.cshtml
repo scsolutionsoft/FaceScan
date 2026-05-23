@@ -1,0 +1,134 @@
+@model UpdateUserViewModel
+@{
+    ViewData["Title"] = "แก้ไขผู้ใช้";
+    var roles = ViewBag.Roles as List<string> ?? new List<string>();
+    var classrooms = ViewBag.Classrooms as IReadOnlyList<SelectOptionViewModel> ?? [];
+    var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? string.Empty;
+    var isCurrentUser = string.Equals(currentUserId, Model.Id, StringComparison.Ordinal);
+    var canDelete = !isCurrentUser && (User.IsInRole("SuperAdmin") || !string.Equals(Model.Role, "SuperAdmin", StringComparison.OrdinalIgnoreCase));
+
+    static string RoleLabel(string role) => role switch
+    {
+        "SuperAdmin" => "ผู้ดูแลสูงสุด",
+        "Admin" => "ผู้ดูแลระบบ",
+        "Executive" => "ผู้บริหาร",
+        "Teacher" => "ครูผู้สอน",
+        "HomeroomHead" => "หัวหน้าชั้น",
+        "Student" => "นักเรียน",
+        "Staff" => "เจ้าหน้าที่",
+        "Viewer" => "ผู้ชม",
+        _ => role
+    };
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">แก้ไขผู้ใช้</h2>
+    <a asp-action="Index" class="btn btn-outline-secondary">ย้อนกลับ</a>
+</div>
+
+<form asp-action="Edit" method="post" class="card">
+    @Html.AntiForgeryToken()
+    <input asp-for="Id" type="hidden" />
+    <div class="card-body row g-3">
+        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+        <div class="col-md-4">
+            <label asp-for="Username" class="form-label">ชื่อผู้ใช้</label>
+            <input asp-for="Username" class="form-control" />
+            <span asp-validation-for="Username" class="text-danger"></span>
+        </div>
+
+        <div class="col-md-4">
+            <label asp-for="Email" class="form-label">อีเมล</label>
+            <input asp-for="Email" class="form-control" />
+            <span asp-validation-for="Email" class="text-danger"></span>
+        </div>
+
+        <div class="col-md-4">
+            <label asp-for="FullName" class="form-label">ชื่อ-นามสกุล</label>
+            <input asp-for="FullName" class="form-control" />
+        </div>
+
+        <div class="col-md-4">
+            <label asp-for="Role" class="form-label">บทบาท</label>
+            <select asp-for="Role" class="form-select">
+                @foreach (var role in roles)
+                {
+                    <option value="@role">@RoleLabel(role)</option>
+                }
+            </select>
+        </div>
+
+        <div class="col-md-4">
+            <label asp-for="AssignedClassroomId" class="form-label">ห้องที่รับผิดชอบ</label>
+            <select asp-for="AssignedClassroomId" class="form-select">
+                <option value="">-- ไม่ระบุ --</option>
+                @foreach (var classroom in classrooms)
+                {
+                    <option value="@classroom.Value">@classroom.Text</option>
+                }
+            </select>
+        </div>
+
+        <div class="col-md-4 d-flex align-items-center">
+            <div class="form-check mt-4">
+                <input asp-for="IsActive" class="form-check-input" />
+                <label asp-for="IsActive" class="form-check-label">บัญชีใช้งาน</label>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <label asp-for="NewPassword" class="form-label">กำหนดรหัสผ่านใหม่เอง (ไม่บังคับ)</label>
+            <input asp-for="NewPassword" class="form-control" type="password" />
+            <div class="form-text">หากไม่ต้องการเปลี่ยนรหัสผ่าน ให้เว้นว่าง หรือใช้ปุ่มรีเซ็ตรหัสผ่านด้านล่างเพื่อสร้างรหัสชั่วคราวอัตโนมัติ</div>
+            <span asp-validation-for="NewPassword" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="card-footer">
+        <button type="submit" class="btn btn-primary">บันทึกการเปลี่ยนแปลง</button>
+    </div>
+</form>
+
+<div class="card mt-3">
+    <div class="card-header">จัดการบัญชี</div>
+    <div class="card-body">
+        <p class="text-muted mb-3">ส่วนนี้ใช้สำหรับรีเซ็ตรหัสผ่านแบบรวดเร็ว หรือลบข้อมูลผู้ใช้ออกจากระบบ</p>
+        <div class="d-flex flex-wrap gap-2">
+            <form asp-action="ResetPassword" asp-route-id="@Model.Id" method="post" class="d-inline">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="returnUrl" value="@Url.Action("Edit", "Users", new { id = Model.Id })" />
+                <button type="submit"
+                        class="btn btn-outline-info"
+                        onclick="return confirm('รีเซ็ตรหัสผ่านของผู้ใช้ @Model.Username และสร้างรหัสชั่วคราวใหม่ใช่หรือไม่?');">
+                    รีเซ็ตรหัสผ่านอัตโนมัติ
+                </button>
+            </form>
+
+            @if (canDelete)
+            {
+                <form asp-action="Delete" asp-route-id="@Model.Id" method="post" class="d-inline">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="returnUrl" value="@Url.Action("Index", "Users")" />
+                    <button type="submit"
+                            class="btn btn-outline-danger"
+                            onclick="return confirm('ยืนยันการลบข้อมูลผู้ใช้ @Model.Username ใช่หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้');">
+                        ลบข้อมูลผู้ใช้
+                    </button>
+                </form>
+            }
+            else
+            {
+                <button type="button" class="btn btn-outline-danger" disabled>ลบข้อมูลผู้ใช้</button>
+            }
+        </div>
+
+        @if (isCurrentUser)
+        {
+            <div class="form-text mt-2">บัญชีที่กำลังใช้งานอยู่จะไม่สามารถลบได้</div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

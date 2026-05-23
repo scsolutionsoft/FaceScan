@@ -1,0 +1,641 @@
+@model ExecutiveDashboardViewModel
+@{
+    ViewData["Title"] = "Live Monitor ผู้บริหาร";
+}
+
+<style>
+    .live-shell { display: grid; gap: 1rem; }
+    .live-hero {
+        border: 0;
+        border-radius: 22px;
+        background: linear-gradient(125deg, #0f3e4a 0%, #1a6a81 100%);
+        color: #f4fbfd;
+        box-shadow: 0 18px 45px rgba(16, 58, 70, 0.2);
+    }
+    .live-hero .card-body { padding: 1.35rem 1.4rem; display: grid; gap: .85rem; }
+    .live-hero h1 { margin: 0; font-size: clamp(1.3rem, 2.4vw, 2rem); }
+    .live-hero p { margin: 0; color: rgba(244, 251, 253, 0.86); }
+
+    .live-panel {
+        border: 0;
+        border-radius: 18px;
+        box-shadow: 0 12px 30px rgba(20, 47, 59, 0.09);
+    }
+
+    .live-status-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .65rem; align-items: center; }
+    .live-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        border-radius: 999px;
+        background: #e9f2f7;
+        color: #264b5a;
+        padding: .36rem .7rem;
+        font-size: .82rem;
+    }
+    .live-status-dot { width: .55rem; height: .55rem; border-radius: 50%; background: #b45050; }
+    .live-status-pill.is-online { background: #def4e8; color: #15543a; }
+    .live-status-pill.is-online .live-status-dot { background: #1f9f64; }
+
+    .live-counter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .6rem; }
+    .live-counter {
+        border-radius: 14px;
+        background: #f6fbfd;
+        border: 1px solid rgba(22, 80, 95, 0.12);
+        padding: .65rem .7rem;
+    }
+    .live-counter strong { display: block; font-size: 1.35rem; color: #183b47; line-height: 1; }
+    .live-counter span { display: block; margin-top: .25rem; color: #637c89; font-size: .78rem; }
+
+    .live-config-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .6rem; }
+    .live-config-item {
+        border-radius: 12px;
+        border: 1px solid rgba(24, 82, 98, 0.14);
+        padding: .5rem .58rem;
+        background: #f8fcfe;
+    }
+    .live-config-item label { display: block; margin-bottom: .25rem; color: #5e7886; font-size: .74rem; }
+    .live-config-item .form-select { font-size: .82rem; border-radius: 10px; }
+
+    .live-alert {
+        display: none;
+        border-radius: 12px;
+        border: 1px solid rgba(194, 66, 58, 0.2);
+        background: #fff2f0;
+        color: #913028;
+        font-size: .84rem;
+        padding: .58rem .72rem;
+    }
+    .live-alert.is-show { display: block; }
+
+    .live-trend {
+        border-radius: 12px;
+        border: 1px solid rgba(21, 81, 99, 0.14);
+        background: #f8fbfd;
+        padding: .6rem .68rem;
+    }
+    .live-trend-head { display: flex; justify-content: space-between; align-items: center; font-size: .8rem; color: #456674; margin-bottom: .45rem; }
+    .live-trend-bars { display: grid; grid-template-columns: repeat(20, minmax(0, 1fr)); gap: .24rem; min-height: 30px; align-items: end; }
+    .live-trend-bars span { display: block; min-height: 8px; height: 100%; border-radius: 6px; background: #dbe8ee; }
+    .live-trend-bars span.is-success { background: #2ea06a; }
+    .live-trend-bars span.is-failed { background: #cd594c; }
+
+    .live-main-grid { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: .8rem; }
+    .live-feed {
+        display: grid;
+        gap: .55rem;
+        max-height: 67vh;
+        overflow: auto;
+    }
+    .live-item {
+        border-radius: 13px;
+        border: 1px solid rgba(23, 84, 102, 0.15);
+        background: linear-gradient(180deg, #ffffff 0%, #f8fcfe 100%);
+        padding: .62rem .72rem;
+    }
+    .live-item-head { display: flex; justify-content: space-between; gap: .65rem; color: #3b5f70; font-size: .83rem; }
+    .live-item-name { font-weight: 700; color: #143f4e; }
+    .live-item-meta { color: #5f7d8b; margin-top: .23rem; font-size: .8rem; }
+    .live-empty { border-radius: 12px; background: #f3f8fb; color: #607a88; padding: 1rem; font-size: .88rem; }
+
+    .live-risk-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        border-radius: 999px;
+        padding: .2rem .52rem;
+        font-size: .72rem;
+        font-weight: 700;
+    }
+    .risk-ok { background: #dcf4e6; color: #1c6e45; }
+    .risk-bad { background: #ffe1df; color: #a52424; }
+
+    .live-toast-wrap {
+        position: fixed;
+        right: 1rem;
+        bottom: 1rem;
+        z-index: 1090;
+        display: grid;
+        gap: .5rem;
+        pointer-events: none;
+        max-width: min(92vw, 390px);
+    }
+    .live-toast {
+        pointer-events: auto;
+        border-radius: 14px;
+        border: 1px solid rgba(194, 66, 58, 0.26);
+        background: linear-gradient(180deg, #fff4f2 0%, #ffe7e2 100%);
+        box-shadow: 0 12px 30px rgba(125, 42, 35, 0.2);
+        padding: .72rem .8rem;
+    }
+    .live-toast strong { display: block; color: #8e2f27; font-size: .86rem; margin-bottom: .22rem; }
+    .live-toast span { display: block; color: #8a4a41; font-size: .8rem; }
+
+    @@media (max-width: 1199.98px) {
+        .live-main-grid { grid-template-columns: 1fr; }
+    }
+
+    @@media (max-width: 991.98px) {
+        .live-counter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .live-config-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+</style>
+
+<div class="live-shell">
+    <section class="card live-hero">
+        <div class="card-body">
+            <h1>Live Monitor เต็มจอ</h1>
+            <p>ติดตามเหตุการณ์สแกนแบบเรียลไทม์ พร้อมระบบแจ้งเตือนเชิงปฏิบัติการสำหรับผู้บริหารและศูนย์ควบคุมหน้างาน</p>
+        </div>
+    </section>
+
+    <form method="get" class="card live-panel">
+        <div class="card-body">
+            <div class="row g-2 align-items-end">
+                <div class="col-md-2">
+                    <label class="form-label">จากวันที่</label>
+                    <input type="date" name="DateFrom" class="form-control" value="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">ถึงวันที่</label>
+                    <input type="date" name="DateTo" class="form-control" value="@Model.Filter.DateTo.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">ระดับชั้น</label>
+                    <select name="GradeLevelId" class="form-select">
+                        <option value="">ทั้งหมด</option>
+                        @foreach (var item in Model.GradeLevels)
+                        {
+                            <option value="@item.Value" selected="@(Model.Filter.GradeLevelId == item.Value ? "selected" : null)">@item.Text</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">ห้องเรียน</label>
+                    <select name="ClassroomId" class="form-select">
+                        <option value="">ทั้งหมด</option>
+                        @foreach (var item in Model.Classrooms)
+                        {
+                            <option value="@item.Value" selected="@(Model.Filter.ClassroomId == item.Value ? "selected" : null)">@item.Text</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">รหัส/ชื่อ</label>
+                    <input type="text" name="StudentKeyword" class="form-control" value="@Model.Filter.StudentKeyword" />
+                </div>
+                <div class="col-md-2 d-grid gap-2">
+                    <button type="submit" class="btn btn-primary">รีโหลดจอ</button>
+                    <a class="btn btn-outline-dark"
+                       asp-action="Index"
+                       asp-route-DateFrom="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")"
+                       asp-route-DateTo="@Model.Filter.DateTo.ToString("yyyy-MM-dd")"
+                       asp-route-GradeLevelId="@Model.Filter.GradeLevelId"
+                       asp-route-ClassroomId="@Model.Filter.ClassroomId"
+                       asp-route-StudentKeyword="@Model.Filter.StudentKeyword">กลับแดชบอร์ด</a>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <section class="card live-panel">
+        <div class="card-body">
+            <div class="live-status-row">
+                <div id="liveStatus" class="live-status-pill"><span class="live-status-dot"></span><span>กำลังเชื่อมต่อ Live Feed...</span></div>
+                <div class="text-muted small">อัปเดตแบบอัตโนมัติ</div>
+            </div>
+
+            <div class="live-counter-grid mt-2">
+                <article class="live-counter"><strong id="liveKpiTotalStudents">@Model.TotalStudents</strong><span>นักเรียนในตัวกรอง</span></article>
+                <article class="live-counter"><strong id="liveKpiPresent">@Model.PresentCount</strong><span>มาเรียน</span></article>
+                <article class="live-counter"><strong id="liveKpiAbsent">@Model.AbsentCount</strong><span>ไม่พบการมาเรียน</span></article>
+                <article class="live-counter"><strong id="liveCountAll">0</strong><span>เหตุการณ์ที่แสดง</span></article>
+            </div>
+
+            <div class="live-config-grid mt-2">
+                <div class="live-config-item">
+                    <label>ประเภทเหตุการณ์</label>
+                    <select id="liveScopeFilter" class="form-select form-select-sm">
+                        <option value="all">ทุกประเภท</option>
+                        <option value="student">นักเรียน</option>
+                        <option value="teacher">ครู</option>
+                    </select>
+                </div>
+                <div class="live-config-item">
+                    <label>จุดสแกน</label>
+                    <select id="liveStationFilter" class="form-select form-select-sm">
+                        <option value="all">ทุกจุดสแกน</option>
+                    </select>
+                </div>
+                <div class="live-config-item">
+                    <label>Threshold แจ้งเตือน</label>
+                    <select id="liveAlertThreshold" class="form-select form-select-sm">
+                        <option value="30">30%</option>
+                        <option value="40" selected>40%</option>
+                        <option value="50">50%</option>
+                        <option value="60">60%</option>
+                    </select>
+                </div>
+                <div class="live-config-item">
+                    <label>ขนาดตัวอย่าง</label>
+                    <select id="liveAlertSampleSize" class="form-select form-select-sm">
+                        <option value="5" selected>5 เหตุการณ์</option>
+                        <option value="8">8 เหตุการณ์</option>
+                        <option value="10">10 เหตุการณ์</option>
+                        <option value="12">12 เหตุการณ์</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-check mt-2">
+                <input class="form-check-input" type="checkbox" id="liveAlertSound" />
+                <label class="form-check-label" for="liveAlertSound">เปิดเสียงเตือนเมื่อเกิดความเสี่ยง</label>
+            </div>
+
+            <div id="liveAlert" class="live-alert mt-2" role="status" aria-live="polite"></div>
+
+            <div class="live-trend mt-2">
+                <div class="live-trend-head">
+                    <span>แนวโน้ม 20 เหตุการณ์ล่าสุด</span>
+                    <strong id="liveTrendSummary">ยังไม่มีข้อมูล</strong>
+                </div>
+                <div id="liveTrendBars" class="live-trend-bars" aria-hidden="true"></div>
+            </div>
+
+            <div class="live-main-grid mt-2">
+                <div class="card live-panel">
+                    <div class="card-body">
+                        <div class="fw-semibold mb-2">สรุปเหตุการณ์ที่แสดง</div>
+                        <div class="live-counter-grid">
+                            <article class="live-counter"><strong id="liveCountSuccess">0</strong><span>สำเร็จ</span></article>
+                            <article class="live-counter"><strong id="liveCountFailed">0</strong><span>ไม่สำเร็จ/ซ้ำ</span></article>
+                            <article class="live-counter"><strong id="liveCountStudent">0</strong><span>ฝั่งนักเรียน</span></article>
+                            <article class="live-counter"><strong id="liveCountTeacher">0</strong><span>ฝั่งครู</span></article>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card live-panel">
+                    <div class="card-body">
+                        <div id="liveFeed" class="live-feed" aria-live="polite">
+                            <div class="live-empty">รอเหตุการณ์สแกนเข้าระบบ...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+<div id="liveToastWrap" class="live-toast-wrap" aria-live="assertive" aria-atomic="false"></div>
+
+@section Scripts {
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js" integrity="sha512-M6gdlKs2grQiiK2vNhbbX6YsJhBKt3vnDnN/SUXOcDSBx/OVCkXbkqVKgf/mBlC9ZwTe74MkRUYw35vj0IadBQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+(() => {
+    const el = {
+        status: document.getElementById('liveStatus'),
+        scopeFilter: document.getElementById('liveScopeFilter'),
+        stationFilter: document.getElementById('liveStationFilter'),
+        threshold: document.getElementById('liveAlertThreshold'),
+        sampleSize: document.getElementById('liveAlertSampleSize'),
+        sound: document.getElementById('liveAlertSound'),
+        alert: document.getElementById('liveAlert'),
+        trendSummary: document.getElementById('liveTrendSummary'),
+        trendBars: document.getElementById('liveTrendBars'),
+        feed: document.getElementById('liveFeed'),
+        toastWrap: document.getElementById('liveToastWrap'),
+        kpiTotalStudents: document.getElementById('liveKpiTotalStudents'),
+        kpiPresent: document.getElementById('liveKpiPresent'),
+        kpiAbsent: document.getElementById('liveKpiAbsent'),
+        countAll: document.getElementById('liveCountAll'),
+        countSuccess: document.getElementById('liveCountSuccess'),
+        countFailed: document.getElementById('liveCountFailed'),
+        countStudent: document.getElementById('liveCountStudent'),
+        countTeacher: document.getElementById('liveCountTeacher')
+    };
+
+    if (!window.signalR || Object.values(el).some((x) => !x)) return;
+
+    const state = {
+        events: [],
+        stations: new Set(),
+        refreshTimerId: null,
+        alertActive: false,
+        lastToastAt: 0,
+        config: {
+            threshold: 40,
+            sampleSize: 5,
+            soundOn: false
+        }
+    };
+
+    const liveSummaryUrl = '@Url.Action("LiveSummary", "Reports", new { area = "Executive" })';
+    const liveFilter = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new {
+        dateFrom = Model.Filter.DateFrom.ToString("yyyy-MM-dd"),
+        dateTo = Model.Filter.DateTo.ToString("yyyy-MM-dd"),
+        gradeLevelId = Model.Filter.GradeLevelId,
+        classroomId = Model.Filter.ClassroomId,
+        studentKeyword = Model.Filter.StudentKeyword
+    }));
+
+    const updateStatus = (isOnline, text) => {
+        el.status.classList.toggle('is-online', isOnline);
+        el.status.innerHTML = `<span class="live-status-dot"></span><span>${text}</span>`;
+    };
+
+    const formatTime = (scanTime) => {
+        if (!scanTime) return '-';
+        const dt = new Date(scanTime);
+        if (Number.isNaN(dt.getTime())) return scanTime;
+        return dt.toLocaleString('th-TH', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+    };
+
+    const loadConfig = () => {
+        try {
+            const saved = localStorage.getItem('executive-live-fullscreen-config');
+            if (!saved) return;
+            const data = JSON.parse(saved);
+            state.config.threshold = Number(data.threshold) || 40;
+            state.config.sampleSize = Number(data.sampleSize) || 5;
+            state.config.soundOn = Boolean(data.soundOn);
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const saveConfig = () => {
+        localStorage.setItem('executive-live-fullscreen-config', JSON.stringify(state.config));
+    };
+
+    const syncConfigInputs = () => {
+        el.threshold.value = String(state.config.threshold);
+        el.sampleSize.value = String(state.config.sampleSize);
+        el.sound.checked = state.config.soundOn;
+    };
+
+    const playAlertBeep = () => {
+        if (!state.config.soundOn) return;
+
+        try {
+            const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextCtor) return;
+
+            const audioContext = new AudioContextCtor();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.type = 'triangle';
+            oscillator.frequency.setValueAtTime(760, audioContext.currentTime);
+            gainNode.gain.setValueAtTime(0.001, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.18, audioContext.currentTime + 0.02);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.28);
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            oscillator.start();
+            oscillator.stop(audioContext.currentTime + 0.3);
+            oscillator.onended = () => audioContext.close();
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const showToast = (title, message) => {
+        const now = Date.now();
+        if (now - state.lastToastAt < 15000) return;
+        state.lastToastAt = now;
+
+        const toast = document.createElement('article');
+        toast.className = 'live-toast';
+        toast.innerHTML = `<strong>${title}</strong><span>${message}</span>`;
+        el.toastWrap.prepend(toast);
+
+        while (el.toastWrap.children.length > 3)
+        {
+            el.toastWrap.removeChild(el.toastWrap.lastElementChild);
+        }
+
+        window.setTimeout(() => toast.remove(), 6000);
+    };
+
+    const refreshStationFilter = () => {
+        const selected = el.stationFilter.value;
+        const values = ['all', ...Array.from(state.stations).sort((a, b) => a.localeCompare(b, 'th'))];
+        el.stationFilter.innerHTML = values
+            .map((value) => `<option value="${value}">${value === 'all' ? 'ทุกจุดสแกน' : value}</option>`)
+            .join('');
+
+        if (values.includes(selected)) {
+            el.stationFilter.value = selected;
+        }
+    };
+
+    const renderCounters = (events) => {
+        const success = events.filter((x) => x.eventType === 'success').length;
+        const failed = events.length - success;
+        const student = events.filter((x) => x.scope === 'student').length;
+        const teacher = events.length - student;
+
+        el.countAll.textContent = String(events.length);
+        el.countSuccess.textContent = String(success);
+        el.countFailed.textContent = String(failed);
+        el.countStudent.textContent = String(student);
+        el.countTeacher.textContent = String(teacher);
+    };
+
+    const renderHealth = (events) => {
+        const trendItems = events.slice(0, 20).reverse();
+        const total = trendItems.length;
+        const failed = trendItems.filter((x) => x.eventType !== 'success').length;
+        const success = total - failed;
+        const successRate = total === 0 ? 0 : Math.round((success / total) * 100);
+
+        if (total === 0)
+        {
+            el.trendSummary.textContent = 'ยังไม่มีข้อมูล';
+            el.trendBars.innerHTML = '';
+            el.alert.classList.remove('is-show');
+            el.alert.textContent = '';
+            state.alertActive = false;
+            return;
+        }
+
+        el.trendSummary.textContent = `สำเร็จ ${successRate}% (${success}/${total})`;
+        el.trendBars.innerHTML = trendItems
+            .map((item) => `<span class="${item.eventType === 'success' ? 'is-success' : 'is-failed'}"></span>`)
+            .join('');
+
+        const recentForAlert = events.slice(0, state.config.sampleSize);
+        const recentCount = recentForAlert.length;
+        const recentFailed = recentForAlert.filter((x) => x.eventType !== 'success').length;
+        const recentFailedRate = recentCount === 0 ? 0 : Math.round((recentFailed / recentCount) * 100);
+        const shouldAlert = recentCount >= state.config.sampleSize && recentFailedRate >= state.config.threshold;
+
+        if (shouldAlert)
+        {
+            el.alert.textContent = `แจ้งเตือน: ${state.config.sampleSize} เหตุการณ์ล่าสุดมีสแกนไม่สำเร็จ/ซ้ำ ${recentFailedRate}% (เกณฑ์ ${state.config.threshold}%)`;
+            el.alert.classList.add('is-show');
+            if (!state.alertActive)
+            {
+                showToast('Live Risk Alert', `สแกนไม่สำเร็จ/ซ้ำ ${recentFailedRate}% จาก ${state.config.sampleSize} เหตุการณ์ล่าสุด`);
+                playAlertBeep();
+            }
+            state.alertActive = true;
+        }
+        else
+        {
+            el.alert.classList.remove('is-show');
+            el.alert.textContent = '';
+            state.alertActive = false;
+        }
+    };
+
+    const buildLiveItemHtml = (item) => {
+        const success = item.eventType === 'success';
+        const typeText = item.eventType === 'duplicate' ? 'ข้อมูลซ้ำ' : success ? 'สำเร็จ' : 'ไม่สำเร็จ';
+        const riskClass = success ? 'risk-ok' : 'risk-bad';
+        const scope = item.scope === 'teacher' ? 'ครู' : 'นักเรียน';
+        const station = item.stationCode || '-';
+
+        return `
+            <article class="live-item">
+                <div class="live-item-head">
+                    <span class="live-item-name">${item.name || '-'} (${item.code || '-'})</span>
+                    <span class="live-risk-badge ${riskClass}">${typeText}</span>
+                </div>
+                <div class="live-item-meta">${scope} | ${item.scanType || '-'} | จุดสแกน ${station}</div>
+                <div class="live-item-meta">${item.message || '-'} | ${formatTime(item.scanTime)}</div>
+            </article>`;
+    };
+
+    const renderFeed = () => {
+        const scope = el.scopeFilter.value;
+        const station = el.stationFilter.value;
+
+        const filtered = state.events.filter((item) => {
+            const scopeMatch = scope === 'all' || item.scope === scope;
+            const stationMatch = station === 'all' || (item.stationCode || '-') === station;
+            return scopeMatch && stationMatch;
+        });
+
+        renderCounters(filtered);
+        renderHealth(filtered);
+
+        if (filtered.length === 0)
+        {
+            el.feed.innerHTML = '<div class="live-empty">ไม่พบเหตุการณ์ตามตัวกรองที่เลือก</div>';
+            return;
+        }
+
+        el.feed.innerHTML = filtered.slice(0, 120).map(buildLiveItemHtml).join('');
+    };
+
+    const scheduleKpiRefresh = () => {
+        if (state.refreshTimerId)
+        {
+            window.clearTimeout(state.refreshTimerId);
+        }
+
+        state.refreshTimerId = window.setTimeout(async () => {
+            state.refreshTimerId = null;
+            const query = new URLSearchParams({
+                DateFrom: liveFilter.dateFrom || '',
+                DateTo: liveFilter.dateTo || '',
+                GradeLevelId: liveFilter.gradeLevelId?.toString() || '',
+                ClassroomId: liveFilter.classroomId?.toString() || '',
+                StudentKeyword: liveFilter.studentKeyword || ''
+            });
+
+            try {
+                const response = await fetch(`${liveSummaryUrl}?${query.toString()}`, { method: 'GET' });
+                if (!response.ok) return;
+                const data = await response.json();
+                el.kpiTotalStudents.textContent = String(data.totalStudents ?? 0);
+                el.kpiPresent.textContent = String(data.presentCount ?? 0);
+                el.kpiAbsent.textContent = String(data.absentCount ?? 0);
+            } catch (error) {
+                console.error(error);
+            }
+        }, 1200);
+    };
+
+    const pushEvent = (eventData) => {
+        const item = {
+            ...eventData,
+            scope: eventData.scope || 'student',
+            stationCode: eventData.stationCode || '-'
+        };
+
+        state.events.unshift(item);
+        if (state.events.length > 500)
+        {
+            state.events.length = 500;
+        }
+
+        state.stations.add(item.stationCode);
+        refreshStationFilter();
+        renderFeed();
+        scheduleKpiRefresh();
+    };
+
+    el.scopeFilter.addEventListener('change', renderFeed);
+    el.stationFilter.addEventListener('change', renderFeed);
+    el.threshold.addEventListener('change', () => {
+        state.config.threshold = Number(el.threshold.value) || 40;
+        saveConfig();
+        renderFeed();
+    });
+    el.sampleSize.addEventListener('change', () => {
+        state.config.sampleSize = Number(el.sampleSize.value) || 5;
+        saveConfig();
+        renderFeed();
+    });
+    el.sound.addEventListener('change', () => {
+        state.config.soundOn = el.sound.checked;
+        saveConfig();
+    });
+
+    const connection = new signalR.HubConnectionBuilder()
+        .withUrl('/hubs/scan-live')
+        .withAutomaticReconnect()
+        .build();
+
+    connection.on('scanEvent', (eventData) => {
+        if (!eventData) return;
+        pushEvent(eventData);
+    });
+
+    connection.onreconnecting(() => updateStatus(false, 'กำลังเชื่อมต่อใหม่...'));
+    connection.onreconnected(async () => {
+        updateStatus(true, 'เชื่อมต่อแล้ว (กำลังรับข้อมูลสด)');
+        try {
+            await connection.invoke('JoinExecutiveDashboardAsync');
+        } catch (error) {
+            updateStatus(false, 'เชื่อมต่อแต่ยังเข้ากลุ่มไม่ได้');
+            console.error(error);
+        }
+    });
+    connection.onclose(() => updateStatus(false, 'ตัดการเชื่อมต่อ Live Feed'));
+
+    connection.start()
+        .then(() => connection.invoke('JoinExecutiveDashboardAsync'))
+        .then(() => updateStatus(true, 'เชื่อมต่อแล้ว (กำลังรับข้อมูลสด)'))
+        .catch((error) => {
+            updateStatus(false, 'เชื่อมต่อ Live Feed ไม่สำเร็จ');
+            console.error(error);
+        });
+
+    loadConfig();
+    syncConfigInputs();
+    renderFeed();
+})();
+</script>
+}

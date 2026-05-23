@@ -1,0 +1,346 @@
+@model FaceUploadViewModel
+@{
+    ViewData["Title"] = "จัดการลงทะเบียนใบหน้า";
+}
+
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+    <div>
+        <h3 class="mb-1">จัดการลงทะเบียนใบหน้า</h3>
+        <div class="text-muted">@Model.StudentCode - @Model.StudentName</div>
+    </div>
+    <div class="text-end">
+        <div class="small text-muted">ห้อง: @Model.ClassroomName</div>
+        <div class="small text-muted">สถานะ: @Model.EnrollmentStatus.GetDisplayName()</div>
+        <div class="small text-muted">จำนวนรูปปัจจุบัน: @Model.CurrentPhotoCount</div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-7">
+        <div class="card h-100">
+            <div class="card-header fw-semibold">เพิ่มรูปใบหน้า (อัปโหลดหรือถ่ายจากกล้อง)</div>
+            <div class="card-body">
+                <form asp-action="Upload" method="post" enctype="multipart/form-data" id="enrollForm">
+                    @Html.AntiForgeryToken()
+                    <input asp-for="StudentId" type="hidden" />
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">วิธีเพิ่มรูปใบหน้า</label>
+                        <div class="d-flex flex-wrap gap-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="enrollInputMode" id="modeUpload" value="upload" checked />
+                                <label class="form-check-label" for="modeUpload">อัปโหลดไฟล์</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="enrollInputMode" id="modeCamera" value="camera" />
+                                <label class="form-check-label" for="modeCamera">ถ่ายจากกล้อง</label>
+                            </div>
+                        </div>
+                        <div class="form-text">เลือกได้ 1 วิธี และหากเลือกถ่ายจากกล้องไม่ต้องอัปโหลดไฟล์เพิ่ม</div>
+                    </div>
+
+                    <div class="mb-3" id="fileUploadSection">
+                        <label asp-for="Files" class="form-label">อัปโหลดรูป</label>
+                        <input asp-for="Files" type="file" class="form-control" id="faceFilesInput" multiple accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp,image/jpg" />
+                        <div class="form-text">รองรับไฟล์รูปหลายไฟล์ในครั้งเดียว</div>
+                    </div>
+
+                    <div class="border rounded p-3 mb-3 d-none" id="cameraCaptureSection">
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+                            <div class="fw-semibold">ถ่ายรูปจากกล้อง</div>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="btnStartCamera">
+                                    เปิดกล้อง
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-success" id="btnCaptureFace" disabled>
+                                    จับภาพ
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnClearCaptured" disabled>
+                                    ล้างภาพที่จับ
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="ratio ratio-16x9 bg-dark rounded overflow-hidden mb-2">
+                            <video id="cameraPreview" autoplay playsinline muted class="w-100 h-100"></video>
+                        </div>
+                        <canvas id="captureCanvas" class="d-none"></canvas>
+                        <div id="cameraStatus" class="small text-muted">ยังไม่เปิดกล้อง</div>
+
+                        <div class="mt-3">
+                            <div class="fw-semibold mb-2">ภาพที่จับแล้ว</div>
+                            <div id="capturedList" class="row g-2"></div>
+                            <div id="capturedInputs"></div>
+                        </div>
+                    </div>
+
+                    <div id="enrollModeError" class="alert alert-warning d-none" role="alert"></div>
+
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">บันทึกรูปและลงทะเบียน</button>
+                        <a asp-action="Index" class="btn btn-outline-secondary">กลับ</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card h-100">
+            <div class="card-header fw-semibold">แก้ไข/ลบรูปที่มีอยู่</div>
+            <div class="card-body">
+                @if (Model.ExistingPhotos.Count == 0)
+                {
+                    <div class="text-muted">ยังไม่มีรูปใบหน้าในระบบ</div>
+                }
+                else
+                {
+                    <div class="row g-2">
+                        @foreach (var photo in Model.ExistingPhotos)
+                        {
+                            <div class="col-12">
+                                <div class="border rounded p-2">
+                                    <img src="~/@photo.FilePath" alt="face-photo-@photo.PhotoId" class="img-fluid rounded mb-2" />
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span class="badge @(photo.IsPrimary ? "bg-success" : "bg-secondary")">
+                                            @(photo.IsPrimary ? "รูปหลัก" : "รูปทั่วไป")
+                                        </span>
+                                        <span class="small text-muted">@photo.CapturedAt.ToLocalTime().ToThaiDate("dd/MM/yyyy HH:mm")</span>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        @if (!photo.IsPrimary)
+                                        {
+                                            <form asp-action="SetPrimaryPhoto" method="post">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="studentId" value="@Model.StudentId" />
+                                                <input type="hidden" name="photoId" value="@photo.PhotoId" />
+                                                <button type="submit" class="btn btn-sm btn-outline-primary">ตั้งเป็นรูปหลัก</button>
+                                            </form>
+                                        }
+                                        <form asp-action="DeletePhoto" method="post" onsubmit="return confirm('ลบรูปนี้ใช่หรือไม่?');">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="studentId" value="@Model.StudentId" />
+                                            <input type="hidden" name="photoId" value="@photo.PhotoId" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">ลบรูป</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <hr />
+
+                <form asp-action="ClearEnrollment" method="post" onsubmit="return confirm('ยืนยันลบรูปทั้งหมดและรีเซ็ตการลงทะเบียนใบหน้า?');">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="studentId" value="@Model.StudentId" />
+                    <button type="submit" class="btn btn-danger w-100">ลบการลงทะเบียนทั้งหมด</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (() => {
+            const enrollForm = document.getElementById('enrollForm');
+            const fileInput = document.getElementById('faceFilesInput');
+            const modeUpload = document.getElementById('modeUpload');
+            const modeCamera = document.getElementById('modeCamera');
+            const fileUploadSection = document.getElementById('fileUploadSection');
+            const cameraCaptureSection = document.getElementById('cameraCaptureSection');
+            const enrollModeError = document.getElementById('enrollModeError');
+            const video = document.getElementById('cameraPreview');
+            const canvas = document.getElementById('captureCanvas');
+            const btnStartCamera = document.getElementById('btnStartCamera');
+            const btnCaptureFace = document.getElementById('btnCaptureFace');
+            const btnClearCaptured = document.getElementById('btnClearCaptured');
+            const capturedList = document.getElementById('capturedList');
+            const capturedInputs = document.getElementById('capturedInputs');
+            const cameraStatus = document.getElementById('cameraStatus');
+
+            let stream = null;
+            let capturedImages = [];
+
+            function clearModeError() {
+                enrollModeError.textContent = '';
+                enrollModeError.classList.add('d-none');
+            }
+
+            function showModeError(message) {
+                enrollModeError.textContent = message;
+                enrollModeError.classList.remove('d-none');
+            }
+
+            function setInputMode(mode) {
+                const isCameraMode = mode === 'camera';
+                fileUploadSection.classList.toggle('d-none', isCameraMode);
+                cameraCaptureSection.classList.toggle('d-none', !isCameraMode);
+
+                fileInput.disabled = isCameraMode;
+                if (isCameraMode) {
+                    fileInput.value = '';
+                } else {
+                    capturedImages = [];
+                    refreshCapturedUI();
+
+                    if (stream) {
+                        stream.getTracks().forEach(track => track.stop());
+                        stream = null;
+                    }
+
+                    video.srcObject = null;
+                    btnCaptureFace.disabled = true;
+                    cameraStatus.textContent = 'ปิดกล้องแล้ว';
+                }
+
+                clearModeError();
+            }
+
+            function refreshCapturedUI() {
+                capturedList.innerHTML = '';
+                capturedInputs.innerHTML = '';
+
+                capturedImages.forEach((imageData, index) => {
+                    const col = document.createElement('div');
+                    col.className = 'col-6';
+                    col.innerHTML = `
+                        <div class="border rounded p-1">
+                            <img src="${imageData}" class="img-fluid rounded" alt="captured-${index}" />
+                            <button type="button" class="btn btn-sm btn-outline-danger w-100 mt-1" data-index="${index}">
+                                ลบภาพนี้
+                            </button>
+                        </div>
+                    `;
+                    capturedList.appendChild(col);
+
+                    const hidden = document.createElement('input');
+                    hidden.type = 'hidden';
+                    hidden.name = 'CapturedImages';
+                    hidden.value = imageData;
+                    capturedInputs.appendChild(hidden);
+                });
+
+                btnClearCaptured.disabled = capturedImages.length === 0;
+            }
+
+            async function startCamera() {
+                try {
+                    if (stream) {
+                        stream.getTracks().forEach(track => track.stop());
+                    }
+
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: 'user',
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 }
+                        },
+                        audio: false
+                    });
+
+                    video.srcObject = stream;
+                    await video.play();
+
+                    btnCaptureFace.disabled = false;
+                    btnStartCamera.textContent = 'เปิดกล้องอีกครั้ง';
+                    cameraStatus.textContent = 'กล้องพร้อมใช้งาน';
+                } catch (error) {
+                    console.error(error);
+                    cameraStatus.textContent = 'เปิดกล้องไม่สำเร็จ (ตรวจสอบสิทธิ์กล้อง)';
+                }
+            }
+
+            function captureFrame() {
+                if (!stream || video.videoWidth === 0 || video.videoHeight === 0) {
+                    cameraStatus.textContent = 'ยังไม่สามารถจับภาพได้';
+                    return;
+                }
+
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+                capturedImages.push(dataUrl);
+                refreshCapturedUI();
+                cameraStatus.textContent = `จับภาพแล้ว ${capturedImages.length} รูป`;
+            }
+
+            btnStartCamera.addEventListener('click', startCamera);
+            btnCaptureFace.addEventListener('click', captureFrame);
+            btnClearCaptured.addEventListener('click', () => {
+                capturedImages = [];
+                refreshCapturedUI();
+                cameraStatus.textContent = 'ล้างภาพที่จับแล้ว';
+            });
+
+            capturedList.addEventListener('click', (event) => {
+                const target = event.target;
+                if (!(target instanceof HTMLElement)) {
+                    return;
+                }
+
+                const indexText = target.getAttribute('data-index');
+                if (indexText === null) {
+                    return;
+                }
+
+                const index = Number(indexText);
+                if (Number.isNaN(index) || index < 0 || index >= capturedImages.length) {
+                    return;
+                }
+
+                capturedImages.splice(index, 1);
+                refreshCapturedUI();
+                cameraStatus.textContent = `คงเหลือภาพที่จับ ${capturedImages.length} รูป`;
+            });
+
+            modeUpload.addEventListener('change', () => {
+                if (modeUpload.checked) {
+                    setInputMode('upload');
+                }
+            });
+
+            modeCamera.addEventListener('change', () => {
+                if (modeCamera.checked) {
+                    setInputMode('camera');
+                }
+            });
+
+            enrollForm.addEventListener('submit', (event) => {
+                clearModeError();
+
+                if (modeCamera.checked) {
+                    if (capturedImages.length === 0) {
+                        event.preventDefault();
+                        showModeError('กรุณาจับภาพอย่างน้อย 1 รูปก่อนบันทึก');
+                        return;
+                    }
+
+                    fileInput.value = '';
+                    return;
+                }
+
+                if (!fileInput.files || fileInput.files.length === 0) {
+                    event.preventDefault();
+                    showModeError('กรุณาเลือกไฟล์อย่างน้อย 1 รูปก่อนบันทึก');
+                    return;
+                }
+            });
+
+            setInputMode('upload');
+
+            window.addEventListener('beforeunload', () => {
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+            });
+        })();
+    </script>
+}
+

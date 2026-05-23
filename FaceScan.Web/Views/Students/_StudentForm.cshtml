@@ -1,0 +1,102 @@
+@model StudentUpsertViewModel
+@{
+    var academicYears = ViewBag.AcademicYears as IReadOnlyList<SelectOptionViewModel> ?? [];
+    var gradeLevels = ViewBag.GradeLevels as IReadOnlyList<SelectOptionViewModel> ?? [];
+    var classrooms = ViewBag.Classrooms as IReadOnlyList<SelectOptionViewModel> ?? [];
+}
+
+<div class="row g-3">
+    <div class="col-md-3">
+        <label asp-for="StudentCode" class="form-label">รหัสนักเรียน</label>
+        <input asp-for="StudentCode" class="form-control" />
+        <span asp-validation-for="StudentCode" class="text-danger"></span>
+    </div>
+    <div class="col-md-3">
+        <label asp-for="NationalId" class="form-label">เลขบัตรประชาชน</label>
+        <input asp-for="NationalId" class="form-control" />
+    </div>
+    <div class="col-md-2">
+        <label asp-for="Prefix" class="form-label">คำนำหน้า</label>
+        <input asp-for="Prefix" class="form-control" />
+    </div>
+    <div class="col-md-2">
+        <label asp-for="FirstName" class="form-label">ชื่อ</label>
+        <input asp-for="FirstName" class="form-control" />
+    </div>
+    <div class="col-md-2">
+        <label asp-for="LastName" class="form-label">นามสกุล</label>
+        <input asp-for="LastName" class="form-control" />
+    </div>
+
+    <div class="col-md-2">
+        <label asp-for="Gender" class="form-label">เพศ</label>
+        <select asp-for="Gender" class="form-select" asp-items="Html.GetEnumSelectList<GenderType>()"></select>
+    </div>
+    <div class="col-md-2">
+        <label asp-for="BirthDate" class="form-label">วันเกิด</label>
+        <input asp-for="BirthDate" type="date" class="form-control" />
+    </div>
+    <div class="col-md-2">
+        <label asp-for="AcademicYearId" class="form-label">ปีการศึกษา</label>
+        <select asp-for="AcademicYearId" class="form-select">
+            <option value="">-- เลือก --</option>
+            @foreach (var item in academicYears)
+            {
+                <option value="@item.Value">@item.Text</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label asp-for="GradeLevelId" class="form-label">ระดับชั้น</label>
+        <select asp-for="GradeLevelId" class="form-select">
+            <option value="">-- เลือก --</option>
+            @foreach (var item in gradeLevels)
+            {
+                <option value="@item.Value">@item.Text</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label asp-for="ClassroomId" class="form-label">ห้อง</label>
+        <select asp-for="ClassroomId" class="form-select">
+            <option value="">-- เลือก --</option>
+            @foreach (var item in classrooms)
+            {
+                <option value="@item.Value">@item.Text</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <label asp-for="StudentNo" class="form-label">เลขที่</label>
+        <input asp-for="StudentNo" class="form-control" />
+    </div>
+
+    <div class="col-md-3">
+        <label asp-for="GuardianName" class="form-label">ชื่อผู้ปกครอง</label>
+        <input asp-for="GuardianName" class="form-control" />
+    </div>
+    <div class="col-md-3">
+        <label asp-for="GuardianPhone" class="form-label">เบอร์ผู้ปกครอง</label>
+        <input asp-for="GuardianPhone" class="form-control" />
+    </div>
+    <div class="col-md-3">
+        <label asp-for="Address" class="form-label">ที่อยู่</label>
+        <input asp-for="Address" class="form-control" />
+    </div>
+    <div class="col-md-3">
+        <label asp-for="Status" class="form-label">สถานะนักเรียน</label>
+        <select asp-for="Status" class="form-select" asp-items="Html.GetEnumSelectList<StudentStatus>()"></select>
+    </div>
+
+    <div class="col-12">
+        <label asp-for="Notes" class="form-label">หมายเหตุ</label>
+        <textarea asp-for="Notes" class="form-control" rows="3"></textarea>
+    </div>
+
+    <div class="col-12">
+        <div class="form-check">
+            <input asp-for="IsActive" class="form-check-input" />
+            <label asp-for="IsActive" class="form-check-label">เปิดใช้งาน</label>
+        </div>
+    </div>
+</div>

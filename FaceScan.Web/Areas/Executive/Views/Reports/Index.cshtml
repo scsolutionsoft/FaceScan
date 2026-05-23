@@ -1,0 +1,1441 @@
+@model ExecutiveDashboardViewModel
+@{
+    ViewData["Title"] = "แดชบอร์ดผู้บริหาร";
+}
+
+@functions {
+    string ToneClass(string tone) => tone switch
+    {
+        "good" => "executive-insight-good",
+        "warn" => "executive-insight-warn",
+        "alert" => "executive-insight-alert",
+        _ => "executive-insight-neutral"
+    };
+
+    string DescribeActiveFilters()
+    {
+        var grade = Model.GradeLevels.FirstOrDefault(x => x.Value == Model.Filter.GradeLevelId)?.Text;
+        var classroom = Model.Classrooms.FirstOrDefault(x => x.Value == Model.Filter.ClassroomId)?.Text;
+        var keyword = string.IsNullOrWhiteSpace(Model.Filter.StudentKeyword) ? null : Model.Filter.StudentKeyword.Trim();
+
+        var pieces = new List<string>();
+        if (!string.IsNullOrWhiteSpace(grade))
+        {
+            pieces.Add($"ระดับชั้น: {grade}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(classroom))
+        {
+            pieces.Add($"ห้องเรียน: {classroom}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(keyword))
+        {
+            pieces.Add($"คำค้น: {keyword}");
+        }
+
+        return pieces.Count == 0 ? "ไม่มีตัวกรองเพิ่มเติม" : string.Join(" | ", pieces);
+    }
+
+    string BuildSparklinePoints(IReadOnlyList<ExecutiveRiskTrendPointViewModel> points, int width = 320, int height = 80)
+    {
+        if (points.Count == 0)
+        {
+            return "";
+        }
+
+        var max = points.Max(x => x.AttendanceRate);
+        var min = points.Min(x => x.AttendanceRate);
+        var span = Math.Max(max - min, 1m);
+        var step = points.Count == 1 ? 0m : (decimal)width / (points.Count - 1);
+
+        var coords = new List<string>(points.Count);
+        for (var i = 0; i < points.Count; i++)
+        {
+            var x = Math.Round(step * i, 1);
+            var normalized = (points[i].AttendanceRate - min) / span;
+            var y = Math.Round((decimal)height - (normalized * height), 1);
+            coords.Add($"{x.ToString(System.Globalization.CultureInfo.InvariantCulture)},{y.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        }
+
+        return string.Join(" ", coords);
+    }
+}
+
+<style>
+    .executive-shell { display: grid; gap: 1.5rem; }
+    .executive-hero {
+        position: relative; overflow: hidden; border: 0; border-radius: 28px;
+        background: radial-gradient(circle at top right, rgba(255, 218, 185, 0.65), transparent 28%), linear-gradient(135deg, #0b3c49 0%, #145374 44%, #1d6f8c 100%);
+        color: #f7fbfc; box-shadow: 0 28px 60px rgba(11, 60, 73, 0.18);
+    }
+    .executive-hero::after {
+        content: ""; position: absolute; inset: auto -5rem -6rem auto; width: 18rem; height: 18rem;
+        border-radius: 50%; background: rgba(255, 255, 255, 0.08); filter: blur(2px);
+    }
+    .executive-hero-body { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr); gap: 1.25rem; padding: 2rem; }
+    .executive-kicker {
+        display: inline-flex; align-items: center; gap: .45rem; padding: .35rem .75rem; border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12); font-size: .78rem; letter-spacing: .08em; text-transform: uppercase;
+    }
+    .executive-title { margin-top: 1rem; margin-bottom: .75rem; font-size: clamp(1.8rem, 3vw, 2.8rem); font-weight: 700; line-height: 1.05; }
+    .executive-subtitle { max-width: 46rem; margin: 0; color: rgba(247, 251, 252, 0.86); font-size: 1rem; }
+    .executive-range-chip-grid { display: grid; gap: .85rem; align-content: start; }
+    .executive-range-chip { padding: 1rem 1.1rem; border-radius: 20px; background: rgba(7, 27, 32, 0.22); border: 1px solid rgba(255, 255, 255, 0.12); }
+    .executive-range-chip-label { display: block; color: rgba(247, 251, 252, 0.7); font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; margin-bottom: .35rem; }
+    .executive-range-chip strong { display: block; font-size: 1.15rem; }
+    .executive-panel { border: 0; border-radius: 24px; box-shadow: 0 18px 45px rgba(23, 35, 52, 0.08); }
+    .executive-filter-card { padding: 1.4rem; background: linear-gradient(180deg, #ffffff 0%, #f8fbfd 100%); }
+    .executive-filter-head { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; align-items: start; }
+    .executive-section-kicker { color: #2a6f7b; text-transform: uppercase; letter-spacing: .08em; font-size: .75rem; font-weight: 700; margin-bottom: .35rem; }
+    .executive-section-title { margin: 0; font-size: 1.25rem; font-weight: 700; color: #14323d; }
+    .executive-section-note { color: #5f7382; max-width: 42rem; font-size: .95rem; }
+
+    .executive-active-filters {
+        display: flex; flex-wrap: wrap; gap: .5rem; margin-top: 1rem;
+        padding: .75rem; border-radius: 16px; background: #eef5f8; border: 1px solid rgba(25, 83, 101, 0.12);
+    }
+    .executive-filter-chip {
+        display: inline-flex; align-items: center; gap: .4rem; padding: .38rem .65rem;
+        border-radius: 999px; background: #fff; color: #1f4d5d; font-size: .82rem;
+        border: 1px solid rgba(25, 83, 101, 0.15);
+    }
+
+    .executive-kpi-grid, .executive-insight-grid, .executive-summary-grid { display: grid; gap: 1rem; }
+    .executive-kpi-grid { grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); }
+    .executive-insight-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .executive-summary-grid { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    .executive-live-grid { display: grid; gap: 1rem; grid-template-columns: minmax(230px, 300px) minmax(0, 1fr); }
+    .executive-live-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .25rem .6rem;
+        border-radius: 999px;
+        font-size: .78rem;
+        background: #edf3f7;
+        color: #2f4f5d;
+    }
+    .executive-live-pill-dot { width: .52rem; height: .52rem; border-radius: 50%; background: #c14d4d; }
+    .executive-live-pill.is-online { background: #dff3e8; color: #16563a; }
+    .executive-live-pill.is-online .executive-live-pill-dot { background: #1f9d63; }
+    .executive-live-counter-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .65rem; margin-top: .7rem; }
+    .executive-live-filter-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .5rem;
+        margin-top: .75rem;
+    }
+    .executive-live-filter-grid .form-select {
+        border-radius: 11px;
+        border-color: rgba(24, 79, 95, 0.18);
+        font-size: .84rem;
+    }
+    .executive-live-counter {
+        border-radius: 14px;
+        background: #f5fafc;
+        border: 1px solid rgba(25, 87, 106, 0.12);
+        padding: .6rem .7rem;
+    }
+    .executive-live-counter strong { display: block; font-size: 1.35rem; line-height: 1; color: #163947; }
+    .executive-live-counter span { font-size: .78rem; color: #617b88; }
+    .executive-live-feed { display: grid; gap: .55rem; max-height: 290px; overflow: auto; }
+    .executive-live-item {
+        border-radius: 14px;
+        border: 1px solid rgba(23, 80, 98, 0.15);
+        background: linear-gradient(180deg, #ffffff 0%, #f7fbfd 100%);
+        padding: .62rem .75rem;
+    }
+    .executive-live-item-head { display: flex; justify-content: space-between; gap: .75rem; font-size: .82rem; color: #3c5f6f; }
+    .executive-live-item-name { font-weight: 700; color: #173f4d; }
+    .executive-live-item-meta { margin-top: .25rem; font-size: .8rem; color: #627d8b; }
+    .executive-live-empty { padding: 1rem; border-radius: 14px; background: #f4f9fc; color: #607b89; font-size: .88rem; }
+    .executive-live-alert {
+        margin-top: .7rem;
+        border-radius: 12px;
+        padding: .55rem .7rem;
+        border: 1px solid rgba(207, 78, 66, 0.18);
+        background: #fff3f1;
+        color: #97352d;
+        font-size: .82rem;
+        display: none;
+    }
+    .executive-live-alert.is-show { display: block; }
+    .executive-live-trend {
+        margin-top: .7rem;
+        border-radius: 12px;
+        border: 1px solid rgba(22, 77, 94, 0.15);
+        background: #f7fbfd;
+        padding: .55rem .65rem;
+    }
+    .executive-live-trend-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: .5rem;
+        font-size: .79rem;
+        color: #476674;
+        margin-bottom: .45rem;
+    }
+    .executive-live-trend-bars {
+        display: grid;
+        grid-template-columns: repeat(20, minmax(0, 1fr));
+        gap: .22rem;
+        align-items: end;
+        min-height: 28px;
+    }
+    .executive-live-trend-bars span {
+        display: block;
+        height: 100%;
+        min-height: 8px;
+        border-radius: 6px;
+        background: #dbe9f0;
+    }
+    .executive-live-trend-bars span.is-success { background: #31a06b; }
+    .executive-live-trend-bars span.is-failed { background: #d05a4b; }
+    .executive-live-config-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .5rem;
+        margin-top: .55rem;
+    }
+    .executive-live-config-item {
+        border-radius: 11px;
+        border: 1px solid rgba(23, 80, 95, 0.15);
+        background: #f8fcfe;
+        padding: .45rem .55rem;
+    }
+    .executive-live-config-item label {
+        display: block;
+        font-size: .72rem;
+        color: #5f7a88;
+        margin-bottom: .25rem;
+    }
+    .executive-live-config-item .form-select { font-size: .8rem; border-radius: 10px; }
+    .executive-live-config-toggle {
+        margin-top: .45rem;
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        font-size: .8rem;
+        color: #355a69;
+    }
+    .executive-live-toast-wrap {
+        position: fixed;
+        right: 1rem;
+        bottom: 1rem;
+        display: grid;
+        gap: .55rem;
+        z-index: 1090;
+        max-width: min(92vw, 390px);
+        pointer-events: none;
+    }
+    .executive-live-toast {
+        pointer-events: auto;
+        border-radius: 14px;
+        border: 1px solid rgba(198, 63, 56, 0.28);
+        background: linear-gradient(180deg, #fff4f2 0%, #ffe8e4 100%);
+        box-shadow: 0 12px 30px rgba(129, 44, 36, 0.18);
+        padding: .72rem .8rem;
+        animation: executive-toast-in .2s ease-out;
+    }
+    .executive-live-toast strong {
+        display: block;
+        color: #8e2f27;
+        font-size: .86rem;
+        margin-bottom: .2rem;
+    }
+    .executive-live-toast span {
+        display: block;
+        color: #8a4a41;
+        font-size: .8rem;
+    }
+    @@keyframes executive-toast-in {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .executive-risk-spotlight-grid { display: grid; gap: .8rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .executive-risk-spotlight-card {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+        border-radius: 16px;
+        padding: .95rem 1rem;
+        border: 1px solid rgba(26, 77, 91, 0.14);
+        background: linear-gradient(180deg, #ffffff 0%, #f6fbfd 100%);
+        box-shadow: 0 10px 24px rgba(20, 56, 71, 0.08);
+    }
+    .executive-risk-spotlight-card:hover { text-decoration: none; color: inherit; border-color: rgba(28, 100, 120, 0.36); }
+    .executive-risk-rank {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 1.8rem;
+        height: 1.8rem;
+        border-radius: 999px;
+        font-size: .78rem;
+        font-weight: 700;
+        margin-right: .45rem;
+        background: #0f4e5f;
+        color: #f5fbfd;
+    }
+    .executive-risk-line { font-size: .9rem; color: #486473; margin-top: .3rem; }
+    .executive-risk-student-grid { display: grid; gap: .8rem; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+    .executive-risk-student-card {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+        border-radius: 16px;
+        padding: .9rem 1rem;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fcfe 100%);
+        border: 1px solid rgba(24, 78, 93, 0.15);
+        box-shadow: 0 8px 20px rgba(19, 57, 73, 0.09);
+    }
+    .executive-risk-student-card:hover { text-decoration: none; color: inherit; border-color: rgba(28, 100, 120, 0.36); }
+    .executive-student-risk-line { font-size: .86rem; color: #4b6877; margin-top: .35rem; }
+    .executive-risk-trend-row {
+        display: grid;
+        grid-template-columns: 120px 1fr auto;
+        gap: .75rem;
+        align-items: center;
+        padding: .6rem .2rem;
+        border-bottom: 1px dashed rgba(33, 77, 92, 0.15);
+    }
+    .executive-risk-trend-bar {
+        height: 9px;
+        border-radius: 999px;
+        background: #e8f0f4;
+        overflow: hidden;
+    }
+    .executive-risk-trend-bar > span {
+        display: block;
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #ef6b6b 0%, #f3b54a 45%, #33a56d 100%);
+    }
+    .executive-sparkline-wrap {
+        border: 1px solid rgba(31, 88, 106, 0.15);
+        border-radius: 14px;
+        background: linear-gradient(180deg, #fbfeff 0%, #f2f8fb 100%);
+        padding: .65rem .75rem;
+        margin-bottom: .8rem;
+    }
+    .executive-sparkline-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: .4rem;
+        color: #3d6171;
+        font-size: .84rem;
+    }
+
+    .executive-kpi-card, .executive-insight-card, .executive-summary-card {
+        display: block; color: inherit; text-decoration: none;
+        padding: 1.1rem 1.15rem; border-radius: 22px; background: #fff;
+        border: 1px solid rgba(30, 85, 102, 0.08); box-shadow: 0 12px 30px rgba(18, 36, 45, 0.06);
+        transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    }
+    .executive-summary-card:hover {
+        transform: translateY(-2px); border-color: rgba(29, 111, 140, 0.36);
+        box-shadow: 0 16px 34px rgba(17, 63, 78, 0.12); text-decoration: none; color: inherit;
+    }
+    .executive-kpi-card.is-primary { background: linear-gradient(135deg, #153f4a 0%, #1f5967 100%); color: #f7fbfc; }
+    .executive-kpi-card.is-success { background: linear-gradient(135deg, #1f6f58 0%, #2f8f6f 100%); color: #f7fbfc; }
+    .executive-kpi-label, .executive-insight-title { display: block; font-size: .82rem; color: #6d7f8d; margin-bottom: .45rem; }
+    .executive-kpi-card.is-primary .executive-kpi-label, .executive-kpi-card.is-success .executive-kpi-label { color: rgba(247, 251, 252, 0.74); }
+    .executive-kpi-value, .executive-insight-value { font-size: clamp(1.6rem, 2vw, 2.2rem); font-weight: 700; line-height: 1; margin-bottom: .4rem; }
+    .executive-kpi-meta, .executive-insight-caption, .executive-summary-meta, .executive-summary-times { color: #607483; font-size: .88rem; }
+    .executive-kpi-card.is-primary .executive-kpi-meta, .executive-kpi-card.is-success .executive-kpi-meta { color: rgba(247, 251, 252, 0.78); }
+    .executive-insight-card { border-width: 0; }
+    .executive-insight-neutral { background: linear-gradient(180deg, #f8fbfc 0%, #eef6f8 100%); }
+    .executive-insight-good { background: linear-gradient(180deg, #eefaf3 0%, #dbf4e4 100%); }
+    .executive-insight-warn { background: linear-gradient(180deg, #fff7e9 0%, #ffe9bf 100%); }
+    .executive-insight-alert { background: linear-gradient(180deg, #fff0ef 0%, #ffd7d3 100%); }
+
+    .executive-summary-card-head { display: flex; justify-content: space-between; gap: .75rem; align-items: start; margin-bottom: .95rem; }
+    .executive-summary-title { margin: 0; font-size: 1.08rem; color: #14323d; font-weight: 700; }
+    .executive-summary-subtitle { display: block; font-size: .85rem; color: #6f8592; margin-top: .15rem; }
+    .executive-risk-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        margin-top: .45rem;
+        padding: .24rem .58rem;
+        border-radius: 999px;
+        font-size: .74rem;
+        letter-spacing: .02em;
+        font-weight: 700;
+    }
+    .risk-high { background: #ffe1df; color: #a52424; }
+    .risk-watch { background: #ffefcc; color: #9a6400; }
+    .risk-normal { background: #dcf4e6; color: #1c6e45; }
+    .executive-rate-badge { min-width: 84px; text-align: center; padding: .55rem .7rem; border-radius: 18px; background: #edf5f7; color: #164654; font-weight: 700; }
+    .executive-summary-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .7rem; margin-bottom: .9rem; }
+    .executive-summary-metric { padding: .7rem .75rem; border-radius: 16px; background: #f7fafb; }
+    .executive-summary-metric strong { display: block; font-size: 1.05rem; color: #173844; }
+    .executive-summary-metric span { display: block; font-size: .78rem; color: #718592; }
+    .executive-summary-foot { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .35rem; }
+    .executive-pill { display: inline-flex; align-items: center; gap: .35rem; padding: .4rem .65rem; border-radius: 999px; background: #f0f6f8; color: #2c4c59; font-size: .8rem; }
+
+    .executive-table-panel .card-header, .executive-chart-panel .card-header, .executive-summary-panel .card-header {
+        background: transparent; border-bottom: 1px solid rgba(25, 62, 73, 0.08); padding: 1.15rem 1.2rem 0;
+    }
+    .executive-table-panel .table thead th {
+        white-space: nowrap; border-bottom-width: 1px; color: #4d6471; font-size: .83rem; text-transform: uppercase; letter-spacing: .04em;
+    }
+    .executive-table-panel .table tbody tr:hover { background: #f8fbfc; }
+    .executive-student-meta { display: flex; align-items: center; gap: .75rem; }
+    .executive-avatar {
+        width: 42px; height: 42px; border-radius: 50%; object-fit: cover;
+        background: #eef5f8; border: 1px solid rgba(30, 85, 102, 0.12);
+    }
+    .executive-empty { padding: 1rem 1.2rem 1.25rem; color: #6a7e8b; }
+
+    @@media (max-width: 991.98px) {
+        .executive-hero-body { grid-template-columns: 1fr; padding: 1.5rem; }
+        .executive-live-grid { grid-template-columns: 1fr; }
+    }
+</style>
+
+<div class="executive-shell">
+    <section class="card executive-hero">
+        <div class="executive-hero-body">
+            <div>
+                <div class="executive-kicker"><i class="bi bi-bar-chart-line"></i> Executive Attendance</div>
+                <h1 class="executive-title">รายงานการมาเรียนรายระดับชั้นและรายห้องเรียน</h1>
+                <p class="executive-subtitle">สรุปภาพรวมการมาเรียนในช่วงวันที่เลือก พร้อมมุมมองรายระดับชั้น รายห้อง และรายบุคคล สำหรับติดตามจุดเสี่ยงและความพร้อมของข้อมูลใบหน้าในหน้าเดียว</p>
+            </div>
+            <div class="executive-range-chip-grid">
+                <div class="executive-range-chip">
+                    <span class="executive-range-chip-label">ช่วงวันที่</span>
+                    <strong>@Model.Filter.DateFrom.ToThaiDate("dd MMM yyyy") - @Model.Filter.DateTo.ToThaiDate("dd MMM yyyy")</strong>
+                </div>
+                <div class="executive-range-chip">
+                    <span class="executive-range-chip-label">ตัวกรองหลัก</span>
+                    <strong>@(Model.GradeLevels.FirstOrDefault(x => x.Value == Model.Filter.GradeLevelId)?.Text ?? "ทุกระดับชั้น") / @(Model.Classrooms.FirstOrDefault(x => x.Value == Model.Filter.ClassroomId)?.Text ?? "ทุกห้อง")</strong>
+                </div>
+                <div class="executive-range-chip">
+                    <span class="executive-range-chip-label">คำค้น</span>
+                    <strong>@(string.IsNullOrWhiteSpace(Model.Filter.StudentKeyword) ? "ไม่ได้ระบุ" : Model.Filter.StudentKeyword)</strong>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <form method="get" class="card executive-panel executive-filter-card">
+        <div class="executive-filter-head">
+            <div>
+                <div class="executive-section-kicker">Filter</div>
+                <h2 class="executive-section-title">เลือกช่วงเวลาและกลุ่มเป้าหมายของรายงาน</h2>
+            </div>
+            <div class="executive-section-note">เพิ่ม drill-down จากการ์ดสรุปและ export CSV เพื่อใช้งานต่อในงานธุรการได้ทันที</div>
+        </div>
+
+        <div class="row g-3 align-items-end">
+            <div class="col-md-2">
+                <label class="form-label">จากวันที่</label>
+                <input type="date" name="DateFrom" class="form-control" value="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">ถึงวันที่</label>
+                <input type="date" name="DateTo" class="form-control" value="@Model.Filter.DateTo.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">ระดับชั้น</label>
+                <select name="GradeLevelId" class="form-select">
+                    <option value="">ทั้งหมด</option>
+                    @foreach (var item in Model.GradeLevels)
+                    {
+                        <option value="@item.Value" selected="@(Model.Filter.GradeLevelId == item.Value ? "selected" : null)">@item.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">ห้องเรียน</label>
+                <select name="ClassroomId" class="form-select">
+                    <option value="">ทั้งหมด</option>
+                    @foreach (var item in Model.Classrooms)
+                    {
+                        <option value="@item.Value" selected="@(Model.Filter.ClassroomId == item.Value ? "selected" : null)">@item.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">รหัสหรือชื่อนักเรียน</label>
+                <input type="text" name="StudentKeyword" class="form-control" value="@Model.Filter.StudentKeyword" placeholder="เช่น S0001" />
+            </div>
+            <div class="col-md-2 d-grid gap-2">
+                <button type="submit" class="btn btn-primary">โหลดรายงาน</button>
+                <a class="btn btn-outline-dark"
+                   asp-action="Index"
+                   asp-route-DateFrom="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")"
+                   asp-route-DateTo="@Model.Filter.DateTo.ToString("yyyy-MM-dd")">ล้างตัวกรอง</a>
+            </div>
+        </div>
+
+        <div class="executive-active-filters">
+            <span class="executive-filter-chip"><i class="bi bi-funnel"></i> @DescribeActiveFilters()</span>
+            <a class="executive-filter-chip"
+               asp-action="Print"
+               asp-route-DateFrom="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")"
+               asp-route-DateTo="@Model.Filter.DateTo.ToString("yyyy-MM-dd")"
+               asp-route-GradeLevelId="@Model.Filter.GradeLevelId"
+               asp-route-ClassroomId="@Model.Filter.ClassroomId"
+               asp-route-StudentKeyword="@Model.Filter.StudentKeyword"
+               target="_blank"><i class="bi bi-printer"></i> พิมพ์รายงาน</a>
+                <a class="executive-filter-chip"
+                    asp-action="LiveMonitor"
+                    asp-route-DateFrom="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")"
+                    asp-route-DateTo="@Model.Filter.DateTo.ToString("yyyy-MM-dd")"
+                    asp-route-GradeLevelId="@Model.Filter.GradeLevelId"
+                    asp-route-ClassroomId="@Model.Filter.ClassroomId"
+                    asp-route-StudentKeyword="@Model.Filter.StudentKeyword"
+                    target="_blank"><i class="bi bi-broadcast"></i> เปิด Live Monitor เต็มจอ</a>
+            <a class="executive-filter-chip"
+               asp-action="ExportGradeCsv"
+               asp-route-DateFrom="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")"
+               asp-route-DateTo="@Model.Filter.DateTo.ToString("yyyy-MM-dd")"
+               asp-route-GradeLevelId="@Model.Filter.GradeLevelId"
+               asp-route-ClassroomId="@Model.Filter.ClassroomId"
+               asp-route-StudentKeyword="@Model.Filter.StudentKeyword"><i class="bi bi-download"></i> CSV ระดับชั้น</a>
+            <a class="executive-filter-chip"
+               asp-action="ExportClassroomCsv"
+               asp-route-DateFrom="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")"
+               asp-route-DateTo="@Model.Filter.DateTo.ToString("yyyy-MM-dd")"
+               asp-route-GradeLevelId="@Model.Filter.GradeLevelId"
+               asp-route-ClassroomId="@Model.Filter.ClassroomId"
+               asp-route-StudentKeyword="@Model.Filter.StudentKeyword"><i class="bi bi-download"></i> CSV ห้องเรียน</a>
+            <a class="executive-filter-chip"
+               asp-action="ExportStudentCsv"
+               asp-route-DateFrom="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")"
+               asp-route-DateTo="@Model.Filter.DateTo.ToString("yyyy-MM-dd")"
+               asp-route-GradeLevelId="@Model.Filter.GradeLevelId"
+               asp-route-ClassroomId="@Model.Filter.ClassroomId"
+               asp-route-StudentKeyword="@Model.Filter.StudentKeyword"><i class="bi bi-download"></i> CSV รายบุคคล</a>
+                <a class="executive-filter-chip"
+                    asp-action="ExportRiskTrendCsv"
+                    asp-route-DateFrom="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")"
+                    asp-route-DateTo="@Model.Filter.DateTo.ToString("yyyy-MM-dd")"
+                    asp-route-GradeLevelId="@Model.Filter.GradeLevelId"
+                    asp-route-ClassroomId="@Model.Filter.ClassroomId"
+                    asp-route-StudentKeyword="@Model.Filter.StudentKeyword"><i class="bi bi-download"></i> CSV แนวโน้มความเสี่ยง</a>
+                <a class="executive-filter-chip"
+                    asp-action="ExportRiskStudentCsv"
+                    asp-route-DateFrom="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")"
+                    asp-route-DateTo="@Model.Filter.DateTo.ToString("yyyy-MM-dd")"
+                    asp-route-GradeLevelId="@Model.Filter.GradeLevelId"
+                    asp-route-ClassroomId="@Model.Filter.ClassroomId"
+                    asp-route-StudentKeyword="@Model.Filter.StudentKeyword"><i class="bi bi-download"></i> CSV นักเรียนเสี่ยง</a>
+                <a class="executive-filter-chip"
+                    asp-action="ExportTopRiskGradeCsv"
+                    asp-route-DateFrom="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")"
+                    asp-route-DateTo="@Model.Filter.DateTo.ToString("yyyy-MM-dd")"
+                    asp-route-GradeLevelId="@Model.Filter.GradeLevelId"
+                    asp-route-ClassroomId="@Model.Filter.ClassroomId"
+                    asp-route-StudentKeyword="@Model.Filter.StudentKeyword"><i class="bi bi-download"></i> CSV Top ชั้นเสี่ยง</a>
+                <a class="executive-filter-chip"
+                    asp-action="ExportTopRiskClassroomCsv"
+                    asp-route-DateFrom="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")"
+                    asp-route-DateTo="@Model.Filter.DateTo.ToString("yyyy-MM-dd")"
+                    asp-route-GradeLevelId="@Model.Filter.GradeLevelId"
+                    asp-route-ClassroomId="@Model.Filter.ClassroomId"
+                    asp-route-StudentKeyword="@Model.Filter.StudentKeyword"><i class="bi bi-download"></i> CSV Top ห้องเสี่ยง</a>
+        </div>
+    </form>
+
+    <section class="card executive-panel executive-summary-panel">
+        <div class="card-header">
+            <div class="executive-section-kicker">Live Monitor</div>
+            <h2 class="executive-section-title">สถานะการสแกนแบบเรียลไทม์</h2>
+            <div class="executive-section-note">ดึงเหตุการณ์สแกนจากทุกจุดสแกนทันทีเพื่อเฝ้าระวังคุณภาพการใช้งานหน้างาน</div>
+        </div>
+        <div class="card-body">
+            <div class="executive-live-grid">
+                <article>
+                    <div id="executiveLiveStatus" class="executive-live-pill">
+                        <span class="executive-live-pill-dot"></span>
+                        <span>กำลังเชื่อมต่อ Live Feed...</span>
+                    </div>
+                    <div class="executive-live-counter-grid">
+                        <div class="executive-live-counter">
+                            <strong id="executiveLiveCountAll">0</strong>
+                            <span>เหตุการณ์ที่แสดง</span>
+                        </div>
+                        <div class="executive-live-counter">
+                            <strong id="executiveLiveCountSuccess">0</strong>
+                            <span>สำเร็จ</span>
+                        </div>
+                        <div class="executive-live-counter">
+                            <strong id="executiveLiveCountFailed">0</strong>
+                            <span>ไม่สำเร็จ/ซ้ำ</span>
+                        </div>
+                    </div>
+                    <div class="executive-live-filter-grid">
+                        <select id="executiveLiveScopeFilter" class="form-select form-select-sm" aria-label="กรองประเภทการสแกน">
+                            <option value="all">ทุกประเภท</option>
+                            <option value="student">นักเรียน</option>
+                            <option value="teacher">ครู</option>
+                        </select>
+                        <select id="executiveLiveStationFilter" class="form-select form-select-sm" aria-label="กรองจุดสแกน">
+                            <option value="all">ทุกจุดสแกน</option>
+                        </select>
+                    </div>
+                    <div class="executive-live-config-grid">
+                        <div class="executive-live-config-item">
+                            <label>Threshold แจ้งเตือน</label>
+                            <select id="executiveLiveAlertThreshold" class="form-select form-select-sm" aria-label="เลือกเปอร์เซ็นต์แจ้งเตือน">
+                                <option value="30">30%</option>
+                                <option value="40" selected>40%</option>
+                                <option value="50">50%</option>
+                                <option value="60">60%</option>
+                            </select>
+                        </div>
+                        <div class="executive-live-config-item">
+                            <label>ขนาดตัวอย่างล่าสุด</label>
+                            <select id="executiveLiveAlertSampleSize" class="form-select form-select-sm" aria-label="เลือกจำนวนเหตุการณ์ล่าสุด">
+                                <option value="5" selected>5 เหตุการณ์</option>
+                                <option value="8">8 เหตุการณ์</option>
+                                <option value="10">10 เหตุการณ์</option>
+                                <option value="12">12 เหตุการณ์</option>
+                            </select>
+                        </div>
+                    </div>
+                    <label class="executive-live-config-toggle">
+                        <input id="executiveLiveAlertSound" type="checkbox" class="form-check-input" />
+                        <span>เปิดเสียงเตือนเมื่อเกิดความเสี่ยง</span>
+                    </label>
+                    <div id="executiveLiveAlert" class="executive-live-alert" role="status" aria-live="polite"></div>
+                    <div class="executive-live-trend">
+                        <div class="executive-live-trend-head">
+                            <span>แนวโน้ม 20 เหตุการณ์ล่าสุด</span>
+                            <strong id="executiveLiveTrendSummary">ยังไม่มีข้อมูล</strong>
+                        </div>
+                        <div id="executiveLiveTrendBars" class="executive-live-trend-bars" aria-hidden="true"></div>
+                    </div>
+                </article>
+                <div>
+                    <div id="executiveLiveFeed" class="executive-live-feed" aria-live="polite">
+                        <div class="executive-live-empty">รอเหตุการณ์สแกนเข้าระบบ...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="executive-kpi-grid">
+        <article class="executive-kpi-card is-primary"><span class="executive-kpi-label">นักเรียนทั้งหมด</span><div id="executiveKpiTotalStudents" class="executive-kpi-value">@Model.TotalStudents</div><div class="executive-kpi-meta">นักเรียนในกลุ่มที่เลือกสำหรับการวิเคราะห์รอบนี้</div></article>
+        <article class="executive-kpi-card"><span class="executive-kpi-label">ลงทะเบียนใบหน้าแล้ว</span><div id="executiveKpiRegistered" class="executive-kpi-value">@Model.RegisteredFaceCount</div><div class="executive-kpi-meta">พร้อมใช้งานกับ flow สแกนใบหน้า</div></article>
+        <article class="executive-kpi-card is-success"><span class="executive-kpi-label">มาเรียน</span><div id="executiveKpiPresent" class="executive-kpi-value">@Model.PresentCount</div><div class="executive-kpi-meta">มีข้อมูลเช็คอินอย่างน้อยหนึ่งครั้งในช่วงที่เลือก</div></article>
+        <article class="executive-kpi-card"><span class="executive-kpi-label">ไม่พบการมาเรียน</span><div id="executiveKpiAbsent" class="executive-kpi-value">@Model.AbsentCount</div><div class="executive-kpi-meta">ใช้ระบุห้องหรือระดับชั้นที่ควรติดตามต่อ</div></article>
+        <article class="executive-kpi-card"><span class="executive-kpi-label">มาสาย</span><div id="executiveKpiLate" class="executive-kpi-value">@Model.LateCount</div><div class="executive-kpi-meta">นับจากข้อมูลรายคาบในช่วงที่เลือก</div></article>
+        <article class="executive-kpi-card"><span class="executive-kpi-label">หนีเรียน / อื่นๆ</span><div id="executiveKpiTruancyOther" class="executive-kpi-value">@(Model.TruancyCount + Model.OtherCount)</div><div class="executive-kpi-meta" id="executiveKpiTruancyOtherMeta">หนีเรียน @Model.TruancyCount | อื่นๆ @Model.OtherCount</div></article>
+    </section>
+
+    <section class="card executive-panel executive-summary-panel">
+        <div class="card-header">
+            <div class="executive-section-kicker">Risk Spotlight</div>
+            <h2 class="executive-section-title">Top 5 นักเรียนเสี่ยงที่ควรติดตาม</h2>
+            <div class="executive-section-note">คำนวณจากการขาด, หนีเรียน, มาสาย และอัตรามาเรียน เพื่อช่วยโฟกัสรายบุคคลที่ต้องติดตามกับครูประจำชั้น</div>
+        </div>
+        <div class="card-body">
+            @if (Model.TopRiskStudents.Count == 0)
+            {
+                <div class="executive-empty">ไม่พบข้อมูลนักเรียนเสี่ยงในช่วงวันที่เลือก</div>
+            }
+            else
+            {
+                <div class="executive-risk-student-grid">
+                    @for (var i = 0; i < Model.TopRiskStudents.Count; i++)
+                    {
+                        var student = Model.TopRiskStudents[i];
+                        var riskClass = student.PresentRate < 70m ? "risk-high" : student.PresentRate < 85m ? "risk-watch" : "risk-normal";
+
+                        <a class="executive-risk-student-card"
+                           asp-action="Index"
+                           asp-route-DateFrom="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")"
+                           asp-route-DateTo="@Model.Filter.DateTo.ToString("yyyy-MM-dd")"
+                           asp-route-GradeLevelId=""
+                           asp-route-ClassroomId=""
+                           asp-route-StudentKeyword="@student.StudentCode">
+                            <div class="d-flex align-items-start justify-content-between gap-2">
+                                <div>
+                                    <span class="executive-risk-rank">#@(i + 1)</span>
+                                    <strong>@student.StudentName</strong>
+                                    <span class="executive-summary-subtitle">@student.StudentCode | @student.GradeLevel/@student.Classroom</span>
+                                </div>
+                                <span class="executive-risk-badge @riskClass">@student.RiskLevel</span>
+                            </div>
+                            <div class="executive-student-risk-line">@student.RiskReason</div>
+                            <div class="executive-summary-foot mt-2">
+                                <span class="executive-pill"><i class="bi bi-speedometer2"></i> Risk Score @student.RiskScore.ToString("0.00")</span>
+                                <span class="executive-pill"><i class="bi bi-check2-circle"></i> มาเรียน @student.PresentRate.ToString("0.0")%</span>
+                                <span class="executive-pill"><i class="bi bi-x-circle"></i> ขาด @student.AbsentPeriods</span>
+                                <span class="executive-pill"><i class="bi bi-person-x"></i> หนีเรียน @student.TruancyPeriods</span>
+                                <span class="executive-pill"><i class="bi bi-alarm"></i> มาสาย @student.LatePeriods</span>
+                            </div>
+                        </a>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="executive-insight-grid">
+        @foreach (var insight in Model.Insights)
+        {
+            <article class="executive-insight-card @ToneClass(insight.Tone)">
+                <div class="executive-insight-title">@insight.Title</div>
+                <div class="executive-insight-value">@insight.Value</div>
+                <div class="executive-insight-caption">@insight.Caption</div>
+            </article>
+        }
+    </section>
+
+    <section class="card executive-panel executive-summary-panel">
+        <div class="card-header">
+            <div class="executive-section-kicker">Risk Spotlight</div>
+            <h2 class="executive-section-title">Top 5 ระดับชั้นที่ควรติดตามเร่งด่วน</h2>
+            <div class="executive-section-note">เรียงจากความเสี่ยงสูงสุดก่อนโดยดูจากอัตรามาเรียนและจำนวนนักเรียนที่ไม่พบการมาเรียน คลิกเพื่อเจาะรายชื่อระดับชั้นได้ทันที</div>
+        </div>
+        <div class="card-body">
+            @if (Model.TopRiskGrades.Count == 0)
+            {
+                <div class="executive-empty">ไม่พบข้อมูลระดับชั้นสำหรับคำนวณความเสี่ยง</div>
+            }
+            else
+            {
+                <div class="executive-risk-spotlight-grid">
+                    @for (var i = 0; i < Model.TopRiskGrades.Count; i++)
+                    {
+                        var item = Model.TopRiskGrades[i];
+                        var riskClass = item.AttendanceRate < 70m ? "risk-high" : item.AttendanceRate < 85m ? "risk-watch" : "risk-normal";
+                        var riskText = item.AttendanceRate < 70m ? "เสี่ยงสูง" : item.AttendanceRate < 85m ? "เฝ้าระวัง" : "ปกติ";
+
+                        <a class="executive-risk-spotlight-card"
+                           asp-action="Index"
+                           asp-route-DateFrom="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")"
+                           asp-route-DateTo="@Model.Filter.DateTo.ToString("yyyy-MM-dd")"
+                           asp-route-GradeLevelId="@item.GradeLevelId"
+                           asp-route-ClassroomId=""
+                           asp-route-StudentKeyword="@Model.Filter.StudentKeyword">
+                            <div>
+                                <span class="executive-risk-rank">#@(i + 1)</span>
+                                <strong>@item.Name</strong>
+                                <span class="executive-summary-subtitle">@item.SecondaryLabel</span>
+                            </div>
+                            <div class="executive-risk-line">อัตรามาเรียน @item.AttendanceRate.ToString("0.0")% | ไม่พบการมาเรียน @item.InactiveAttendanceCount คน</div>
+                            <div class="executive-summary-foot mt-2">
+                                <span class="executive-risk-badge @riskClass"><i class="bi bi-shield-exclamation"></i> @riskText</span>
+                                <span class="executive-pill"><i class="bi bi-people"></i> นักเรียน @item.StudentCount</span>
+                                <span class="executive-pill"><i class="bi bi-alarm"></i> มาสาย @item.LateCount</span>
+                            </div>
+                        </a>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="card executive-panel executive-summary-panel">
+        <div class="card-header">
+            <div class="executive-section-kicker">Risk Spotlight</div>
+            <h2 class="executive-section-title">Top 5 ห้องที่ควรติดตามเร่งด่วน</h2>
+            <div class="executive-section-note">เรียงจากความเสี่ยงสูงสุดก่อนโดยดูจากอัตรามาเรียนและจำนวนนักเรียนที่ไม่พบการมาเรียน คลิกเพื่อเจาะรายชื่อห้องได้ทันที</div>
+        </div>
+        <div class="card-body">
+            @if (Model.TopRiskClassrooms.Count == 0)
+            {
+                <div class="executive-empty">ไม่พบข้อมูลห้องเรียนสำหรับคำนวณความเสี่ยง</div>
+            }
+            else
+            {
+                <div class="executive-risk-spotlight-grid">
+                    @for (var i = 0; i < Model.TopRiskClassrooms.Count; i++)
+                    {
+                        var item = Model.TopRiskClassrooms[i];
+                        var riskClass = item.AttendanceRate < 70m ? "risk-high" : item.AttendanceRate < 85m ? "risk-watch" : "risk-normal";
+                        var riskText = item.AttendanceRate < 70m ? "เสี่ยงสูง" : item.AttendanceRate < 85m ? "เฝ้าระวัง" : "ปกติ";
+
+                        <a class="executive-risk-spotlight-card"
+                           asp-action="Index"
+                           asp-route-DateFrom="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")"
+                           asp-route-DateTo="@Model.Filter.DateTo.ToString("yyyy-MM-dd")"
+                           asp-route-GradeLevelId="@item.GradeLevelId"
+                           asp-route-ClassroomId="@item.ClassroomId"
+                           asp-route-StudentKeyword="@Model.Filter.StudentKeyword">
+                            <div>
+                                <span class="executive-risk-rank">#@(i + 1)</span>
+                                <strong>@item.Name</strong>
+                                <span class="executive-summary-subtitle">@item.SecondaryLabel</span>
+                            </div>
+                            <div class="executive-risk-line">อัตรามาเรียน @item.AttendanceRate.ToString("0.0")% | ไม่พบการมาเรียน @item.InactiveAttendanceCount คน</div>
+                            <div class="executive-summary-foot mt-2">
+                                <span class="executive-risk-badge @riskClass"><i class="bi bi-shield-exclamation"></i> @riskText</span>
+                                <span class="executive-pill"><i class="bi bi-people"></i> นักเรียน @item.StudentCount</span>
+                                <span class="executive-pill"><i class="bi bi-alarm"></i> มาสาย @item.LateCount</span>
+                            </div>
+                        </a>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="card executive-panel executive-summary-panel">
+        <div class="card-header">
+            <div class="executive-section-kicker">Risk Trend</div>
+            <h2 class="executive-section-title">แนวโน้มความเสี่ยงรายวัน</h2>
+            <div class="executive-section-note">ดูการเปลี่ยนแปลงอัตรามาเรียนรายวันในช่วงที่เลือกเพื่อประเมินว่าความเสี่ยงดีขึ้นหรือแย่ลง</div>
+        </div>
+        <div class="card-body">
+            @if (Model.RiskTrendPoints.Count == 0)
+            {
+                <div class="executive-empty">ยังไม่มีข้อมูลแนวโน้มความเสี่ยง</div>
+            }
+            else
+            {
+                var recent = Model.RiskTrendPoints.TakeLast(7).ToList();
+                var sparklinePoints = BuildSparklinePoints(recent);
+                var latestRate = recent.LastOrDefault()?.AttendanceRate ?? 0m;
+                var earliestRate = recent.FirstOrDefault()?.AttendanceRate ?? latestRate;
+                var delta = Math.Round(latestRate - earliestRate, 1);
+
+                <div class="executive-sparkline-wrap">
+                    <div class="executive-sparkline-head">
+                        <span>สรุป 7 วันล่าสุด</span>
+                        <span>@(delta >= 0 ? "+" : "")@delta.ToString("0.0")%</span>
+                    </div>
+                    <svg width="100%" height="86" viewBox="0 0 320 86" preserveAspectRatio="none" role="img" aria-label="กราฟแนวโน้มความเสี่ยง 7 วัน">
+                        <polyline fill="none" stroke="#1f7894" stroke-width="2.4" points="@sparklinePoints"></polyline>
+                    </svg>
+                </div>
+
+                @foreach (var point in Model.RiskTrendPoints)
+                {
+                    var riskClass = point.AttendanceRate < 70m ? "risk-high" : point.AttendanceRate < 85m ? "risk-watch" : "risk-normal";
+
+                    <div class="executive-risk-trend-row">
+                        <div>@point.Date.ToThaiDate("dd/MM/yyyy")</div>
+                        <div class="executive-risk-trend-bar"><span style="width:@point.AttendanceRate.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)%"></span></div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span>@point.AttendanceRate.ToString("0.0")%</span>
+                            <span class="executive-risk-badge @riskClass">@point.RiskLevel</span>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </section>
+
+    <section class="card executive-panel executive-summary-panel">
+        <div class="card-header">
+            <div class="executive-section-kicker">By Grade</div>
+            <h2 class="executive-section-title">สรุปรายระดับชั้น</h2>
+            <div class="executive-section-note">คลิกการ์ดเพื่อเจาะดูรายบุคคลของระดับชั้นนั้นทันที</div>
+        </div>
+        <div class="card-body">
+            @if (Model.GradeSummaries.Count == 0)
+            {
+                <div class="executive-empty">ไม่พบข้อมูลระดับชั้นตามเงื่อนไขที่เลือก</div>
+            }
+            else
+            {
+                <div class="executive-summary-grid">
+                    @foreach (var summary in Model.GradeSummaries)
+                    {
+                        <a class="executive-summary-card"
+                           asp-action="Index"
+                           asp-route-DateFrom="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")"
+                           asp-route-DateTo="@Model.Filter.DateTo.ToString("yyyy-MM-dd")"
+                           asp-route-GradeLevelId="@summary.GradeLevelId"
+                           asp-route-ClassroomId=""
+                           asp-route-StudentKeyword="@Model.Filter.StudentKeyword">
+                            <div class="executive-summary-card-head">
+                                <div>
+                                    <h3 class="executive-summary-title">@summary.Name</h3>
+                                    <span class="executive-summary-subtitle">@summary.SecondaryLabel</span>
+                                    @{
+                                        var gradeRiskClass = summary.AttendanceRate < 70m ? "risk-high" : summary.AttendanceRate < 85m ? "risk-watch" : "risk-normal";
+                                        var gradeRiskText = summary.AttendanceRate < 70m ? "เสี่ยงสูง" : summary.AttendanceRate < 85m ? "เฝ้าระวัง" : "ปกติ";
+                                    }
+                                    <span class="executive-risk-badge @gradeRiskClass"><i class="bi bi-shield-exclamation"></i> @gradeRiskText</span>
+                                </div>
+                                <div class="executive-rate-badge">@summary.AttendanceRate.ToString("0.0")%</div>
+                            </div>
+                            <div class="executive-summary-metrics">
+                                <div class="executive-summary-metric"><strong>@summary.StudentCount</strong><span>นักเรียน</span></div>
+                                <div class="executive-summary-metric"><strong>@summary.ActiveAttendanceCount</strong><span>มาเรียน</span></div>
+                                <div class="executive-summary-metric"><strong>@summary.InactiveAttendanceCount</strong><span>ไม่พบสแกน</span></div>
+                            </div>
+                            <div class="executive-summary-meta">ลงทะเบียนใบหน้าแล้ว @summary.RegisteredFaceCount คน (@summary.FaceRegistrationRate.ToString("0.0")%)</div>
+                            <div class="executive-summary-foot">
+                                <span class="executive-pill"><i class="bi bi-alarm"></i> มาสาย @summary.LateCount</span>
+                                <span class="executive-pill"><i class="bi bi-door-open"></i> ลา @summary.LeaveCount</span>
+                                <span class="executive-pill"><i class="bi bi-exclamation-octagon"></i> หนีเรียน @summary.TruancyCount</span>
+                                <span class="executive-pill"><i class="bi bi-three-dots"></i> อื่นๆ @summary.OtherCount</span>
+                            </div>
+                            <div class="executive-summary-times mt-3">เริ่มเข้าเรียนครั้งแรก: @(summary.FirstActivityTime?.ToThaiDate("dd/MM/yyyy HH:mm") ?? "-") | สแกนกลับล่าสุด: @(summary.LastActivityTime?.ToThaiDate("dd/MM/yyyy HH:mm") ?? "-")</div>
+                        </a>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="card executive-panel executive-summary-panel">
+        <div class="card-header">
+            <div class="executive-section-kicker">By Classroom</div>
+            <h2 class="executive-section-title">สรุปรายห้องเรียน</h2>
+            <div class="executive-section-note">คลิกการ์ดเพื่อกรองห้องนั้นในตารางรายบุคคล</div>
+        </div>
+        <div class="card-body">
+            @if (Model.ClassroomSummaries.Count == 0)
+            {
+                <div class="executive-empty">ไม่พบข้อมูลห้องเรียนตามเงื่อนไขที่เลือก</div>
+            }
+            else
+            {
+                <div class="executive-summary-grid">
+                    @foreach (var summary in Model.ClassroomSummaries)
+                    {
+                        <a class="executive-summary-card"
+                           asp-action="Index"
+                           asp-route-DateFrom="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")"
+                           asp-route-DateTo="@Model.Filter.DateTo.ToString("yyyy-MM-dd")"
+                           asp-route-GradeLevelId="@summary.GradeLevelId"
+                           asp-route-ClassroomId="@summary.ClassroomId"
+                           asp-route-StudentKeyword="@Model.Filter.StudentKeyword">
+                            <div class="executive-summary-card-head">
+                                <div>
+                                    <h3 class="executive-summary-title">@summary.Name</h3>
+                                    <span class="executive-summary-subtitle">@summary.SecondaryLabel</span>
+                                    @{
+                                        var classRiskClass = summary.AttendanceRate < 70m ? "risk-high" : summary.AttendanceRate < 85m ? "risk-watch" : "risk-normal";
+                                        var classRiskText = summary.AttendanceRate < 70m ? "เสี่ยงสูง" : summary.AttendanceRate < 85m ? "เฝ้าระวัง" : "ปกติ";
+                                    }
+                                    <span class="executive-risk-badge @classRiskClass"><i class="bi bi-shield-exclamation"></i> @classRiskText</span>
+                                </div>
+                                <div class="executive-rate-badge">@summary.AttendanceRate.ToString("0.0")%</div>
+                            </div>
+                            <div class="executive-summary-metrics">
+                                <div class="executive-summary-metric"><strong>@summary.StudentCount</strong><span>นักเรียน</span></div>
+                                <div class="executive-summary-metric"><strong>@summary.ActiveAttendanceCount</strong><span>มาเรียน</span></div>
+                                <div class="executive-summary-metric"><strong>@summary.InactiveAttendanceCount</strong><span>ไม่พบสแกน</span></div>
+                            </div>
+                            <div class="executive-summary-meta">ลงทะเบียนใบหน้าแล้ว @summary.RegisteredFaceCount คน (@summary.FaceRegistrationRate.ToString("0.0")%)</div>
+                            <div class="executive-summary-foot">
+                                <span class="executive-pill"><i class="bi bi-alarm"></i> มาสาย @summary.LateCount</span>
+                                <span class="executive-pill"><i class="bi bi-door-open"></i> ลา @summary.LeaveCount</span>
+                                <span class="executive-pill"><i class="bi bi-exclamation-octagon"></i> หนีเรียน @summary.TruancyCount</span>
+                                <span class="executive-pill"><i class="bi bi-three-dots"></i> อื่นๆ @summary.OtherCount</span>
+                            </div>
+                        </a>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="card executive-panel executive-chart-panel">
+        <div class="card-header">
+            <div class="executive-section-kicker">Trend</div>
+            <h2 class="executive-section-title">แนวโน้มรายวัน</h2>
+        </div>
+        <div class="card-body">
+            <canvas id="executiveTrendChart" height="90"></canvas>
+        </div>
+    </section>
+
+    <section class="card executive-panel executive-table-panel">
+        <div class="card-header">
+            <div class="executive-section-kicker">Student Detail</div>
+            <h2 class="executive-section-title">รายงานรายละเอียดรายบุคคล</h2>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-striped align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>นักเรียน</th>
+                        <th>รหัส</th>
+                        <th>ชั้น/ห้อง</th>
+                        <th>เข้าเรียนครั้งแรก</th>
+                        <th>สแกนกลับล่าสุด</th>
+                        <th class="text-end">มาเรียน</th>
+                        <th class="text-end">ลา</th>
+                        <th class="text-end">ขาด</th>
+                        <th class="text-end">หนีเรียน</th>
+                        <th class="text-end">มาสาย</th>
+                        <th class="text-end">อื่นๆ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Rows.Count == 0)
+                    {
+                        <tr><td colspan="11" class="text-center text-muted py-4">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var row in Model.Rows)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="executive-student-meta">
+                                        @if (!string.IsNullOrWhiteSpace(row.PhotoPath))
+                                        {
+                                            <img src="~/@row.PhotoPath" alt="@row.StudentName" class="executive-avatar" />
+                                        }
+                                        else
+                                        {
+                                            <div class="executive-avatar d-flex align-items-center justify-content-center"><i class="bi bi-person"></i></div>
+                                        }
+                                        <span>@row.StudentName</span>
+                                    </div>
+                                </td>
+                                <td>@row.StudentCode</td>
+                                <td>@row.GradeLevel / @row.Classroom</td>
+                                <td>@row.FirstCheckInTime.ToThaiDate("yyyy-MM-dd HH:mm")</td>
+                                <td>@row.LastCheckOutTime.ToThaiDate("yyyy-MM-dd HH:mm")</td>
+                                <td class="text-end">@row.PresentPeriods</td>
+                                <td class="text-end">@row.LeavePeriods</td>
+                                <td class="text-end">@row.AbsentPeriods</td>
+                                <td class="text-end">@row.TruancyPeriods</td>
+                                <td class="text-end">@row.LatePeriods</td>
+                                <td class="text-end">@row.OtherPeriods</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<div id="executiveLiveToastWrap" class="executive-live-toast-wrap" aria-live="assertive" aria-atomic="false"></div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.7/signalr.min.js" integrity="sha512-M6gdlKs2grQiiK2vNhbbX6YsJhBKt3vnDnN/SUXOcDSBx/OVCkXbkqVKgf/mBlC9ZwTe74MkRUYw35vj0IadBQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+(() => {
+    const source = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.DailySummaries.Select(x => new {
+        date = x.Date.ToThaiDate("yyyy-MM-dd"),
+        present = x.PresentCount,
+        leave = x.LeaveCount,
+        absent = x.AbsentCount,
+        truancy = x.TruancyCount,
+        late = x.LateCount,
+        other = x.OtherCount
+    })));
+
+    const labels = source.map(x => x.date);
+    const chart = document.getElementById('executiveTrendChart');
+    if (!chart) return;
+
+    new Chart(chart, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                { label: 'มาเรียน', data: source.map(x => x.present), backgroundColor: '#2b9348' },
+                { label: 'ลา', data: source.map(x => x.leave), backgroundColor: '#f4c430' },
+                { label: 'ขาด', data: source.map(x => x.absent), backgroundColor: '#f8961e' },
+                { label: 'หนีเรียน', data: source.map(x => x.truancy), backgroundColor: '#d62828' },
+                { label: 'มาสาย', data: source.map(x => x.late), backgroundColor: '#7b2cbf' },
+                { label: 'อื่นๆ', data: source.map(x => x.other), backgroundColor: '#4ea8de' }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { stacked: true },
+                y: { stacked: true, beginAtZero: true }
+            }
+        }
+    });
+})();
+
+(() => {
+    const statusWrap = document.getElementById('executiveLiveStatus');
+    const feed = document.getElementById('executiveLiveFeed');
+    const countAll = document.getElementById('executiveLiveCountAll');
+    const countSuccess = document.getElementById('executiveLiveCountSuccess');
+    const countFailed = document.getElementById('executiveLiveCountFailed');
+    const scopeFilter = document.getElementById('executiveLiveScopeFilter');
+    const stationFilter = document.getElementById('executiveLiveStationFilter');
+    const liveAlert = document.getElementById('executiveLiveAlert');
+    const liveTrendSummary = document.getElementById('executiveLiveTrendSummary');
+    const liveTrendBars = document.getElementById('executiveLiveTrendBars');
+    const alertThresholdSelect = document.getElementById('executiveLiveAlertThreshold');
+    const alertSampleSizeSelect = document.getElementById('executiveLiveAlertSampleSize');
+    const alertSoundToggle = document.getElementById('executiveLiveAlertSound');
+    const toastWrap = document.getElementById('executiveLiveToastWrap');
+    const kpiTotalStudents = document.getElementById('executiveKpiTotalStudents');
+    const kpiRegistered = document.getElementById('executiveKpiRegistered');
+    const kpiPresent = document.getElementById('executiveKpiPresent');
+    const kpiAbsent = document.getElementById('executiveKpiAbsent');
+    const kpiLate = document.getElementById('executiveKpiLate');
+    const kpiTruancyOther = document.getElementById('executiveKpiTruancyOther');
+    if (!statusWrap || !feed || !countAll || !countSuccess || !countFailed || !scopeFilter || !stationFilter || !liveAlert || !liveTrendSummary || !liveTrendBars || !alertThresholdSelect || !alertSampleSizeSelect || !alertSoundToggle || !toastWrap || !window.signalR) return;
+
+    const state = {
+        events: [],
+        stations: new Set(),
+        refreshTimerId: null,
+        alertActive: false,
+        lastToastAt: 0,
+        config: {
+            threshold: 40,
+            sampleSize: 5,
+            soundOn: false
+        }
+    };
+    const liveSummaryUrl = '@Url.Action("LiveSummary", "Reports", new { area = "Executive" })';
+    const liveFilter = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new {
+        dateFrom = Model.Filter.DateFrom.ToString("yyyy-MM-dd"),
+        dateTo = Model.Filter.DateTo.ToString("yyyy-MM-dd"),
+        gradeLevelId = Model.Filter.GradeLevelId,
+        classroomId = Model.Filter.ClassroomId,
+        studentKeyword = Model.Filter.StudentKeyword
+    }));
+
+    const updateStatus = (isOnline, text) => {
+        statusWrap.classList.toggle('is-online', isOnline);
+        statusWrap.innerHTML = `<span class="executive-live-pill-dot"></span><span>${text}</span>`;
+    };
+
+    const loadConfig = () => {
+        try
+        {
+            const saved = localStorage.getItem('executive-live-alert-config');
+            if (!saved)
+            {
+                return;
+            }
+
+            const data = JSON.parse(saved);
+            state.config.threshold = Number(data.threshold) || 40;
+            state.config.sampleSize = Number(data.sampleSize) || 5;
+            state.config.soundOn = Boolean(data.soundOn);
+        }
+        catch (error)
+        {
+            console.error(error);
+        }
+    };
+
+    const saveConfig = () => {
+        localStorage.setItem('executive-live-alert-config', JSON.stringify(state.config));
+    };
+
+    const syncConfigInputs = () => {
+        alertThresholdSelect.value = String(state.config.threshold);
+        alertSampleSizeSelect.value = String(state.config.sampleSize);
+        alertSoundToggle.checked = state.config.soundOn;
+    };
+
+    const playAlertBeep = () => {
+        if (!state.config.soundOn)
+        {
+            return;
+        }
+
+        try
+        {
+            const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextCtor)
+            {
+                return;
+            }
+
+            const audioContext = new AudioContextCtor();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.type = 'triangle';
+            oscillator.frequency.setValueAtTime(760, audioContext.currentTime);
+            gainNode.gain.setValueAtTime(0.001, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.18, audioContext.currentTime + 0.02);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.28);
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            oscillator.start();
+            oscillator.stop(audioContext.currentTime + 0.3);
+
+            oscillator.onended = () => {
+                audioContext.close();
+            };
+        }
+        catch (error)
+        {
+            console.error(error);
+        }
+    };
+
+    const showToast = (title, message) => {
+        const now = Date.now();
+        if (now - state.lastToastAt < 15000)
+        {
+            return;
+        }
+        state.lastToastAt = now;
+
+        const toast = document.createElement('article');
+        toast.className = 'executive-live-toast';
+        toast.innerHTML = `<strong>${title}</strong><span>${message}</span>`;
+        toastWrap.prepend(toast);
+
+        while (toastWrap.children.length > 3)
+        {
+            toastWrap.removeChild(toastWrap.lastElementChild);
+        }
+
+        window.setTimeout(() => {
+            toast.remove();
+        }, 6000);
+    };
+
+    const formatTime = (scanTime) => {
+        if (!scanTime) return '-';
+        const dt = new Date(scanTime);
+        if (Number.isNaN(dt.getTime())) return scanTime;
+        return dt.toLocaleString('th-TH', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+    };
+
+    const renderCounters = (filteredEvents) => {
+        const success = filteredEvents.filter((x) => x.eventType === 'success').length;
+        const failed = filteredEvents.length - success;
+        countAll.textContent = String(filteredEvents.length);
+        countSuccess.textContent = String(success);
+        countFailed.textContent = String(failed);
+    };
+
+    const renderLiveHealth = (filteredEvents) => {
+        const trendItems = filteredEvents.slice(0, 20).reverse();
+        const total = trendItems.length;
+        const failed = trendItems.filter((x) => x.eventType !== 'success').length;
+        const success = total - failed;
+        const successRate = total === 0 ? 0 : Math.round((success / total) * 100);
+
+        if (total === 0)
+        {
+            liveTrendSummary.textContent = 'ยังไม่มีข้อมูล';
+            liveTrendBars.innerHTML = '';
+            liveAlert.classList.remove('is-show');
+            liveAlert.textContent = '';
+            state.alertActive = false;
+            return;
+        }
+
+        liveTrendSummary.textContent = `สำเร็จ ${successRate}% (${success}/${total})`;
+        liveTrendBars.innerHTML = trendItems
+            .map((item) => `<span class="${item.eventType === 'success' ? 'is-success' : 'is-failed'}" title="${item.eventType === 'success' ? 'สำเร็จ' : 'ไม่สำเร็จ'}"></span>`)
+            .join('');
+
+        const recentForAlert = filteredEvents.slice(0, state.config.sampleSize);
+        const recentCount = recentForAlert.length;
+        const recentFailed = recentForAlert.filter((x) => x.eventType !== 'success').length;
+        const recentFailedRate = recentCount === 0 ? 0 : Math.round((recentFailed / recentCount) * 100);
+        const shouldAlert = recentCount >= state.config.sampleSize && recentFailedRate >= state.config.threshold;
+
+        if (shouldAlert)
+        {
+            liveAlert.textContent = `แจ้งเตือน: ${state.config.sampleSize} เหตุการณ์ล่าสุดมีสแกนไม่สำเร็จ/ซ้ำ ${recentFailedRate}% (เกณฑ์ ${state.config.threshold}%)`;
+            liveAlert.classList.add('is-show');
+
+            if (!state.alertActive)
+            {
+                showToast('Live Risk Alert', `สแกนไม่สำเร็จ/ซ้ำ ${recentFailedRate}% จาก ${state.config.sampleSize} เหตุการณ์ล่าสุด`);
+                playAlertBeep();
+            }
+            state.alertActive = true;
+        }
+        else
+        {
+            liveAlert.classList.remove('is-show');
+            liveAlert.textContent = '';
+            state.alertActive = false;
+        }
+    };
+
+    const buildLiveItemHtml = (eventData) => {
+        const isSuccess = eventData.eventType === 'success';
+        const riskClass = isSuccess ? 'risk-normal' : 'risk-high';
+        const typeText = eventData.eventType === 'duplicate' ? 'ข้อมูลซ้ำ' : isSuccess ? 'สำเร็จ' : 'ไม่สำเร็จ';
+        const name = eventData.name || '-';
+        const code = eventData.code || '-';
+        const station = eventData.stationCode || '-';
+        const scope = eventData.scope === 'teacher' ? 'ครู' : 'นักเรียน';
+
+        return `
+            <article class="executive-live-item">
+                <div class="executive-live-item-head">
+                    <span class="executive-live-item-name">${name} (${code})</span>
+                    <span class="executive-risk-badge ${riskClass}">${typeText}</span>
+                </div>
+                <div class="executive-live-item-meta">${scope} | ${eventData.scanType || '-'} | จุดสแกน ${station}</div>
+                <div class="executive-live-item-meta">${eventData.message || '-'} | ${formatTime(eventData.scanTime)}</div>
+            </article>`;
+    };
+
+    const renderLiveFeed = () => {
+        const scope = scopeFilter.value;
+        const station = stationFilter.value;
+        const filteredEvents = state.events.filter((item) => {
+            const scopeMatch = scope === 'all' || item.scope === scope;
+            const stationMatch = station === 'all' || (item.stationCode || '-') === station;
+            return scopeMatch && stationMatch;
+        });
+
+        renderCounters(filteredEvents);
+        renderLiveHealth(filteredEvents);
+
+        if (filteredEvents.length === 0)
+        {
+            feed.innerHTML = '<div class="executive-live-empty">ไม่พบเหตุการณ์ตามตัวกรองที่เลือก</div>';
+            return;
+        }
+
+        feed.innerHTML = filteredEvents
+            .slice(0, 20)
+            .map((eventData) => buildLiveItemHtml(eventData))
+            .join('');
+    };
+
+    const refreshStationFilter = () => {
+        const selected = stationFilter.value;
+        const values = ['all', ...Array.from(state.stations).sort((a, b) => a.localeCompare(b, 'th'))];
+        stationFilter.innerHTML = values
+            .map((value) => `<option value="${value}">${value === 'all' ? 'ทุกจุดสแกน' : value}</option>`)
+            .join('');
+
+        if (values.includes(selected)) {
+            stationFilter.value = selected;
+        }
+    };
+
+    const pushLiveEvent = (eventData) => {
+        const normalized = {
+            ...eventData,
+            scope: eventData.scope || 'student',
+            stationCode: eventData.stationCode || '-'
+        };
+
+        state.events.unshift(normalized);
+        if (state.events.length > 100)
+        {
+            state.events.length = 100;
+        }
+
+        state.stations.add(normalized.stationCode);
+        refreshStationFilter();
+        renderLiveFeed();
+
+        scheduleKpiRefresh();
+    };
+
+    const refreshKpis = async () => {
+        const query = new URLSearchParams({
+            DateFrom: liveFilter.dateFrom || '',
+            DateTo: liveFilter.dateTo || '',
+            GradeLevelId: liveFilter.gradeLevelId?.toString() || '',
+            ClassroomId: liveFilter.classroomId?.toString() || '',
+            StudentKeyword: liveFilter.studentKeyword || ''
+        });
+
+        try
+        {
+            const response = await fetch(`${liveSummaryUrl}?${query.toString()}`, { method: 'GET' });
+            if (!response.ok)
+            {
+                return;
+            }
+
+            const data = await response.json();
+            if (kpiTotalStudents) kpiTotalStudents.textContent = String(data.totalStudents ?? 0);
+            if (kpiRegistered) kpiRegistered.textContent = String(data.registeredFaceCount ?? 0);
+            if (kpiPresent) kpiPresent.textContent = String(data.presentCount ?? 0);
+            if (kpiAbsent) kpiAbsent.textContent = String(data.absentCount ?? 0);
+            if (kpiLate) kpiLate.textContent = String(data.lateCount ?? 0);
+            if (kpiTruancyOther) kpiTruancyOther.textContent = String(data.truancyAndOtherCount ?? 0);
+        }
+        catch (error)
+        {
+            console.error(error);
+        }
+    };
+
+    const scheduleKpiRefresh = () => {
+        if (state.refreshTimerId) {
+            window.clearTimeout(state.refreshTimerId);
+        }
+
+        state.refreshTimerId = window.setTimeout(() => {
+            state.refreshTimerId = null;
+            refreshKpis();
+        }, 1200);
+    };
+
+    scopeFilter.addEventListener('change', renderLiveFeed);
+    stationFilter.addEventListener('change', renderLiveFeed);
+    alertThresholdSelect.addEventListener('change', () => {
+        state.config.threshold = Number(alertThresholdSelect.value) || 40;
+        saveConfig();
+        renderLiveFeed();
+    });
+    alertSampleSizeSelect.addEventListener('change', () => {
+        state.config.sampleSize = Number(alertSampleSizeSelect.value) || 5;
+        saveConfig();
+        renderLiveFeed();
+    });
+    alertSoundToggle.addEventListener('change', () => {
+        state.config.soundOn = alertSoundToggle.checked;
+        saveConfig();
+    });
+
+    const connection = new signalR.HubConnectionBuilder()
+        .withUrl('/hubs/scan-live')
+        .withAutomaticReconnect()
+        .build();
+
+    connection.on('scanEvent', (eventData) => {
+        if (!eventData) return;
+        pushLiveEvent(eventData);
+    });
+
+    connection.onreconnecting(() => updateStatus(false, 'กำลังเชื่อมต่อใหม่...'));
+    connection.onreconnected(async () => {
+        updateStatus(true, 'เชื่อมต่อแล้ว (กำลังรับข้อมูลสด)');
+        try {
+            await connection.invoke('JoinExecutiveDashboardAsync');
+        }
+        catch (error)
+        {
+            updateStatus(false, 'เชื่อมต่อแต่ยังเข้ากลุ่มไม่ได้');
+            console.error(error);
+        }
+    });
+    connection.onclose(() => updateStatus(false, 'ตัดการเชื่อมต่อ Live Feed'));
+
+    connection.start()
+        .then(() => connection.invoke('JoinExecutiveDashboardAsync'))
+        .then(() => updateStatus(true, 'เชื่อมต่อแล้ว (กำลังรับข้อมูลสด)'))
+        .catch((error) => {
+            updateStatus(false, 'เชื่อมต่อ Live Feed ไม่สำเร็จ');
+            console.error(error);
+        });
+
+    loadConfig();
+    syncConfigInputs();
+    renderLiveFeed();
+})();
+</script>
+}

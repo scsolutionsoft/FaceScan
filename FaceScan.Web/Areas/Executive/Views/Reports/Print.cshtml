@@ -1,0 +1,583 @@
+@model ExecutiveDashboardViewModel
+@{
+    Layout = null;
+}
+@functions {
+    string BuildSparklinePoints(IReadOnlyList<ExecutiveRiskTrendPointViewModel> points, int width = 320, int height = 64)
+    {
+        if (points.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var max = points.Max(x => x.AttendanceRate);
+        var min = points.Min(x => x.AttendanceRate);
+        var span = Math.Max(max - min, 1m);
+        var step = points.Count == 1 ? 0m : (decimal)width / (points.Count - 1);
+
+        var coords = new List<string>(points.Count);
+        for (var i = 0; i < points.Count; i++)
+        {
+            var x = Math.Round(step * i, 1);
+            var normalized = (points[i].AttendanceRate - min) / span;
+            var y = Math.Round((decimal)height - (normalized * height), 1);
+            coords.Add($"{x.ToString(System.Globalization.CultureInfo.InvariantCulture)},{y.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        }
+
+        return string.Join(" ", coords);
+    }
+}
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>รายงานการมาเรียนสำหรับผู้บริหาร</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <style>
+        body {
+            padding: 24px;
+            font-size: 12.5px;
+            color: #0e2430;
+        }
+
+        .report-header {
+            margin-bottom: 14px;
+            border: 1px solid #d6e2ea;
+            border-radius: 12px;
+            padding: 14px 16px;
+            background: #f8fcff;
+        }
+
+        .report-subhead {
+            margin-top: 4px;
+            color: #4a6472;
+        }
+
+        .stat-grid {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .stat-item {
+            border: 1px solid #d9e8ef;
+            border-radius: 10px;
+            padding: 8px;
+            background: #fff;
+        }
+
+        .stat-label {
+            display: block;
+            color: #587180;
+            font-size: 11px;
+        }
+
+        .stat-value {
+            display: block;
+            font-size: 16px;
+            font-weight: 700;
+            line-height: 1.1;
+        }
+
+        .report-section {
+            margin-top: 14px;
+            break-inside: avoid;
+        }
+
+        .report-section h6 {
+            margin-bottom: 8px;
+            padding-left: 8px;
+            border-left: 4px solid #1d6f8c;
+            font-weight: 700;
+        }
+
+        .table {
+            --bs-table-bg: #fff;
+        }
+
+        .table th {
+            white-space: nowrap;
+            font-size: 11px;
+            color: #345362;
+            text-transform: uppercase;
+            letter-spacing: .03em;
+        }
+
+        .table td {
+            vertical-align: middle;
+        }
+
+        .insight-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .insight-item {
+            border: 1px solid #d6e2ea;
+            border-radius: 10px;
+            padding: 8px;
+            background: #fff;
+        }
+
+        .insight-title {
+            display: block;
+            color: #587180;
+            font-size: 11px;
+        }
+
+        .insight-value {
+            display: block;
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .insight-caption {
+            color: #4f6572;
+            font-size: 11px;
+        }
+
+        .tone-good { border-left: 4px solid #2f8f6f; }
+        .tone-warn { border-left: 4px solid #f6a317; }
+        .tone-alert { border-left: 4px solid #c63b3b; }
+        .tone-neutral { border-left: 4px solid #4d7f95; }
+
+        .quick-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .sparkline-shell {
+            border: 1px solid #dbe7ef;
+            border-radius: 10px;
+            padding: 8px 10px;
+            background: #f9fcff;
+            margin-bottom: 8px;
+        }
+
+        .sparkline-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #4a6472;
+            font-size: 11.5px;
+            margin-bottom: 4px;
+        }
+
+        @@media print {
+            .no-print { display: none !important; }
+            body { padding: 10mm; }
+            .report-section { page-break-inside: avoid; }
+            .table-responsive { overflow: visible !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print mb-3">
+          <div class="quick-actions">
+                <button class="btn btn-primary" onclick="window.print()">พิมพ์</button>
+                <a class="btn btn-outline-success"
+                    asp-action="ExportRiskTrendCsv"
+                    asp-route-DateFrom="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")"
+                    asp-route-DateTo="@Model.Filter.DateTo.ToString("yyyy-MM-dd")"
+                    asp-route-GradeLevelId="@Model.Filter.GradeLevelId"
+                    asp-route-ClassroomId="@Model.Filter.ClassroomId"
+                    asp-route-StudentKeyword="@Model.Filter.StudentKeyword">CSV แนวโน้มเสี่ยง</a>
+                <a class="btn btn-outline-success"
+                    asp-action="ExportTopRiskGradeCsv"
+                    asp-route-DateFrom="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")"
+                    asp-route-DateTo="@Model.Filter.DateTo.ToString("yyyy-MM-dd")"
+                    asp-route-GradeLevelId="@Model.Filter.GradeLevelId"
+                    asp-route-ClassroomId="@Model.Filter.ClassroomId"
+                    asp-route-StudentKeyword="@Model.Filter.StudentKeyword">CSV Top ชั้นเสี่ยง</a>
+                <a class="btn btn-outline-success"
+                    asp-action="ExportTopRiskClassroomCsv"
+                    asp-route-DateFrom="@Model.Filter.DateFrom.ToString("yyyy-MM-dd")"
+                    asp-route-DateTo="@Model.Filter.DateTo.ToString("yyyy-MM-dd")"
+                    asp-route-GradeLevelId="@Model.Filter.GradeLevelId"
+                    asp-route-ClassroomId="@Model.Filter.ClassroomId"
+                    asp-route-StudentKeyword="@Model.Filter.StudentKeyword">CSV Top ห้องเสี่ยง</a>
+          </div>
+    </div>
+
+    <div class="report-header">
+        <h4 class="mb-1">รายงานการมาเรียนสำหรับผู้บริหาร</h4>
+        <div class="report-subhead">ช่วงวันที่: @Model.Filter.DateFrom.ToThaiDate("yyyy-MM-dd") ถึง @Model.Filter.DateTo.ToThaiDate("yyyy-MM-dd")</div>
+        <div class="report-subhead">ตัวกรอง: @(Model.GradeLevels.FirstOrDefault(x => x.Value == Model.Filter.GradeLevelId)?.Text ?? "ทุกระดับชั้น") / @(Model.Classrooms.FirstOrDefault(x => x.Value == Model.Filter.ClassroomId)?.Text ?? "ทุกห้อง")</div>
+        <div class="stat-grid">
+            <div class="stat-item"><span class="stat-label">นักเรียนทั้งหมด</span><span class="stat-value">@Model.TotalStudents</span></div>
+            <div class="stat-item"><span class="stat-label">ลงทะเบียนใบหน้าแล้ว</span><span class="stat-value">@Model.RegisteredFaceCount</span></div>
+            <div class="stat-item"><span class="stat-label">มาเรียน</span><span class="stat-value">@Model.PresentCount</span></div>
+            <div class="stat-item"><span class="stat-label">ไม่พบการมาเรียน</span><span class="stat-value">@Model.AbsentCount</span></div>
+            <div class="stat-item"><span class="stat-label">ลา</span><span class="stat-value">@Model.LeaveCount</span></div>
+            <div class="stat-item"><span class="stat-label">มาสาย</span><span class="stat-value">@Model.LateCount</span></div>
+            <div class="stat-item"><span class="stat-label">หนีเรียน</span><span class="stat-value">@Model.TruancyCount</span></div>
+            <div class="stat-item"><span class="stat-label">อื่นๆ</span><span class="stat-value">@Model.OtherCount</span></div>
+        </div>
+    </div>
+
+    @if (Model.Insights.Count > 0)
+    {
+        <section class="report-section">
+            <h6>มุมมองวิเคราะห์</h6>
+            <div class="insight-grid">
+                @foreach (var insight in Model.Insights)
+                {
+                    var toneClass = insight.Tone switch
+                    {
+                        "good" => "tone-good",
+                        "warn" => "tone-warn",
+                        "alert" => "tone-alert",
+                        _ => "tone-neutral"
+                    };
+
+                    <div class="insight-item @toneClass">
+                        <span class="insight-title">@insight.Title</span>
+                        <span class="insight-value">@insight.Value</span>
+                        <div class="insight-caption">@insight.Caption</div>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+
+    <section class="report-section">
+        <h6>สรุปรายระดับชั้น</h6>
+        <div class="table-responsive">
+            <table class="table table-bordered table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>ระดับชั้น</th>
+                        <th>จำนวนห้อง</th>
+                        <th class="text-end">นักเรียน</th>
+                        <th class="text-end">มาเรียน</th>
+                        <th class="text-end">ไม่พบสแกน</th>
+                        <th class="text-end">อัตรามาเรียน</th>
+                        <th class="text-end">ลงทะเบียนใบหน้า</th>
+                        <th class="text-end">มาสาย</th>
+                        <th class="text-end">ลา</th>
+                        <th class="text-end">หนีเรียน</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.GradeSummaries.Count == 0)
+                    {
+                        <tr><td colspan="10" class="text-center">ไม่พบข้อมูล</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var row in Model.GradeSummaries)
+                        {
+                            <tr>
+                                <td>@row.Name</td>
+                                <td>@row.SecondaryLabel</td>
+                                <td class="text-end">@row.StudentCount</td>
+                                <td class="text-end">@row.ActiveAttendanceCount</td>
+                                <td class="text-end">@row.InactiveAttendanceCount</td>
+                                <td class="text-end">@row.AttendanceRate.ToString("0.0")%</td>
+                                <td class="text-end">@row.FaceRegistrationRate.ToString("0.0")%</td>
+                                <td class="text-end">@row.LateCount</td>
+                                <td class="text-end">@row.LeaveCount</td>
+                                <td class="text-end">@row.TruancyCount</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="report-section">
+        <h6>สรุปรายห้องเรียน</h6>
+        <div class="table-responsive">
+            <table class="table table-bordered table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>ห้อง</th>
+                        <th>ระดับชั้น</th>
+                        <th class="text-end">นักเรียน</th>
+                        <th class="text-end">มาเรียน</th>
+                        <th class="text-end">ไม่พบสแกน</th>
+                        <th class="text-end">อัตรามาเรียน</th>
+                        <th class="text-end">ลงทะเบียนใบหน้า</th>
+                        <th class="text-end">มาสาย</th>
+                        <th class="text-end">ลา</th>
+                        <th class="text-end">หนีเรียน</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.ClassroomSummaries.Count == 0)
+                    {
+                        <tr><td colspan="10" class="text-center">ไม่พบข้อมูล</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var row in Model.ClassroomSummaries)
+                        {
+                            <tr>
+                                <td>@row.Name</td>
+                                <td>@row.SecondaryLabel</td>
+                                <td class="text-end">@row.StudentCount</td>
+                                <td class="text-end">@row.ActiveAttendanceCount</td>
+                                <td class="text-end">@row.InactiveAttendanceCount</td>
+                                <td class="text-end">@row.AttendanceRate.ToString("0.0")%</td>
+                                <td class="text-end">@row.FaceRegistrationRate.ToString("0.0")%</td>
+                                <td class="text-end">@row.LateCount</td>
+                                <td class="text-end">@row.LeaveCount</td>
+                                <td class="text-end">@row.TruancyCount</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="report-section">
+        <h6>สรุปรายวัน</h6>
+        <table class="table table-bordered table-sm mb-0">
+            <thead>
+                <tr>
+                    <th>วันที่</th>
+                    <th class="text-end">มาเรียน</th>
+                    <th class="text-end">ลา</th>
+                    <th class="text-end">ขาด</th>
+                    <th class="text-end">หนีเรียน</th>
+                    <th class="text-end">มาสาย</th>
+                    <th class="text-end">อื่นๆ</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Model.DailySummaries)
+                {
+                    <tr>
+                        <td>@row.Date.ToThaiDate("yyyy-MM-dd")</td>
+                        <td class="text-end">@row.PresentCount</td>
+                        <td class="text-end">@row.LeaveCount</td>
+                        <td class="text-end">@row.AbsentCount</td>
+                        <td class="text-end">@row.TruancyCount</td>
+                        <td class="text-end">@row.LateCount</td>
+                        <td class="text-end">@row.OtherCount</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+
+    <section class="report-section">
+        <h6>แนวโน้มความเสี่ยงรายวัน</h6>
+        @{
+            var recent = Model.RiskTrendPoints.TakeLast(7).ToList();
+            var sparklinePoints = BuildSparklinePoints(recent);
+            var latestRate = recent.LastOrDefault()?.AttendanceRate ?? 0m;
+            var earliestRate = recent.FirstOrDefault()?.AttendanceRate ?? latestRate;
+            var delta = Math.Round(latestRate - earliestRate, 1);
+        }
+        @if (recent.Count > 0)
+        {
+            <div class="sparkline-shell">
+                <div class="sparkline-head">
+                    <span>สรุป 7 วันล่าสุด</span>
+                    <span>@(delta >= 0 ? "+" : "")@delta.ToString("0.0")%</span>
+                </div>
+                <svg width="100%" height="72" viewBox="0 0 320 72" preserveAspectRatio="none" role="img" aria-label="กราฟแนวโน้มความเสี่ยง 7 วัน">
+                    <polyline fill="none" stroke="#1f7894" stroke-width="2.4" points="@sparklinePoints"></polyline>
+                </svg>
+            </div>
+        }
+        <table class="table table-bordered table-sm mb-0">
+            <thead>
+                <tr>
+                    <th>วันที่</th>
+                    <th class="text-end">มาเรียน</th>
+                    <th class="text-end">ไม่มาเรียน</th>
+                    <th class="text-end">อัตรามาเรียน</th>
+                    <th class="text-end">ระดับความเสี่ยง</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.RiskTrendPoints.Count == 0)
+                {
+                    <tr><td colspan="5" class="text-center">ไม่พบข้อมูล</td></tr>
+                }
+                else
+                {
+                    @foreach (var row in Model.RiskTrendPoints)
+                    {
+                        <tr>
+                            <td>@row.Date.ToThaiDate("yyyy-MM-dd")</td>
+                            <td class="text-end">@row.PresentCount</td>
+                            <td class="text-end">@row.AbsentCount</td>
+                            <td class="text-end">@row.AttendanceRate.ToString("0.0")%</td>
+                            <td class="text-end">@row.RiskLevel</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </section>
+
+    <section class="report-section">
+        <h6>Top 5 ระดับชั้นเสี่ยง</h6>
+        <table class="table table-bordered table-sm mb-0">
+            <thead>
+                <tr>
+                    <th>ระดับชั้น</th>
+                    <th>จำนวนห้อง</th>
+                    <th class="text-end">นักเรียน</th>
+                    <th class="text-end">ไม่พบการมาเรียน</th>
+                    <th class="text-end">อัตรามาเรียน</th>
+                    <th class="text-end">ระดับความเสี่ยง</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.TopRiskGrades.Count == 0)
+                {
+                    <tr><td colspan="6" class="text-center">ไม่พบข้อมูล</td></tr>
+                }
+                else
+                {
+                    @foreach (var row in Model.TopRiskGrades)
+                    {
+                        <tr>
+                            <td>@row.Name</td>
+                            <td>@row.SecondaryLabel</td>
+                            <td class="text-end">@row.StudentCount</td>
+                            <td class="text-end">@row.InactiveAttendanceCount</td>
+                            <td class="text-end">@row.AttendanceRate.ToString("0.0")%</td>
+                            <td class="text-end">@(row.AttendanceRate < 70m ? "เสี่ยงสูง" : row.AttendanceRate < 85m ? "เฝ้าระวัง" : "ปกติ")</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </section>
+
+    <section class="report-section">
+        <h6>Top 5 ห้องเรียนเสี่ยง</h6>
+        <table class="table table-bordered table-sm mb-0">
+            <thead>
+                <tr>
+                    <th>ห้อง</th>
+                    <th>ระดับชั้น</th>
+                    <th class="text-end">นักเรียน</th>
+                    <th class="text-end">ไม่พบการมาเรียน</th>
+                    <th class="text-end">อัตรามาเรียน</th>
+                    <th class="text-end">ระดับความเสี่ยง</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.TopRiskClassrooms.Count == 0)
+                {
+                    <tr><td colspan="6" class="text-center">ไม่พบข้อมูล</td></tr>
+                }
+                else
+                {
+                    @foreach (var row in Model.TopRiskClassrooms)
+                    {
+                        <tr>
+                            <td>@row.Name</td>
+                            <td>@row.SecondaryLabel</td>
+                            <td class="text-end">@row.StudentCount</td>
+                            <td class="text-end">@row.InactiveAttendanceCount</td>
+                            <td class="text-end">@row.AttendanceRate.ToString("0.0")%</td>
+                            <td class="text-end">@(row.AttendanceRate < 70m ? "เสี่ยงสูง" : row.AttendanceRate < 85m ? "เฝ้าระวัง" : "ปกติ")</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </section>
+
+    <section class="report-section">
+        <h6>Top 5 นักเรียนเสี่ยง</h6>
+        <table class="table table-bordered table-sm mb-0">
+            <thead>
+                <tr>
+                    <th>รหัส</th>
+                    <th>นักเรียน</th>
+                    <th>ชั้น/ห้อง</th>
+                    <th class="text-end">Risk Score</th>
+                    <th class="text-end">อัตรามาเรียน</th>
+                    <th class="text-end">ขาด</th>
+                    <th class="text-end">หนีเรียน</th>
+                    <th class="text-end">มาสาย</th>
+                    <th>เหตุผลเสี่ยง</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.TopRiskStudents.Count == 0)
+                {
+                    <tr><td colspan="9" class="text-center">ไม่พบข้อมูล</td></tr>
+                }
+                else
+                {
+                    @foreach (var row in Model.TopRiskStudents)
+                    {
+                        <tr>
+                            <td>@row.StudentCode</td>
+                            <td>@row.StudentName</td>
+                            <td>@row.GradeLevel / @row.Classroom</td>
+                            <td class="text-end">@row.RiskScore.ToString("0.00")</td>
+                            <td class="text-end">@row.PresentRate.ToString("0.0")%</td>
+                            <td class="text-end">@row.AbsentPeriods</td>
+                            <td class="text-end">@row.TruancyPeriods</td>
+                            <td class="text-end">@row.LatePeriods</td>
+                            <td>@row.RiskReason</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </section>
+
+    <section class="report-section">
+        <h6>รายละเอียดรายบุคคล</h6>
+        <table class="table table-bordered table-sm">
+            <thead>
+                <tr>
+                    <th>รหัส</th>
+                    <th>นักเรียน</th>
+                    <th>ชั้น/ห้อง</th>
+                    <th>เข้าเรียนครั้งแรก</th>
+                    <th>สแกนกลับล่าสุด</th>
+                    <th class="text-end">มาเรียน</th>
+                    <th class="text-end">ลา</th>
+                    <th class="text-end">ขาด</th>
+                    <th class="text-end">หนีเรียน</th>
+                    <th class="text-end">มาสาย</th>
+                    <th class="text-end">อื่นๆ</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Rows.Count == 0)
+                {
+                    <tr><td colspan="11" class="text-center">ไม่พบข้อมูล</td></tr>
+                }
+                else
+                {
+                    @foreach (var row in Model.Rows)
+                    {
+                        <tr>
+                            <td>@row.StudentCode</td>
+                            <td>@row.StudentName</td>
+                            <td>@row.GradeLevel / @row.Classroom</td>
+                            <td>@row.FirstCheckInTime.ToThaiDate("yyyy-MM-dd HH:mm")</td>
+                            <td>@row.LastCheckOutTime.ToThaiDate("yyyy-MM-dd HH:mm")</td>
+                            <td class="text-end">@row.PresentPeriods</td>
+                            <td class="text-end">@row.LeavePeriods</td>
+                            <td class="text-end">@row.AbsentPeriods</td>
+                            <td class="text-end">@row.TruancyPeriods</td>
+                            <td class="text-end">@row.LatePeriods</td>
+                            <td class="text-end">@row.OtherPeriods</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </section>
+</body>
+</html>

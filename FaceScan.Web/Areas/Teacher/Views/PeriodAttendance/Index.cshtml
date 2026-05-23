@@ -1,0 +1,827 @@
+@model PeriodAttendancePageViewModel
+@{
+    ViewData["Title"] = "เช็คเวลาเรียนรายคาบ";
+    var presentCount = Model.Students.Count(x => x.Status == PeriodAttendanceStatus.Present);
+    var lateCount = Model.Students.Count(x => x.Status == PeriodAttendanceStatus.Late);
+    var absentCount = Model.Students.Count(x => x.Status == PeriodAttendanceStatus.Absent);
+    var leaveCount = Model.Students.Count(x => x.Status == PeriodAttendanceStatus.Leave);
+    var truancyCount = Model.Students.Count(x => x.Status == PeriodAttendanceStatus.Truancy);
+    var otherCount = Model.Students.Count(x => x.Status == PeriodAttendanceStatus.Other);
+    var reportCells = Model.ReportRows.SelectMany(row => row.Periods).ToList();
+    var reportPresentCount = reportCells.Count(x => x.HasRecordedStatus && x.Status == PeriodAttendanceStatus.Present);
+    var reportLateCount = reportCells.Count(x => x.HasRecordedStatus && x.Status == PeriodAttendanceStatus.Late);
+    var reportAbsentCount = reportCells.Count(x => x.HasRecordedStatus && x.Status == PeriodAttendanceStatus.Absent);
+    var reportLeaveCount = reportCells.Count(x => x.HasRecordedStatus && x.Status == PeriodAttendanceStatus.Leave);
+    var reportTruancyCount = reportCells.Count(x => x.HasRecordedStatus && x.Status == PeriodAttendanceStatus.Truancy);
+    var reportOtherCount = reportCells.Count(x => x.HasRecordedStatus && x.Status == PeriodAttendanceStatus.Other);
+    var reportEmptyCount = reportCells.Count(x => !x.HasRecordedStatus);
+    var saveButtonText = Model.HasSavedData ? "บันทึกการแก้ไข" : "บันทึกการเช็คคาบเรียน";
+}
+
+<div class="teacher-shell">
+    <section class="teacher-hero teacher-hero-indigo mb-3">
+        <div class="teacher-hero-body">
+            <div class="teacher-hero-copy">
+                <div class="teacher-kicker">Period Attendance</div>
+                <h1 class="teacher-hero-title">เช็คเวลาเรียนรายคาบ</h1>
+                <p class="teacher-hero-text">
+                    สำหรับครูผู้สอนและหัวหน้าชั้นเรียน ใช้บันทึกสถานะนักเรียนแบบรายคาบในรูปแบบที่เหมาะกับมือถือจอเล็ก
+                </p>
+            </div>
+            <div class="teacher-hero-stack">
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">วันที่</span>
+                    <strong>@Model.Filter.Date.ToThaiDate("dd MMMM yyyy")</strong>
+                </div>
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">ห้องเรียน</span>
+                    <strong>@(Model.ClassroomOptions.FirstOrDefault(x => x.Value == Model.Filter.ClassroomId)?.Text ?? "-")</strong>
+                </div>
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">อัปเดตล่าสุด</span>
+                    <strong>
+                        @if (Model.HasSavedData && Model.LastUpdatedAt.HasValue)
+                        {
+                            @Model.LastUpdatedAt.Value.ToLocalTime().ToThaiDate("dd/MM/yyyy HH:mm")
+                        }
+                        else
+                        {
+                            @:ยังไม่มีการบันทึก
+                        }
+                    </strong>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    @if (!Model.HasClassroomPermission)
+    {
+        <div class="teacher-note-banner">
+            <strong>ยังไม่สามารถใช้งานได้</strong>
+            บัญชีนี้ยังไม่ได้ผูกห้องเรียน กรุณาให้ผู้ดูแลระบบกำหนดห้องที่รับผิดชอบก่อนใช้งาน
+        </div>
+    }
+    else
+    {
+        <form method="get" class="teacher-filter-card mb-3" id="teacherCheckPeriodFilter">
+            <input type="hidden" name="ReportDate" value="@Model.ReportFilter.Date.ToString("yyyy-MM-dd")" />
+            <input type="hidden" name="ReportClassroomId" value="@Model.ReportFilter.ClassroomId" />
+            <input type="hidden" name="ReportClassPeriodId" value="@Model.ReportFilter.ClassPeriodId" />
+            <div class="teacher-section-head mb-3">
+                <div>
+                    <div class="teacher-section-kicker">เลือกข้อมูล</div>
+                    <h2 class="teacher-section-title">ค้นหาคาบเรียนที่ต้องการเช็ค</h2>
+                </div>
+                <div class="teacher-section-note">ครูผู้สอนเลือกได้ทุกห้อง ส่วนหัวหน้าชั้นเลือกได้เฉพาะห้องที่รับผิดชอบ</div>
+            </div>
+
+            <div class="teacher-filter-grid">
+                <div class="teacher-filter-field">
+                    <label class="form-label">วันที่</label>
+                    <input type="date" class="form-control" name="Date" value="@Model.Filter.Date.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="teacher-filter-field">
+                    <label class="form-label">ห้องเรียน</label>
+                    <select class="form-select" name="ClassroomId">
+                        <option value="">-- เลือกห้องเรียน --</option>
+                        @foreach (var option in Model.ClassroomOptions)
+                        {
+                            <option value="@option.Value" selected="@(Model.Filter.ClassroomId == option.Value ? "selected" : null)">@option.Text</option>
+                        }
+                    </select>
+                    @if (Model.IsClassroomLocked)
+                    {
+                        <div class="form-text">บัญชีหัวหน้าชั้นนี้ถูกกำหนดห้องเรียนไว้แล้ว จึงมีตัวเลือกเฉพาะห้องที่รับผิดชอบ</div>
+                    }
+                </div>
+                <div class="teacher-filter-field">
+                    <label class="form-label">คาบเรียน</label>
+                    <select class="form-select" name="ClassPeriodId">
+                        <option value="">-- เลือกคาบเรียน --</option>
+                        @foreach (var option in Model.PeriodOptions)
+                        {
+                            <option value="@option.Value" selected="@(Model.Filter.ClassPeriodId == option.Value ? "selected" : null)">@option.Text</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+        </form>
+
+        @if (Model.Filter.ClassroomId.HasValue && Model.Filter.ClassPeriodId.HasValue)
+        {
+            <section class="teacher-stat-grid mb-3">
+                <article class="teacher-stat-card">
+                    <div class="teacher-stat-label">นักเรียนทั้งหมด</div>
+                    <div class="teacher-stat-value">@Model.Students.Count</div>
+                    <div class="teacher-stat-meta">จำนวนรายการที่พร้อมเช็คในคาบนี้</div>
+                </article>
+                <article class="teacher-stat-card">
+                    <div class="teacher-stat-label">สถานะเริ่มต้น</div>
+                    <div class="teacher-stat-value">@presentCount มาเรียน</div>
+                    <div class="teacher-stat-meta">มาสาย @lateCount | ขาด @absentCount | ลา @leaveCount | หนีเรียน @truancyCount | อื่นๆ @otherCount</div>
+                </article>
+                <article class="teacher-stat-card">
+                    <div class="teacher-stat-label">ข้อมูลเดิม</div>
+                    <div class="teacher-stat-value">@(Model.HasSavedData ? "มีข้อมูลเดิม" : "ยังไม่เคยบันทึก")</div>
+                    <div class="teacher-stat-meta">
+                        @if (!string.IsNullOrWhiteSpace(Model.LastUpdatedByName))
+                        {
+                            @:อัปเดตล่าสุดโดย @Model.LastUpdatedByName
+                        }
+                        else
+                        {
+                            @:พร้อมเริ่มบันทึกคาบเรียนนี้
+                        }
+                    </div>
+                </article>
+            </section>
+
+            <form method="get" class="teacher-filter-card mb-3">
+                <input type="hidden" name="Date" value="@Model.Filter.Date.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="ClassroomId" value="@Model.Filter.ClassroomId" />
+                <input type="hidden" name="ClassPeriodId" value="@Model.Filter.ClassPeriodId" />
+
+                <div class="teacher-section-head mb-3">
+                    <div>
+                        <div class="teacher-section-kicker">Report Filter</div>
+                        <h2 class="teacher-section-title">ตัวกรองรายงานสถานะการมาเรียนรายคาบ</h2>
+                    </div>
+                    <div class="teacher-section-note">แยกจากตัวกรองคาบที่ต้องการเช็ค เพื่อดูรายงานคนละวัน คนละห้อง หรือคนละคาบได้โดยไม่กระทบหน้าบันทึก</div>
+                </div>
+
+                <div class="teacher-filter-grid">
+                    <div class="teacher-filter-field">
+                        <label class="form-label">วันที่รายงาน</label>
+                        <input type="date" class="form-control" name="ReportDate" value="@Model.ReportFilter.Date.ToString("yyyy-MM-dd")" />
+                    </div>
+                    <div class="teacher-filter-field">
+                        <label class="form-label">ห้องเรียนรายงาน</label>
+                        <select class="form-select" name="ReportClassroomId">
+                            <option value="">-- เลือกห้องเรียน --</option>
+                            @foreach (var option in Model.ClassroomOptions)
+                            {
+                                <option value="@option.Value" selected="@(Model.ReportFilter.ClassroomId == option.Value ? "selected" : null)">@option.Text</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="teacher-filter-field">
+                        <label class="form-label">คาบที่เน้นในรายงาน</label>
+                        <select class="form-select" name="ReportClassPeriodId">
+                            <option value="0" selected="@(Model.ReportFilter.ClassPeriodId.GetValueOrDefault() == 0 ? "selected" : null)">โชว์ข้อมูลทุกคาบ</option>
+                            @foreach (var option in Model.PeriodOptions)
+                            {
+                                <option value="@option.Value" selected="@(Model.ReportFilter.ClassPeriodId == option.Value ? "selected" : null)">@option.Text</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="teacher-action-row mt-3">
+                    <button type="submit" class="btn btn-outline-primary">โหลดรายงานรายคาบ</button>
+                </div>
+            </form>
+
+            <section class="teacher-section-card mb-3">
+                <div class="teacher-section-head">
+                    <div>
+                        <div class="teacher-section-kicker">Period Report</div>
+                        <h2 class="teacher-section-title">รายงานสถานะการมาเรียนรายคาบ</h2>
+                    </div>
+                    <div class="d-flex flex-column align-items-start align-items-md-end gap-2">
+                        <div class="teacher-section-note">แกน X คือคาบเรียน แกน Y คือนักเรียนของห้องที่เลือก วงกลมสีคือสถานะในแต่ละคาบ</div>
+                        <div class="teacher-section-note">รายงานใช้ตัวกรองชุดนี้แยกจากส่วนเช็คคาบ โดยเลือก `โชว์ข้อมูลทุกคาบ` ได้เมื่อไม่ต้องการเน้นคอลัมน์ใดเป็นพิเศษ และช่องที่ยังไม่มีข้อมูลจะแสดงเป็นสีเทา</div>
+                        <div class="teacher-action-row">
+                            <a class="btn btn-outline-secondary"
+                               asp-action="Print"
+                               asp-route-Date="@Model.Filter.Date.ToString("yyyy-MM-dd")"
+                               asp-route-ClassroomId="@Model.Filter.ClassroomId"
+                               asp-route-ClassPeriodId="@Model.Filter.ClassPeriodId"
+                               asp-route-ReportDate="@Model.ReportFilter.Date.ToString("yyyy-MM-dd")"
+                               asp-route-ReportClassroomId="@Model.ReportFilter.ClassroomId"
+                               asp-route-ReportClassPeriodId="@Model.ReportFilter.ClassPeriodId"
+                               target="_blank">
+                                <i class="bi bi-printer me-1"></i> พิมพ์รายงาน
+                            </a>
+                            <a class="btn btn-outline-primary"
+                               asp-action="ExportPdf"
+                               asp-route-Date="@Model.Filter.Date.ToString("yyyy-MM-dd")"
+                               asp-route-ClassroomId="@Model.Filter.ClassroomId"
+                               asp-route-ClassPeriodId="@Model.Filter.ClassPeriodId"
+                               asp-route-ReportDate="@Model.ReportFilter.Date.ToString("yyyy-MM-dd")"
+                               asp-route-ReportClassroomId="@Model.ReportFilter.ClassroomId"
+                               asp-route-ReportClassPeriodId="@Model.ReportFilter.ClassPeriodId">
+                                <i class="bi bi-file-earmark-pdf me-1"></i> ส่งออก PDF
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="teacher-period-legend mb-3">
+                    <span class="teacher-period-pill is-present">
+                        <span class="teacher-period-dot is-present"></span>
+                        <span>มาเรียน @reportPresentCount</span>
+                    </span>
+                    <span class="teacher-period-pill is-leave">
+                        <span class="teacher-period-dot is-leave"></span>
+                        <span>ลา @reportLeaveCount</span>
+                    </span>
+                    <span class="teacher-period-pill is-absent">
+                        <span class="teacher-period-dot is-absent"></span>
+                        <span>ขาด @reportAbsentCount</span>
+                    </span>
+                    <span class="teacher-period-pill is-truancy">
+                        <span class="teacher-period-dot is-truancy"></span>
+                        <span>หนีเรียน @reportTruancyCount</span>
+                    </span>
+                    <span class="teacher-period-pill is-late">
+                        <span class="teacher-period-dot is-late"></span>
+                        <span>มาสาย @reportLateCount</span>
+                    </span>
+                    <span class="teacher-period-pill is-other">
+                        <span class="teacher-period-dot is-other"></span>
+                        <span>อื่นๆ @reportOtherCount</span>
+                    </span>
+                    <span class="teacher-period-pill is-empty">
+                        <span class="teacher-period-dot is-empty"></span>
+                        <span>ยังไม่มีข้อมูล @reportEmptyCount</span>
+                    </span>
+                </div>
+
+                <div class="teacher-period-legend">
+                    @foreach (var status in PeriodAttendanceStatusPalette.OrderedStatuses)
+                    {
+                        <span class="teacher-period-pill @PeriodAttendanceStatusPalette.GetCssClass(status)">
+                            <span class="teacher-period-dot @PeriodAttendanceStatusPalette.GetCssClass(status)"></span>
+                            <span>@status.GetDisplayName()</span>
+                        </span>
+                    }
+                    <span class="teacher-period-pill is-empty">
+                        <span class="teacher-period-dot is-empty"></span>
+                        <span>ยังไม่มีข้อมูล</span>
+                    </span>
+                </div>
+
+                <div class="table-responsive teacher-period-report-wrap">
+                    <table class="table align-middle teacher-period-report mb-0">
+                        <thead>
+                            <tr>
+                                <th class="teacher-period-student-col">นักเรียน</th>
+                                @foreach (var period in Model.PeriodOptions)
+                                {
+                                    var isCurrent = Model.ReportFilter.ClassPeriodId.GetValueOrDefault() > 0 && Model.ReportFilter.ClassPeriodId == period.Value;
+                                    <th class="text-center @(isCurrent ? "is-current" : null)">@period.Text</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.ReportRows.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="@(Model.PeriodOptions.Count + 1)" class="text-center text-muted py-4">ยังไม่มีข้อมูลรายงานของห้องเรียนนี้</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var row in Model.ReportRows)
+                                {
+                                    <tr>
+                                        <td class="teacher-period-student-col">
+                                            <div class="teacher-period-student-name">@row.StudentName</div>
+                                            <div class="teacher-period-student-code">@row.StudentCode</div>
+                                        </td>
+                                        @foreach (var cell in row.Periods)
+                                        {
+                                            var displayStatus = cell.Status ?? PeriodAttendanceStatus.Present;
+                                            var statusClass = cell.HasRecordedStatus
+                                                ? PeriodAttendanceStatusPalette.GetCssClass(displayStatus)
+                                                : "is-empty";
+                                            var title = cell.HasRecordedStatus
+                                                ? $"{cell.ClassPeriodName}: {displayStatus.GetDisplayName()}"
+                                                : $"{cell.ClassPeriodName}: ยังไม่มีข้อมูล";
+                                            var editStatus = cell.HasRecordedStatus ? displayStatus.ToString() : string.Empty;
+                                            <td class="text-center @(cell.IsCurrentPeriod ? "is-current" : null)">
+                                                @if (cell.CanEdit)
+                                                {
+                                                    <button type="button"
+                                                            class="teacher-period-cell-button @(cell.IsCurrentPeriod ? "is-current" : null)"
+                                                            data-report-edit-trigger
+                                                            data-student-id="@row.StudentId"
+                                                            data-student-name="@row.StudentName"
+                                                            data-student-code="@row.StudentCode"
+                                                            data-period-id="@cell.ClassPeriodId"
+                                                            data-period-name="@cell.ClassPeriodName"
+                                                            data-status="@editStatus"
+                                                            data-remark="@cell.Remark"
+                                                            title="@($"{title} - แตะเพื่อแก้ไข")"
+                                                            aria-label="@($"{title} - แตะเพื่อแก้ไข")">
+                                                        <span class="teacher-period-dot @statusClass"></span>
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <span class="teacher-period-dot @statusClass" title="@title" aria-label="@title"></span>
+                                                }
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <div class="teacher-report-edit-sheet" id="reportEditSheet" hidden>
+                <div class="teacher-report-edit-backdrop" data-report-edit-close></div>
+                <div class="teacher-report-edit-dialog">
+                    <div class="teacher-report-edit-head">
+                        <div>
+                            <div class="teacher-section-kicker">Report Edit</div>
+                            <h3 class="teacher-report-edit-title">แก้ไขสถานะรายคาบ</h3>
+                            <div class="teacher-section-note">เลือกสถานะใหม่จากป๊อปอัปนี้เมื่อบันทึกการมาเรียนผิดพลาด</div>
+                        </div>
+                        <button type="button" class="btn-close" data-report-edit-close aria-label="ปิด"></button>
+                    </div>
+
+                    <form asp-action="UpdateReportStatus" method="post" id="reportEditForm">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="Date" value="@Model.ReportFilter.Date.ToString("yyyy-MM-dd")" />
+                        <input type="hidden" name="ClassroomId" value="@Model.ReportFilter.ClassroomId" />
+                        <input type="hidden" name="ClassPeriodId" id="reportEditPeriodId" />
+                        <input type="hidden" name="StudentId" id="reportEditStudentId" />
+                        <input type="hidden" name="CheckDate" value="@Model.Filter.Date.ToString("yyyy-MM-dd")" />
+                        <input type="hidden" name="CheckClassroomId" value="@Model.Filter.ClassroomId" />
+                        <input type="hidden" name="CheckClassPeriodId" value="@Model.Filter.ClassPeriodId" />
+                        <input type="hidden" name="SelectedClassPeriodId" value="@Model.ReportFilter.ClassPeriodId" />
+
+                        <div class="teacher-report-edit-body">
+                            <div class="teacher-report-edit-summary">
+                                <div class="teacher-report-edit-summary-item">
+                                    <span>นักเรียน</span>
+                                    <strong id="reportEditStudentName">-</strong>
+                                </div>
+                                <div class="teacher-report-edit-summary-item">
+                                    <span>คาบเรียน</span>
+                                    <strong id="reportEditPeriodName">-</strong>
+                                </div>
+                                <div class="teacher-report-edit-summary-item">
+                                    <span>วันที่</span>
+                                    <strong>@Model.ReportFilter.Date.ToThaiDate("dd/MM/yyyy")</strong>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="form-label fw-semibold">เลือกสถานะใหม่</label>
+                                <div class="teacher-report-status-grid">
+                                    @foreach (var status in PeriodAttendanceStatusPalette.OrderedStatuses)
+                                    {
+                                        <label class="teacher-report-status-choice @PeriodAttendanceStatusPalette.GetCssClass(status)" data-report-status-choice>
+                                            <input class="teacher-report-status-radio"
+                                                   type="radio"
+                                                   name="Status"
+                                                   value="@status" />
+                                            <span class="teacher-period-dot @PeriodAttendanceStatusPalette.GetCssClass(status)"></span>
+                                            <span>@status.GetDisplayName()</span>
+                                        </label>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="mt-3">
+                                <label class="form-label fw-semibold" for="reportEditRemark">หมายเหตุ</label>
+                                <textarea class="form-control"
+                                          id="reportEditRemark"
+                                          name="Remark"
+                                          rows="3"
+                                          maxlength="500"
+                                          placeholder="หากต้องการแก้หมายเหตุของคาบนี้ สามารถระบุเพิ่มได้"></textarea>
+                            </div>
+
+                            <div class="mt-3">
+                                <label class="form-label fw-semibold" for="reportEditReason">เหตุผลในการแก้ไข <span class="text-danger">*</span></label>
+                                <textarea class="form-control"
+                                          id="reportEditReason"
+                                          name="EditReason"
+                                          rows="2"
+                                          maxlength="500"
+                                          required
+                                          placeholder="ระบุเหตุผลในการแก้ไข เช่น เช็คผิดคน หรือแก้ตามใบลา"></textarea>
+                                <div class="form-text">ระบบจะบันทึกเหตุผลนี้ไว้ในรายงานการแก้ไขคาบเรียน</div>
+                            </div>
+                        </div>
+
+                        <div class="teacher-report-edit-actions">
+                            <button type="button" class="btn btn-outline-secondary" data-report-edit-close>ยกเลิก</button>
+                            <button type="submit" class="btn btn-primary">บันทึกการแก้ไข</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            @if (Model.HasSavedData)
+            {
+                <section class="teacher-section-card mb-3">
+                    <div class="teacher-section-head">
+                        <div>
+                            <div class="teacher-section-kicker">Edit Report</div>
+                            <h2 class="teacher-section-title">รายงานการแก้ไขคาบเรียน</h2>
+                        </div>
+                        <div class="teacher-section-note">คาบนี้ถูกบันทึกแล้ว หากต้องการเปลี่ยนข้อมูลต้องระบุเหตุผลทุกครั้ง และระบบจะเก็บประวัติการแก้ไขไว้ด้านล่าง</div>
+                    </div>
+
+                    @if (Model.EditHistory.Count == 0)
+                    {
+                        <div class="teacher-note-banner">
+                            <strong>ยังไม่มีประวัติการแก้ไข</strong> คาบนี้มีการเช็คแล้ว แต่ยังไม่เคยมีการแก้ไขเพิ่มเติม
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>เวลา</th>
+                                        <th>ผู้แก้ไข</th>
+                                        <th>ประเภท</th>
+                                        <th>รายละเอียด</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in Model.EditHistory)
+                                    {
+                                        <tr>
+                                            <td class="text-nowrap">@item.LoggedAt.ToLocalTime().ToThaiDate("dd/MM/yyyy HH:mm")</td>
+                                            <td>@item.UserName</td>
+                                            <td>@item.ActionLabel</td>
+                                            <td><div class="small mb-0" style="white-space: pre-line;">@item.Detail</div></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </section>
+            }
+
+            <form asp-action="Save" method="post" class="teacher-section-card" id="teacherSaveSection" tabindex="-1">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="Date" value="@Model.Filter.Date.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="ClassroomId" value="@Model.Filter.ClassroomId" />
+                <input type="hidden" name="ClassPeriodId" value="@Model.Filter.ClassPeriodId" />
+                <input type="hidden" name="ReportDate" value="@Model.ReportFilter.Date.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="ReportClassroomId" value="@Model.ReportFilter.ClassroomId" />
+                <input type="hidden" name="ReportClassPeriodId" value="@Model.ReportFilter.ClassPeriodId" />
+
+                <div class="teacher-section-head">
+                    <div>
+                        <div class="teacher-section-kicker">บันทึกผลการเช็ค</div>
+                        <h2 class="teacher-section-title">จัดการสถานะครูและนักเรียน</h2>
+                    </div>
+                    <div class="teacher-inline-count">แตะเลือกหลายคนแล้วเปลี่ยนสถานะพร้อมกันได้</div>
+                </div>
+
+                @if (Model.HasSavedData)
+                {
+                    <div class="teacher-note-banner mb-3">
+                        <strong>คาบนี้มีการเช็คแล้ว</strong> หากต้องการแก้ไขข้อมูลเดิม กรุณาปรับเฉพาะรายการที่เปลี่ยนและระบุเหตุผลก่อนบันทึก ระบบจะไม่ยอมเช็คซ้ำโดยไม่มีการแก้ไข
+                    </div>
+                }
+
+                <div class="row g-3 mb-3">
+                    <div class="col-lg-3">
+                        <label class="form-label fw-semibold">สถานะครูผู้สอน</label>
+                        <select class="form-select" name="TeacherStatus">
+                            <option value="@TeacherTeachingStatus.Normal" selected="@(Model.TeacherStatus == TeacherTeachingStatus.Normal ? "selected" : null)">ปกติ</option>
+                            <option value="@TeacherTeachingStatus.Abnormal" selected="@(Model.TeacherStatus == TeacherTeachingStatus.Abnormal ? "selected" : null)">ไม่ปกติ</option>
+                        </select>
+                    </div>
+                    <div class="col-lg-9">
+                        <label class="form-label">หมายเหตุเพิ่มเติม</label>
+                        <input class="form-control" name="TeacherStatusNote" value="@Model.TeacherStatusNote" maxlength="500" placeholder="บันทึกหมายเหตุเกี่ยวกับคาบเรียนหรือครูผู้สอน" />
+                    </div>
+                </div>
+
+                @if (Model.HasSavedData)
+                {
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold" for="saveEditReason">เหตุผลในการแก้ไข <span class="text-danger">*</span></label>
+                        <textarea class="form-control"
+                                  id="saveEditReason"
+                                  name="EditReason"
+                                  rows="2"
+                                  maxlength="500"
+                                  required
+                                  placeholder="ระบุเหตุผลในการแก้ไขคาบนี้ เช่น เช็คผิดคน, ปรับตามใบลา, หรือแก้หมายเหตุให้ถูกต้อง"></textarea>
+                        <div class="form-text">เมื่อคาบนี้เคยถูกเช็คแล้ว ระบบจะบันทึกเฉพาะการแก้ไขที่มีเหตุผลกำกับเท่านั้น</div>
+                    </div>
+                }
+
+                <div class="teacher-student-bulk mb-3">
+                    <label class="form-check mb-0">
+                        <input type="checkbox" class="form-check-input" id="selectAllRows" />
+                        <span class="form-check-label ms-1">เลือกนักเรียนทั้งหมด</span>
+                    </label>
+
+                    <div class="teacher-inline-count">เปลี่ยนสถานะนักเรียนที่เลือกพร้อมกัน</div>
+
+                    <select id="bulkStatus" class="form-select">
+                        <option value="@PeriodAttendanceStatus.Present">มาเรียน</option>
+                        <option value="@PeriodAttendanceStatus.Absent">ขาด</option>
+                        <option value="@PeriodAttendanceStatus.Leave">ลา</option>
+                        <option value="@PeriodAttendanceStatus.Late">มาสาย</option>
+                        <option value="@PeriodAttendanceStatus.Truancy">หนีเรียน</option>
+                        <option value="@PeriodAttendanceStatus.Other">อื่นๆ</option>
+                    </select>
+                    <button type="button" class="btn btn-outline-secondary" id="applyBulk">นำไปใช้กับรายการที่เลือก</button>
+                </div>
+
+                @if (Model.Students.Count == 0)
+                {
+                    <div class="teacher-note-banner">
+                        <strong>ไม่พบนักเรียน</strong> ยังไม่มีนักเรียนที่เปิดใช้งานในห้องเรียนนี้
+                    </div>
+                }
+                else
+                {
+                    <div class="teacher-student-board">
+                        @for (var i = 0; i < Model.Students.Count; i++)
+                        {
+                            var item = Model.Students[i];
+                            <article class="teacher-student-card">
+                                <input type="hidden" name="Students[@i].StudentId" value="@item.StudentId" />
+
+                                <div class="teacher-student-head">
+                                    @if (!string.IsNullOrWhiteSpace(item.PhotoPath))
+                                    {
+                                        <img src="~/@item.PhotoPath" alt="@item.StudentName" class="teacher-student-photo" />
+                                    }
+                                    else
+                                    {
+                                        <div class="teacher-student-photo-fallback">
+                                            <i class="bi bi-person"></i>
+                                        </div>
+                                    }
+
+                                    <div class="flex-grow-1 min-w-0">
+                                        <div class="d-flex justify-content-between gap-2">
+                                            <div>
+                                                <div class="teacher-student-name">@item.StudentName</div>
+                                                <div class="teacher-student-meta">รหัส @item.StudentCode</div>
+                                            </div>
+                                            <div class="form-check">
+                                                <input type="checkbox" class="form-check-input row-selector" />
+                                            </div>
+                                        </div>
+
+                                        <div class="teacher-meta-pills mt-2">
+                                            <span class="teacher-meta-pill"><i class="bi bi-mortarboard"></i> @item.GradeLevel</span>
+                                            <span class="teacher-meta-pill"><i class="bi bi-building"></i> @item.Classroom</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="teacher-student-controls">
+                                    <div>
+                                        <label class="form-label fw-semibold">สถานะ</label>
+                                        <select class="form-select status-select" name="Students[@i].Status">
+                                            <option value="@PeriodAttendanceStatus.Present" data-status-class="@PeriodAttendanceStatusPalette.GetCssClass(PeriodAttendanceStatus.Present)" selected="@(item.Status == PeriodAttendanceStatus.Present ? "selected" : null)">มาเรียน</option>
+                                            <option value="@PeriodAttendanceStatus.Absent" data-status-class="@PeriodAttendanceStatusPalette.GetCssClass(PeriodAttendanceStatus.Absent)" selected="@(item.Status == PeriodAttendanceStatus.Absent ? "selected" : null)">ขาด</option>
+                                            <option value="@PeriodAttendanceStatus.Leave" data-status-class="@PeriodAttendanceStatusPalette.GetCssClass(PeriodAttendanceStatus.Leave)" selected="@(item.Status == PeriodAttendanceStatus.Leave ? "selected" : null)">ลา</option>
+                                            <option value="@PeriodAttendanceStatus.Late" data-status-class="@PeriodAttendanceStatusPalette.GetCssClass(PeriodAttendanceStatus.Late)" selected="@(item.Status == PeriodAttendanceStatus.Late ? "selected" : null)">มาสาย</option>
+                                            <option value="@PeriodAttendanceStatus.Truancy" data-status-class="@PeriodAttendanceStatusPalette.GetCssClass(PeriodAttendanceStatus.Truancy)" selected="@(item.Status == PeriodAttendanceStatus.Truancy ? "selected" : null)">หนีเรียน</option>
+                                            <option value="@PeriodAttendanceStatus.Other" data-status-class="@PeriodAttendanceStatusPalette.GetCssClass(PeriodAttendanceStatus.Other)" selected="@(item.Status == PeriodAttendanceStatus.Other ? "selected" : null)">อื่นๆ</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label class="form-label fw-semibold">หมายเหตุ</label>
+                                        <input class="form-control form-control-sm" name="Students[@i].Remark" value="@item.Remark" maxlength="500" placeholder="เช่น มาสายเพราะกิจกรรม, ลากิจ, หรือสถานะอื่นๆ" />
+                                    </div>
+                                </div>
+
+                                <div class="teacher-student-status-line">
+                                    <span class="teacher-period-pill @PeriodAttendanceStatusPalette.GetCssClass(item.Status)" data-status-pill>
+                                        <span class="teacher-period-dot @PeriodAttendanceStatusPalette.GetCssClass(item.Status)"></span>
+                                        <span>สถานะคาบนี้:</span>
+                                        <span class="teacher-current-status-text">@item.Status.GetDisplayName()</span>
+                                    </span>
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+
+                <div class="teacher-sticky-actions mt-3">
+                    <button type="submit" class="btn btn-primary px-4">@saveButtonText</button>
+                </div>
+            </form>
+        }
+    }
+</div>
+
+@section Scripts {
+<script>
+(() => {
+    const selectAll = document.getElementById('selectAllRows');
+    const bulkStatus = document.getElementById('bulkStatus');
+    const applyBulkButton = document.getElementById('applyBulk');
+    const statusClasses = ['is-present', 'is-leave', 'is-absent', 'is-truancy', 'is-late', 'is-other', 'is-empty'];
+    const reportEditSheet = document.getElementById('reportEditSheet');
+    const reportEditForm = document.getElementById('reportEditForm');
+    const reportEditReason = document.getElementById('reportEditReason');
+    const checkFilter = document.getElementById('teacherCheckPeriodFilter');
+    const saveSection = document.getElementById('teacherSaveSection');
+    const focusSaveSectionStorageKey = 'periodAttendanceFocusSaveSection';
+    let isCheckFilterSubmitting = false;
+
+    if (checkFilter && saveSection && saveSection.parentElement) {
+        saveSection.parentElement.insertBefore(checkFilter, saveSection);
+    }
+
+    if (saveSection) {
+        try {
+            if (window.sessionStorage.getItem(focusSaveSectionStorageKey) === '1') {
+                window.sessionStorage.removeItem(focusSaveSectionStorageKey);
+                window.requestAnimationFrame(() => {
+                    saveSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    window.setTimeout(() => {
+                        saveSection.focus({ preventScroll: true });
+                    }, 150);
+                });
+            }
+        } catch (error) {
+            console.debug('Unable to restore save-section focus.', error);
+        }
+    }
+
+    if (checkFilter) {
+        const autoSubmit = () => {
+            if (isCheckFilterSubmitting) {
+                return;
+            }
+
+            isCheckFilterSubmitting = true;
+            try {
+                window.sessionStorage.setItem(focusSaveSectionStorageKey, '1');
+            } catch (error) {
+                console.debug('Unable to persist save-section focus.', error);
+            }
+
+            window.requestAnimationFrame(() => {
+                if (typeof checkFilter.requestSubmit === 'function') {
+                    checkFilter.requestSubmit();
+                    return;
+                }
+
+                checkFilter.submit();
+            });
+        };
+
+        checkFilter
+            .querySelectorAll('input[name="Date"], select[name="ClassroomId"], select[name="ClassPeriodId"]')
+            .forEach((field) => {
+                field.addEventListener('change', autoSubmit);
+            });
+    }
+
+    const syncStatusPill = (card) => {
+        if (!card) {
+            return;
+        }
+
+        const select = card.querySelector('.status-select');
+        const pill = card.querySelector('[data-status-pill]');
+        const text = card.querySelector('.teacher-current-status-text');
+        const dot = pill?.querySelector('.teacher-period-dot');
+        const selectedOption = select?.selectedOptions?.[0];
+
+        if (!select || !pill || !text || !dot || !selectedOption) {
+            return;
+        }
+
+        const statusClass = selectedOption.dataset.statusClass || 'is-empty';
+        pill.classList.remove(...statusClasses);
+        dot.classList.remove(...statusClasses);
+        pill.classList.add(statusClass);
+        dot.classList.add(statusClass);
+        text.textContent = selectedOption.text;
+    };
+
+    const syncReportStatusChoices = () => {
+        if (!reportEditForm) {
+            return;
+        }
+
+        reportEditForm.querySelectorAll('[data-report-status-choice]').forEach((choice) => {
+            const radio = choice.querySelector('.teacher-report-status-radio');
+            choice.classList.toggle('is-selected', Boolean(radio?.checked));
+        });
+    };
+
+    const closeReportEdit = () => {
+        if (!reportEditSheet) {
+            return;
+        }
+
+        reportEditSheet.hidden = true;
+        document.body.classList.remove('teacher-report-edit-open');
+    };
+
+    const openReportEdit = (trigger) => {
+        if (!reportEditSheet || !reportEditForm || !trigger) {
+            return;
+        }
+
+        const studentIdInput = document.getElementById('reportEditStudentId');
+        const periodIdInput = document.getElementById('reportEditPeriodId');
+        const studentName = document.getElementById('reportEditStudentName');
+        const periodName = document.getElementById('reportEditPeriodName');
+        const remarkInput = document.getElementById('reportEditRemark');
+        const statusValue = trigger.dataset.status || 'Present';
+
+        if (studentIdInput) {
+            studentIdInput.value = trigger.dataset.studentId || '';
+        }
+
+        if (periodIdInput) {
+            periodIdInput.value = trigger.dataset.periodId || '';
+        }
+
+        if (studentName) {
+            const fullName = [trigger.dataset.studentName, trigger.dataset.studentCode].filter(Boolean).join(' ');
+            studentName.textContent = fullName || '-';
+        }
+
+        if (periodName) {
+            periodName.textContent = trigger.dataset.periodName || '-';
+        }
+
+        if (remarkInput) {
+            remarkInput.value = trigger.dataset.remark || '';
+        }
+
+        if (reportEditReason) {
+            reportEditReason.value = '';
+        }
+
+        reportEditForm.querySelectorAll('.teacher-report-status-radio').forEach((radio) => {
+            radio.checked = radio.value === statusValue;
+        });
+
+        syncReportStatusChoices();
+        reportEditSheet.hidden = false;
+        document.body.classList.add('teacher-report-edit-open');
+    };
+
+    if (selectAll) {
+        selectAll.addEventListener('change', (event) => {
+            const checked = event.target.checked;
+            document.querySelectorAll('.row-selector').forEach((row) => {
+                row.checked = checked;
+            });
+        });
+    }
+
+    if (applyBulkButton && bulkStatus) {
+        applyBulkButton.addEventListener('click', () => {
+            const value = bulkStatus.value;
+            document.querySelectorAll('.teacher-student-card').forEach((card) => {
+                const selected = card.querySelector('.row-selector');
+                const status = card.querySelector('.status-select');
+                if (selected && selected.checked && status) {
+                    status.value = value;
+                    syncStatusPill(card);
+                }
+            });
+        });
+    }
+
+    document.querySelectorAll('.teacher-student-card').forEach((card) => {
+        syncStatusPill(card);
+        const select = card.querySelector('.status-select');
+        select?.addEventListener('change', () => syncStatusPill(card));
+    });
+
+    if (reportEditSheet && reportEditForm) {
+        document.querySelectorAll('[data-report-edit-trigger]').forEach((trigger) => {
+            trigger.addEventListener('click', () => openReportEdit(trigger));
+        });
+
+        reportEditSheet.querySelectorAll('[data-report-edit-close]').forEach((button) => {
+            button.addEventListener('click', closeReportEdit);
+        });
+
+        reportEditForm.querySelectorAll('.teacher-report-status-radio').forEach((radio) => {
+            radio.addEventListener('change', syncReportStatusChoices);
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (!reportEditSheet.hidden && event.key === 'Escape') {
+                closeReportEdit();
+            }
+        });
+    }
+})();
+</script>
+}

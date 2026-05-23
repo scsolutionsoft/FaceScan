@@ -1,0 +1,209 @@
+@model TeacherAttendanceIndexViewModel
+@{
+    ViewData["Title"] = "รายการสแกนครู";
+    var uniqueTeachers = Model.Transactions.Select(x => x.Username).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+}
+
+<div class="teacher-shell">
+    <section class="teacher-hero teacher-hero-teal mb-3">
+        <div class="teacher-hero-body">
+            <div class="teacher-hero-copy">
+                <div class="teacher-kicker">Teacher Scan Log</div>
+                <h1 class="teacher-hero-title">รายการสแกนครู</h1>
+                <p class="teacher-hero-text">
+                    ตรวจสอบรายการเช็คเข้าหรือเช็คออกของครู พร้อมดูตำแหน่ง ความมั่นใจ และเอนจินที่ใช้รู้จำใบหน้าในรูปแบบที่อ่านง่ายบนมือถือ
+                </p>
+            </div>
+            <div class="teacher-hero-stack">
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">วันที่</span>
+                    <strong>@Model.Filter.Date?.ToThaiDate("dd MMMM yyyy")</strong>
+                </div>
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">รายการสแกน</span>
+                    <strong>@Model.Transactions.Count รายการ</strong>
+                </div>
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">ครูที่พบ</span>
+                    <strong>@uniqueTeachers คน</strong>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <form method="get" class="teacher-filter-card mb-3">
+        <div class="teacher-section-head">
+            <div>
+                <div class="teacher-section-kicker">Filters</div>
+                <h2 class="teacher-section-title">กรองรายการสแกน</h2>
+            </div>
+            <div class="teacher-section-note">ค้นหาตามวันที่ บทบาท ห้อง หรือชื่อครู</div>
+        </div>
+
+        <div class="row g-2">
+            <div class="col-md-2">
+                <input type="date" class="form-control" name="Date" value="@Model.Filter.Date?.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" name="RoleName">
+                    <option value="">ทุกบทบาท</option>
+                    @foreach (var role in Model.Roles)
+                    {
+                        <option value="@role" selected="@(Model.Filter.RoleName == role ? "selected" : null)">@role</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" name="AssignedClassroomId">
+                    <option value="">ทุกห้อง</option>
+                    @foreach (var item in Model.Classrooms)
+                    {
+                        <option value="@item.Value" selected="@(Model.Filter.AssignedClassroomId == item.Value ? "selected" : null)">@item.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-4">
+                <input type="text" class="form-control" name="TeacherKeyword" value="@Model.Filter.TeacherKeyword" placeholder="ค้นหาจากบัญชีผู้ใช้หรือชื่อครู" />
+            </div>
+            <div class="col-md-2 d-grid">
+                <button type="submit" class="btn btn-primary">กรองข้อมูล</button>
+            </div>
+        </div>
+    </form>
+
+    <section class="teacher-section-card">
+        <div class="teacher-section-head">
+            <div>
+                <div class="teacher-section-kicker">Results</div>
+                <h2 class="teacher-section-title">ผลการค้นหา</h2>
+            </div>
+            <div class="teacher-page-actions">
+                <a asp-action="Daily"
+                   asp-route-Date="@Model.Filter.Date?.ToString("yyyy-MM-dd")"
+                   asp-route-RoleName="@Model.Filter.RoleName"
+                   asp-route-AssignedClassroomId="@Model.Filter.AssignedClassroomId"
+                   asp-route-TeacherKeyword="@Model.Filter.TeacherKeyword"
+                   class="btn btn-outline-secondary">สรุปรายวัน</a>
+            </div>
+        </div>
+
+        <div class="d-none d-lg-block table-responsive">
+            <table class="table table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th>วันเวลา</th>
+                        <th>บัญชีผู้ใช้</th>
+                        <th>ชื่อครู</th>
+                        <th>บทบาท</th>
+                        <th>ห้องที่รับผิดชอบ</th>
+                        <th>ประเภท</th>
+                        <th>พิกัด</th>
+                        <th>ซ้ำ</th>
+                        <th>ความมั่นใจ</th>
+                        <th>เอนจิน</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Transactions.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="10" class="text-center text-muted">ไม่พบข้อมูล</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var item in Model.Transactions)
+                        {
+                            <tr>
+                                <td>@item.ScanTime.ToThaiDate("yyyy-MM-dd HH:mm:ss")</td>
+                                <td>@item.Username</td>
+                                <td>@item.FullName</td>
+                                <td>@item.RoleName</td>
+                                <td>@item.AssignedClassroomName</td>
+                                <td>@item.ScanType</td>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(item.MapUrl))
+                                    {
+                                        <a href="@item.MapUrl" target="_blank">ดูตำแหน่ง</a>
+                                        <div class="small text-muted">@item.Latitude?.ToString("0.######"), @item.Longitude?.ToString("0.######")</div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">ไม่มีข้อมูล</span>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge @(item.IsDuplicate ? "bg-warning text-dark" : "bg-success")">
+                                        @(item.IsDuplicate ? "ใช่" : "ไม่ใช่")
+                                    </span>
+                                </td>
+                                <td>@item.Confidence</td>
+                                <td>@item.Provider</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="teacher-mobile-list d-lg-none">
+            @if (Model.Transactions.Count == 0)
+            {
+                <div class="teacher-note-banner">
+                    <strong>ไม่พบข้อมูล</strong> ลองเปลี่ยนเงื่อนไขการกรองแล้วค้นหาใหม่อีกครั้ง
+                </div>
+            }
+            else
+            {
+                @foreach (var item in Model.Transactions)
+                {
+                    <article class="teacher-data-card">
+                        <div class="teacher-data-card-head">
+                            <div>
+                                <div class="teacher-data-title">@item.FullName</div>
+                                <div class="teacher-data-subtitle">@item.Username</div>
+                            </div>
+                            <span class="badge @(item.IsDuplicate ? "bg-warning text-dark" : "bg-success")">
+                                @(item.IsDuplicate ? "สแกนซ้ำ" : "ปกติ")
+                            </span>
+                        </div>
+
+                        <div class="teacher-data-grid">
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">วันเวลา</div>
+                                <div class="teacher-data-value">@item.ScanTime.ToThaiDate("dd/MM/yyyy HH:mm:ss")</div>
+                            </div>
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">ประเภท</div>
+                                <div class="teacher-data-value">@item.ScanType</div>
+                            </div>
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">บทบาท</div>
+                                <div class="teacher-data-value">@item.RoleName</div>
+                            </div>
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">ห้องที่รับผิดชอบ</div>
+                                <div class="teacher-data-value">@item.AssignedClassroomName</div>
+                            </div>
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">ความมั่นใจ</div>
+                                <div class="teacher-data-value">@item.Confidence</div>
+                            </div>
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">เอนจิน</div>
+                                <div class="teacher-data-value">@item.Provider</div>
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(item.MapUrl))
+                        {
+                            <div class="teacher-action-row mt-3">
+                                <a href="@item.MapUrl" target="_blank" class="btn btn-outline-primary">ดูตำแหน่งบนแผนที่</a>
+                            </div>
+                        }
+                    </article>
+                }
+            }
+        </div>
+    </section>
+</div>

@@ -1,0 +1,280 @@
+@model DashboardViewModel
+@{
+    ViewData["Title"] = "แดชบอร์ด";
+
+    static string ScanTypeLabel(string value) => value switch
+    {
+        "CheckIn" => "เข้าเรียน",
+        "CheckOut" => "กลับบ้าน",
+        _ => value
+    };
+}
+
+<div class="card dashboard-hero mb-4">
+    <div class="card-body">
+        <div class="hero-text">
+            <div class="hero-kicker">รายงานการมาเรียนแบบเรียลไทม์</div>
+            <h2 class="mb-2">ภาพรวมการมาเรียนของโรงเรียน</h2>
+            <p class="mb-0 text-white-50">ติดตามการมาเรียน มาสาย ลา และการสแกนกลับได้ในหน้าเดียว</p>
+
+            <form method="get" class="hero-filter row g-2 align-items-end">
+                <div class="col-12 col-sm-6 col-md-4">
+                    <label class="form-label small mb-1">วันที่</label>
+                    <input type="date" name="date" class="form-control" value="@Model.TargetDate.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-light rounded-pill px-4">
+                        <i class="bi bi-funnel me-1"></i> กรอง
+                    </button>
+                </div>
+            </form>
+        </div>
+        <div class="hero-art d-none d-md-block">
+            <img src="~/img/dashboard-hero.svg" alt="ภาพแดชบอร์ด" />
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-xl-2">
+        <div class="card stat-card stat-primary h-100">
+            <div class="card-body">
+                <div class="stat-label">นักเรียนทั้งหมด</div>
+                <div class="stat-value">@Model.TotalStudents</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-xl-2">
+        <div class="card stat-card stat-success h-100">
+            <div class="card-body">
+                <div class="stat-label">มาเรียน</div>
+                <div class="stat-value">@Model.PresentToday</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-xl-2">
+        <div class="card stat-card stat-danger h-100">
+            <div class="card-body">
+                <div class="stat-label">ขาด</div>
+                <div class="stat-value">@Model.AbsentToday</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-xl-2">
+        <div class="card stat-card stat-warning h-100">
+            <div class="card-body">
+                <div class="stat-label">มาสาย</div>
+                <div class="stat-value">@Model.LateToday</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-xl-2">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label">ลา</div>
+                <div class="stat-value">@Model.LeaveToday</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-xl-2">
+        <div class="card stat-card h-100">
+            <div class="card-body">
+                <div class="stat-label">หนีเรียน</div>
+                <div class="stat-value">@Model.TruancyToday</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header fw-semibold">
+        <i class="bi bi-pie-chart me-1"></i> สรุปสถานะการมาเรียน
+    </div>
+    <div class="card-body">
+        <canvas id="attendanceSummaryChart" height="90"></canvas>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-header fw-semibold">
+        <i class="bi bi-lightning-charge me-1"></i> ตารางรายงานแบบเรียลไทม์
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>นักเรียน</th>
+                    <th>รหัส</th>
+                    <th>ห้องเรียน</th>
+                    <th>เวลาเข้า</th>
+                    <th>เวลากลับ</th>
+                    <th>สแกนล่าสุด</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.RealtimeRows.Count == 0)
+                {
+                    <tr><td colspan="6" class="text-center text-muted py-3">ไม่พบข้อมูลเรียลไทม์ในวันที่เลือก</td></tr>
+                }
+                else
+                {
+                    @foreach (var row in Model.RealtimeRows)
+                    {
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center gap-2">
+                                    @if (!string.IsNullOrWhiteSpace(row.PhotoPath))
+                                    {
+                                        <img src="~/@row.PhotoPath" alt="@row.StudentName" style="width:36px;height:36px;border-radius:50%;object-fit:cover;" />
+                                    }
+                                    else
+                                    {
+                                        <div class="bg-light border rounded-circle d-flex align-items-center justify-content-center" style="width:36px;height:36px;">
+                                            <i class="bi bi-person text-muted"></i>
+                                        </div>
+                                    }
+                                    <span>@row.StudentName</span>
+                                </div>
+                            </td>
+                            <td>@row.StudentCode</td>
+                            <td>@row.Classroom</td>
+                            <td>@row.FirstCheckInTime?.ToString("HH:mm:ss")</td>
+                            <td>@row.LastCheckOutTime?.ToString("HH:mm:ss")</td>
+                            <td>@row.LatestScanTime?.ToString("HH:mm:ss")</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-12 col-xl-6">
+        <div class="card h-100">
+            <div class="card-header fw-semibold">
+                <i class="bi bi-bar-chart-line me-1"></i> สรุปตามระดับชั้น
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th>ชั้น</th>
+                            <th class="text-end">ทั้งหมด</th>
+                            <th class="text-end">มาเรียน</th>
+                            <th class="text-end">ขาด</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in Model.GradeSummaries)
+                        {
+                            <tr>
+                                <td>@row.GradeLevel</td>
+                                <td class="text-end">@row.TotalStudents</td>
+                                <td class="text-end text-success fw-semibold">@row.PresentStudents</td>
+                                <td class="text-end text-danger fw-semibold">@row.AbsentStudents</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-xl-6">
+        <div class="card h-100">
+            <div class="card-header fw-semibold">
+                <i class="bi bi-grid me-1"></i> สรุปตามห้องเรียน
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-striped mb-0">
+                    <thead>
+                        <tr>
+                            <th>ชั้น</th>
+                            <th>ห้อง</th>
+                            <th class="text-end">ทั้งหมด</th>
+                            <th class="text-end">มาเรียน</th>
+                            <th class="text-end">ขาด</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in Model.ClassroomSummaries)
+                        {
+                            <tr>
+                                <td>@row.GradeLevel</td>
+                                <td>@row.Classroom</td>
+                                <td class="text-end">@row.TotalStudents</td>
+                                <td class="text-end text-success fw-semibold">@row.PresentStudents</td>
+                                <td class="text-end text-danger fw-semibold">@row.AbsentStudents</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-3">
+    <div class="card-header fw-semibold">
+        <i class="bi bi-clock-history me-1"></i> รายการสแกนล่าสุด
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-striped mb-0">
+            <thead>
+                <tr>
+                    <th>เวลา</th>
+                    <th>รหัส</th>
+                    <th>ชื่อ</th>
+                    <th>ประเภท</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Model.LatestScans)
+                {
+                    <tr>
+                        <td>@row.ScanTime.ToString("HH:mm:ss")</td>
+                        <td>@row.StudentCode</td>
+                        <td>@row.StudentName</td>
+                        <td>@ScanTypeLabel(row.ScanType)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(() => {
+    const chartEl = document.getElementById('attendanceSummaryChart');
+    if (chartEl) {
+        new Chart(chartEl, {
+            type: 'doughnut',
+            data: {
+                labels: ['มาเรียน', 'ขาด', 'มาสาย', 'ลา', 'หนีเรียน'],
+                datasets: [{
+                    data: [@Model.PresentToday, @Model.AbsentToday, @Model.LateToday, @Model.LeaveToday, @Model.TruancyToday],
+                    backgroundColor: ['#2b9348', '#c1121f', '#f8961e', '#4361ee', '#6d597a']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const selectedDate = params.get('date');
+    const today = new Date().toISOString().slice(0, 10);
+    if (selectedDate && selectedDate !== today) {
+        return;
+    }
+
+    setInterval(() => {
+        window.location.reload();
+    }, 30000);
+})();
+</script>
+}

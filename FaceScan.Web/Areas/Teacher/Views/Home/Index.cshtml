@@ -1,0 +1,98 @@
+@model TeacherWorkspaceViewModel
+@{
+    ViewData["Title"] = "พื้นที่งานครู";
+}
+
+<div class="teacher-shell">
+    <section class="teacher-hero teacher-hero-teal mb-3">
+        <div class="teacher-hero-body">
+            <div class="teacher-hero-copy">
+                <div class="teacher-kicker">Teacher Workspace</div>
+                <h1 class="teacher-hero-title">ศูนย์งานครู</h1>
+                <p class="teacher-hero-text">
+                    รวมงานเช็คเวลา เช็คคาบเรียน และหน้าที่ประจำของครูไว้ในหน้าที่ออกแบบให้ใช้งานสะดวกบนมือถือจอเล็ก
+                </p>
+            </div>
+            <div class="teacher-hero-stack">
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">ผู้ใช้งาน</span>
+                    <strong>@Model.DisplayName</strong>
+                </div>
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">บทบาท</span>
+                    <strong>@Model.RoleName</strong>
+                </div>
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">ห้องที่รับผิดชอบ</span>
+                    <strong>@Model.AssignedClassroomName</strong>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="teacher-stat-grid mb-3">
+        <article class="teacher-stat-card">
+            <div class="teacher-stat-label">วันที่ทำงาน</div>
+            <div class="teacher-stat-value">@Model.Today.ToThaiDate("dd MMMM yyyy")</div>
+            <div class="teacher-stat-meta">พร้อมใช้งานได้ทั้งมือถือและเดสก์ท็อป</div>
+        </article>
+        <article class="teacher-stat-card">
+            <div class="teacher-stat-label">ห้องที่ดูแล</div>
+            <div class="teacher-stat-value">@Model.AssignedClassroomName</div>
+            <div class="teacher-stat-meta">นักเรียนในห้อง @Model.AssignedStudentCount คน</div>
+        </article>
+        <article class="teacher-stat-card">
+            <div class="teacher-stat-label">โหมดใช้งานแนะนำ</div>
+            <div class="teacher-stat-value">มือถือจอเล็ก</div>
+            <div class="teacher-stat-meta">เมนูและหน้าสำคัญถูกจัดให้อ่านง่าย แตะง่าย และเลื่อนน้อยลง</div>
+        </article>
+    </section>
+
+    <section class="teacher-section-card mb-3">
+        <div class="teacher-section-head">
+            <div>
+                <div class="teacher-section-kicker">Quick Access</div>
+                <h2 class="teacher-section-title">งานหลักของครู</h2>
+            </div>
+            <div class="teacher-section-note">เปิดงานที่ต้องใช้บ่อยได้ทันที</div>
+        </div>
+
+        <div class="teacher-shortcut-grid">
+            @if (Model.CanUsePeriodAttendance)
+            {
+                <a asp-area="Teacher" asp-controller="PeriodAttendance" asp-action="Index" class="teacher-shortcut-card">
+                    <span class="teacher-shortcut-icon"><i class="bi bi-journal-check"></i></span>
+                    <span class="teacher-shortcut-title">เช็คเวลาเรียนรายคาบ</span>
+                    <span class="teacher-shortcut-text">บันทึกสถานะนักเรียนแบบรายคาบพร้อมเลือกหลายคนได้ง่ายบนมือถือ</span>
+                </a>
+            }
+
+            @if (Model.CanUseTeacherScan)
+            {
+                <a asp-area="" asp-controller="TeacherScan" asp-action="Index" class="teacher-shortcut-card">
+                    <span class="teacher-shortcut-icon"><i class="bi bi-person-workspace"></i></span>
+                    <span class="teacher-shortcut-title">สแกนลงเวลาปฏิบัติราชการ</span>
+                    <span class="teacher-shortcut-text">สแกนหน้าเพื่อเช็คเข้าและเช็คออก พร้อมดูผลล่าสุดจากหน้าเดียว</span>
+                </a>
+            }
+
+            @if (Model.CanViewTeacherReports)
+            {
+                <a asp-area="" asp-controller="TeacherAttendance" asp-action="Daily" class="teacher-shortcut-card">
+                    <span class="teacher-shortcut-icon"><i class="bi bi-calendar-check"></i></span>
+                    <span class="teacher-shortcut-title">รายงานเวลาปฏิบัติราชการ</span>
+                    <span class="teacher-shortcut-text">ดูสรุปรายวัน รายการสแกน และรายงานมาสายของครูในรูปแบบอ่านง่าย</span>
+                </a>
+            }
+
+            @if (Model.CanManageTeacherFaces)
+            {
+                <a asp-area="" asp-controller="TeacherFaceEnrollment" asp-action="Index" class="teacher-shortcut-card">
+                    <span class="teacher-shortcut-icon"><i class="bi bi-person-badge"></i></span>
+                    <span class="teacher-shortcut-title">ลงทะเบียนใบหน้าครู</span>
+                    <span class="teacher-shortcut-text">อัปโหลดหรือถ่ายรูปจากกล้องเพื่อเตรียมใช้ระบบสแกนหน้าสำหรับครู</span>
+                </a>
+            }
+        </div>
+    </section>
+</div>

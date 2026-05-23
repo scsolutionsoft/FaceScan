@@ -1,0 +1,14 @@
+@using FaceScan.Web.Services.Interfaces
+@inject ISystemSettingService SystemSettingService
+@{
+    ViewData["Title"] = "หน้าแรก";
+    var appSettings = await SystemSettingService.GetSettingsAsync();
+    var displayName = string.IsNullOrWhiteSpace(appSettings.ApplicationDisplayName) ? "FaceScan" : appSettings.ApplicationDisplayName;
+    var tagline = string.IsNullOrWhiteSpace(appSettings.ApplicationTagline) ? "ระบบเช็คเวลาเข้า-ออกนักเรียนด้วยการสแกนใบหน้า" : appSettings.ApplicationTagline;
+}
+
+<div class="text-center py-5">
+    <h1 class="display-6">ระบบเช็คเวลาเข้าเรียน @displayName</h1>
+    <p class="lead">@tagline</p>
+    <a asp-controller="Dashboard" asp-action="Index" class="btn btn-primary">ไปยังแดชบอร์ด</a>
+</div>

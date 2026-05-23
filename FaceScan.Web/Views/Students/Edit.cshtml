@@ -1,0 +1,22 @@
+@model StudentUpsertViewModel
+@{
+    ViewData["Title"] = "แก้ไขนักเรียน";
+}
+
+<h2 class="mb-3">แก้ไขนักเรียน</h2>
+
+<form asp-action="Edit" method="post" class="card">
+    <input asp-for="Id" type="hidden" />
+    <div class="card-body">
+        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+        <partial name="_StudentForm" model="Model" />
+    </div>
+    <div class="card-footer d-flex gap-2">
+        <button type="submit" class="btn btn-primary">บันทึก</button>
+        <a asp-action="Index" class="btn btn-outline-secondary">ยกเลิก</a>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

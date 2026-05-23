@@ -1,0 +1,85 @@
+@model StudentPortalIndexViewModel
+@{
+    ViewData["Title"] = "หน้าหลักนักเรียน";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">หน้าหลักนักเรียน</h2>
+    <div class="text-muted">@DateTime.Now.ToThaiDate("dd/MM/yyyy HH:mm")</div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted small">รหัสนักเรียน</div>
+                <div class="fs-5 fw-semibold">@Model.StudentCode</div>
+                <div>@Model.StudentName</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted small">ชั้นเรียน</div>
+                <div class="fs-5 fw-semibold">@Model.GradeLevel</div>
+                <div>ห้อง @Model.Classroom</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted small">เวลาเข้าเรียนวันนี้</div>
+                <div class="fs-5 fw-semibold">@Model.TodayCheckIn?.ToString("HH:mm:ss")</div>
+                @if (Model.IsLateToday)
+                {
+                    <span class="badge bg-danger">มาสาย</span>
+                }
+                else if (Model.TodayCheckIn.HasValue)
+                {
+                    <span class="badge bg-success">ตรงเวลา</span>
+                }
+                else
+                {
+                    <span class="badge bg-secondary">ยังไม่สแกน</span>
+                }
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 col-lg-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="text-muted small">เวลาออกวันนี้</div>
+                <div class="fs-5 fw-semibold">@Model.TodayCheckOut?.ToString("HH:mm:ss")</div>
+                @if (!Model.TodayCheckOut.HasValue)
+                {
+                    <span class="badge bg-warning text-dark">ยังไม่เช็คกลับ</span>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">สถานะลงทะเบียนใบหน้า</div>
+            <div class="card-body">
+                <p class="mb-2">สถานะ: <span class="badge bg-primary">@Model.EnrollmentStatus.GetDisplayName()</span></p>
+                <p class="mb-3">จำนวนรูปที่ลงทะเบียน: <strong>@Model.PhotoCount</strong> รูป</p>
+                <a asp-action="FaceEnrollment" class="btn btn-primary">ไปที่หน้าลงทะเบียนใบหน้า</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">การมาเรียน</div>
+            <div class="card-body">
+                <p class="mb-2">ระบบนับว่าสายเมื่อเช็คอินหลังเวลา <strong>@Model.LateAfterTime.ToString(@"hh\:mm")</strong> น.</p>
+                <a asp-action="Attendance" class="btn btn-outline-primary">ตรวจสอบเวลาเข้า-กลับ</a>
+            </div>
+        </div>
+    </div>
+</div>
+

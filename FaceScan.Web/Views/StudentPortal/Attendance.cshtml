@@ -1,0 +1,123 @@
+@model StudentAttendanceReportViewModel
+@{
+    ViewData["Title"] = "ตรวจสอบเวลาเข้า-กลับ";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">ตรวจสอบเวลาเข้า-กลับ</h2>
+    <div class="d-flex gap-2">
+        <a asp-action="AttendancePrint"
+           asp-route-StartDate="@Model.Filter.StartDate?.ToString("yyyy-MM-dd")"
+           asp-route-EndDate="@Model.Filter.EndDate?.ToString("yyyy-MM-dd")"
+           class="btn btn-outline-secondary"
+           target="_blank">พิมพ์รายงาน</a>
+        <a asp-action="Index" class="btn btn-outline-primary">หน้าหลักนักเรียน</a>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row g-2">
+            <div class="col-md-3"><strong>รหัส:</strong> @Model.StudentCode</div>
+            <div class="col-md-4"><strong>ชื่อ:</strong> @Model.StudentName</div>
+            <div class="col-md-2"><strong>ชั้น:</strong> @Model.GradeLevel</div>
+            <div class="col-md-3"><strong>ห้อง:</strong> @Model.Classroom</div>
+        </div>
+    </div>
+</div>
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-3">
+        <label class="form-label">วันที่เริ่ม</label>
+        <input type="date" class="form-control" name="StartDate" value="@Model.Filter.StartDate?.ToString("yyyy-MM-dd")" />
+    </div>
+    <div class="col-md-3">
+        <label class="form-label">วันที่สิ้นสุด</label>
+        <input type="date" class="form-control" name="EndDate" value="@Model.Filter.EndDate?.ToString("yyyy-MM-dd")" />
+    </div>
+    <div class="col-md-2 d-grid align-items-end">
+        <button type="submit" class="btn btn-primary mt-4">แสดงผล</button>
+    </div>
+    <div class="col-md-4 d-flex align-items-end">
+        <div class="text-muted">มาสายเมื่อเช็คอินหลังเวลา @Model.LateAfterTime.ToString(@"hh\:mm") น.</div>
+    </div>
+</form>
+
+<div class="row g-2 mb-3">
+    <div class="col-6 col-md-3">
+        <div class="card bg-light"><div class="card-body py-2">มาเรียน: <strong>@Model.PresentCount</strong></div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card bg-light"><div class="card-body py-2">มาสาย: <strong>@Model.LateCount</strong></div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card bg-light"><div class="card-body py-2">ขาด: <strong>@Model.AbsentCount</strong></div></div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="card bg-light"><div class="card-body py-2">ยังไม่เช็คกลับ: <strong>@Model.PendingCheckoutCount</strong></div></div>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>วันที่</th>
+                <th>เวลาเข้า</th>
+                <th>ตำแหน่งเข้า</th>
+                <th>เวลาออก</th>
+                <th>ตำแหน่งออก</th>
+                <th>สถานะ</th>
+                <th>มาสาย</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Rows.Count == 0)
+            {
+                <tr><td colspan="7" class="text-center text-muted">ไม่พบข้อมูล</td></tr>
+            }
+            else
+            {
+                @foreach (var row in Model.Rows)
+                {
+                    <tr>
+                        <td>@row.Date.ToThaiDate("dd/MM/yyyy")</td>
+                        <td>@row.FirstCheckInTime?.ToString("HH:mm:ss")</td>
+                        <td>
+                            @if (!string.IsNullOrWhiteSpace(row.CheckInMapUrl))
+                            {
+                                <a href="@row.CheckInMapUrl" target="_blank">ดูแผนที่</a>
+                            }
+                            else
+                            {
+                                <span class="text-muted">-</span>
+                            }
+                        </td>
+                        <td>@row.LastCheckOutTime?.ToString("HH:mm:ss")</td>
+                        <td>
+                            @if (!string.IsNullOrWhiteSpace(row.CheckOutMapUrl))
+                            {
+                                <a href="@row.CheckOutMapUrl" target="_blank">ดูแผนที่</a>
+                            }
+                            else
+                            {
+                                <span class="text-muted">-</span>
+                            }
+                        </td>
+                        <td>@row.StatusLabel</td>
+                        <td>
+                            @if (row.IsLate)
+                            {
+                                <span class="badge bg-danger">มาสาย</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-success">ปกติ</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>

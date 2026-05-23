@@ -1,0 +1,17 @@
+[Unit]
+Description=FaceScan Edge Agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/facescan-edge-agent
+EnvironmentFile=/etc/facescan-edge-agent/edge-agent.env
+ExecStart=/opt/facescan-edge-agent/FaceScan.EdgeAgent
+Restart=always
+RestartSec=5
+User=facescan
+Group=facescan
+
+[Install]
+WantedBy=multi-user.target

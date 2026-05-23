@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/tools/" />
+  <Folder Name="/tools/edge-agent-dotnet/">
+    <Project Path="tools/edge-agent-dotnet/FaceScan.EdgeAgent/FaceScan.EdgeAgent.csproj" />
+  </Folder>
+  <Project Path="FaceScan.Web/FaceScan.Web.csproj" />
+</Solution>

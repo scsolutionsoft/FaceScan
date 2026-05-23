@@ -1,0 +1,763 @@
+@model IReadOnlyList<FaceScan.Web.ViewModels.IpCamera.IpCameraMenuItemViewModel>
+@{
+    Layout = null;
+    var appName = ViewBag.AppName as string ?? "FaceScan";
+    var menuAbsoluteUrl = $"{Context.Request.Scheme}://{Context.Request.Host}/IpCamera/Menu";
+}
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@appName - เมนูสแกนผ่าน IP Camera</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+    <style>
+        body {
+            background: linear-gradient(150deg, #f5f0ff, #eef6ff);
+            min-height: 100vh;
+            font-family: "Kanit", "Sarabun", sans-serif;
+        }
+        .menu-wrap {
+            max-width: 980px;
+            margin: 20px auto;
+            padding: 0 16px;
+        }
+        .menu-head {
+            border-radius: 14px;
+            background: linear-gradient(135deg, #5726b5, #9340df);
+            color: #fff;
+            padding: 18px 20px;
+            box-shadow: 0 8px 20px rgba(87, 38, 181, 0.22);
+        }
+        .station-card {
+            border: 1px solid #d9cdf5;
+            border-radius: 12px;
+            box-shadow: 0 6px 16px rgba(64, 33, 102, 0.08);
+        }
+        .station-code {
+            font-size: 0.75rem;
+            color: #6b5f8d;
+        }
+        .health-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: 1px solid #d1d5db;
+            background: #f8fafc;
+            color: #64748b;
+        }
+        .health-badge.online {
+            border-color: #16a34a55;
+            background: #16a34a18;
+            color: #15803d;
+        }
+        .health-badge.offline {
+            border-color: #ef444455;
+            background: #ef444418;
+            color: #dc2626;
+        }
+        .health-badge.checking {
+            border-color: #f59e0b55;
+            background: #f59e0b18;
+            color: #b45309;
+        }
+        .qr-box {
+            border-radius: 10px;
+            background: #fff;
+            padding: 8px;
+            width: 120px;
+            height: 120px;
+            display: grid;
+            place-items: center;
+        }
+        .station-qr {
+            width: 88px;
+            height: 88px;
+            border-radius: 8px;
+            border: 1px solid #ebe4fb;
+            background: #fff;
+            display: grid;
+            place-items: center;
+        }
+        .fleet-summary {
+            margin-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            padding-top: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+        .fleet-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+            padding: 4px 10px;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+        .fleet-pill.online {
+            border-color: #4ade8088;
+            color: #dcfce7;
+        }
+        .fleet-pill.offline {
+            border-color: #fca5a588;
+            color: #fee2e2;
+        }
+        .fleet-pill.checking {
+            border-color: #fcd34d88;
+            color: #fef3c7;
+        }
+        .fleet-time {
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.85);
+            margin-left: auto;
+        }
+        .station-filter-bar {
+            margin: 12px 0 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .station-filter-btn {
+            border: 1px solid #c4b8ef;
+            background: #fff;
+            color: #4c3f80;
+            border-radius: 999px;
+            padding: 5px 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            line-height: 1;
+        }
+        .station-filter-btn.active {
+            border-color: #5b2ec4;
+            background: #5b2ec4;
+            color: #fff;
+        }
+        .station-sort-toggle {
+            border: 1px dashed #8d77d0;
+            background: #f7f4ff;
+            color: #4c3f80;
+            border-radius: 999px;
+            padding: 5px 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            line-height: 1;
+        }
+        .station-sort-toggle.active {
+            border-style: solid;
+            border-color: #dc2626;
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+        .station-search-wrap {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-left: auto;
+        }
+        .station-search-input {
+            border: 1px solid #c4b8ef;
+            background: #fff;
+            color: #3b2f63;
+            border-radius: 999px;
+            padding: 6px 12px;
+            min-width: 240px;
+            font-size: 0.82rem;
+            outline: none;
+        }
+        .station-search-input:focus {
+            border-color: #5b2ec4;
+            box-shadow: 0 0 0 2px #5b2ec433;
+        }
+        .station-search-clear {
+            border: 1px solid #d7d0ef;
+            background: #fff;
+            color: #5f548d;
+            border-radius: 999px;
+            padding: 5px 10px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .station-result-count {
+            font-size: 0.8rem;
+            color: #5b4f87;
+            font-weight: 600;
+            margin-left: 2px;
+        }
+        .station-reset-btn {
+            border: 1px solid #d7d0ef;
+            background: #fff;
+            color: #5f548d;
+            border-radius: 999px;
+            padding: 5px 10px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .station-export-btn {
+            border: 1px solid #16a34a66;
+            background: #ecfdf3;
+            color: #166534;
+            border-radius: 999px;
+            padding: 5px 10px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        .station-export-btn:disabled {
+            border-color: #d1d5db;
+            background: #f3f4f6;
+            color: #9ca3af;
+        }
+        .search-hit {
+            background: #fde68a;
+            color: #7c2d12;
+            border-radius: 4px;
+            padding: 0 2px;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+    <div class="menu-wrap">
+        <div class="menu-head mb-3">
+            <div class="d-flex justify-content-between align-items-center gap-3 flex-wrap">
+                <div>
+                    <div class="small text-white-50">เมนูสาธารณะ</div>
+                    <h3 class="mb-1">สแกนผ่าน IP Camera</h3>
+                    <div class="small text-white-50">เลือกสถานีกล้องเพื่อเริ่มสแกนอัตโนมัติแบบ walk-by โดยไม่ต้องล็อกอิน</div>
+                </div>
+                <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+                    <div class="qr-box" title="QR สำหรับหน้าเมนูสแกน IP Camera">
+                        <img id="menuQrImage" alt="IP Camera Menu QR" style="width:110px;height:110px;object-fit:contain" />
+                    </div>
+                    <div class="d-grid gap-1">
+                        <button class="btn btn-outline-light btn-sm rounded-pill px-3" id="refreshHealthBtn" type="button">
+                            <i class="bi bi-arrow-repeat me-1"></i>รีเฟรชสถานะกล้อง
+                        </button>
+                        <a href="/Account/Login" class="btn btn-light btn-sm rounded-pill px-3">
+                            <i class="bi bi-box-arrow-in-left me-1"></i>กลับหน้าเข้าสู่ระบบ
+                        </a>
+                        <button class="btn btn-outline-light btn-sm rounded-pill px-3" id="copyMenuUrlBtn" type="button">
+                            <i class="bi bi-copy me-1"></i>คัดลอกลิงก์เมนู
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="fleet-summary">
+                <span class="fleet-pill online"><i class="bi bi-wifi"></i>ออนไลน์ <span id="fleetOnlineCount">0</span></span>
+                <span class="fleet-pill offline"><i class="bi bi-wifi-off"></i>ออฟไลน์ <span id="fleetOfflineCount">0</span></span>
+                <span class="fleet-pill checking"><i class="bi bi-hourglass-split"></i>กำลังตรวจสอบ <span id="fleetCheckingCount">0</span></span>
+                <span class="fleet-time" id="fleetUpdatedAt">อัปเดตล่าสุด: -</span>
+            </div>
+        </div>
+
+        @if (Model.Count == 0)
+        {
+            <div class="alert alert-warning">ยังไม่มีสถานี IP Camera ที่เปิดใช้งาน กรุณาตั้งค่าที่หน้าอุปกรณ์สแกนก่อน</div>
+        }
+        else
+        {
+            <div class="station-filter-bar">
+                <button type="button" class="station-filter-btn active" data-filter-status="all">ทั้งหมด</button>
+                <button type="button" class="station-filter-btn" data-filter-status="online">เฉพาะออนไลน์</button>
+                <button type="button" class="station-filter-btn" data-filter-status="offline">เฉพาะออฟไลน์</button>
+                <button type="button" class="station-filter-btn" data-filter-status="checking">เฉพาะกำลังตรวจสอบ</button>
+                <button type="button" class="station-sort-toggle" id="prioritizeOfflineBtn">เรียงออฟไลน์ขึ้นก่อน: ปิด</button>
+                <button type="button" class="station-export-btn" id="exportOfflineCsvBtn" disabled>ส่งออกออฟไลน์ CSV</button>
+                <button type="button" class="station-reset-btn" id="resetViewBtn">รีเซ็ตมุมมอง</button>
+                <div class="station-search-wrap">
+                    <input id="stationSearchInput" class="station-search-input" type="text" placeholder="ค้นหาชื่อสถานี หรือรหัสสถานี" />
+                    <button type="button" id="stationSearchClearBtn" class="station-search-clear">ล้าง</button>
+                    <span class="station-result-count" id="stationResultCount">แสดง 0 สถานี</span>
+                </div>
+            </div>
+            <div class="row g-3" id="stationGrid">
+                @foreach (var item in Model)
+                {
+                    <div class="col-12 col-md-6 col-lg-4" data-station-col>
+                        <div class="card station-card h-100" data-station-card data-station-code="@item.StationCode" data-station-name="@item.Name">
+                            <div class="card-body d-flex flex-column">
+                                <div class="fw-semibold mb-1" data-station-name-label>@item.Name</div>
+                                <div class="station-code mb-2">สถานี: <span data-station-code-label>@item.StationCode</span></div>
+                                <div class="health-badge checking mb-2" data-health-badge>
+                                    <i class="bi bi-hourglass-split"></i>
+                                    <span data-health-text>กำลังตรวจสอบ...</span>
+                                </div>
+                                <div class="small text-muted mb-1">ตำแหน่ง: @(string.IsNullOrWhiteSpace(item.Location) ? "-" : item.Location)</div>
+                                <div class="small text-muted mb-1">กล้อง: @(string.IsNullOrWhiteSpace(item.CameraType) ? "Generic" : item.CameraType)</div>
+                                <div class="small text-muted mb-3" data-health-time>ตรวจล่าสุด: -</div>
+                                <div class="station-qr mb-2" data-qr-station-code="@item.StationCode"></div>
+                                <div class="d-grid gap-2 mt-auto">
+                                    <a class="btn btn-success" href="/IpCamera/WalkBy?stationCode=@Uri.EscapeDataString(item.StationCode)">
+                                        <i class="bi bi-camera-video me-1"></i>เริ่มสแกนสถานีนี้
+                                    </a>
+                                    <a class="btn btn-outline-dark" href="/IpCamera/WalkBy?stationCode=@Uri.EscapeDataString(item.StationCode)&kiosk=1">
+                                        <i class="bi bi-fullscreen me-1"></i>โหมดเต็มจอ Kiosk
+                                    </a>
+                                    <a class="btn btn-outline-primary" href="/IpCamera/WalkBy?stationCode=@Uri.EscapeDataString(item.StationCode)&kiosk=1&minimal=1&autofs=1">
+                                        <i class="bi bi-layout-sidebar-inset-reverse me-1"></i>Kiosk จอเดี่ยว (Minimal)
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <script>
+        (function () {
+            const menuUrl = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(menuAbsoluteUrl));
+            const qrApi = 'https://api.qrserver.com/v1/create-qr-code/?size=';
+            const healthApi = '/IpCamera/StationHealth?stationCode=';
+            const PREF_KEY_FILTER = 'ipcam-menu-filter';
+            const PREF_KEY_SORT_OFFLINE = 'ipcam-menu-sort-offline';
+            const PREF_KEY_SEARCH = 'ipcam-menu-search';
+
+            const menuQrImage = document.getElementById('menuQrImage');
+            menuQrImage.src = `${qrApi}220x220&data=${encodeURIComponent(menuUrl)}`;
+            const refreshHealthBtn = document.getElementById('refreshHealthBtn');
+            const fleetOnlineCount = document.getElementById('fleetOnlineCount');
+            const fleetOfflineCount = document.getElementById('fleetOfflineCount');
+            const fleetCheckingCount = document.getElementById('fleetCheckingCount');
+            const fleetUpdatedAt = document.getElementById('fleetUpdatedAt');
+            const filterButtons = Array.from(document.querySelectorAll('[data-filter-status]'));
+            const prioritizeOfflineBtn = document.getElementById('prioritizeOfflineBtn');
+            const exportOfflineCsvBtn = document.getElementById('exportOfflineCsvBtn');
+            const resetViewBtn = document.getElementById('resetViewBtn');
+            const stationGrid = document.getElementById('stationGrid');
+            const stationSearchInput = document.getElementById('stationSearchInput');
+            const stationSearchClearBtn = document.getElementById('stationSearchClearBtn');
+            const stationResultCount = document.getElementById('stationResultCount');
+            const hasStationControls = !!stationGrid && !!stationSearchInput && !!stationSearchClearBtn && !!stationResultCount && !!prioritizeOfflineBtn && !!resetViewBtn && !!exportOfflineCsvBtn;
+            let activeFilter = 'all';
+            let prioritizeOffline = false;
+
+            function loadMenuPreferences() {
+                const storedFilter = localStorage.getItem(PREF_KEY_FILTER);
+                const storedSortOffline = localStorage.getItem(PREF_KEY_SORT_OFFLINE);
+                const storedSearch = localStorage.getItem(PREF_KEY_SEARCH);
+
+                if (storedFilter && ['all', 'online', 'offline', 'checking'].includes(storedFilter)) {
+                    activeFilter = storedFilter;
+                }
+
+                prioritizeOffline = storedSortOffline === '1';
+                if (stationSearchInput) {
+                    stationSearchInput.value = storedSearch || '';
+                }
+            }
+
+            function saveMenuPreferences() {
+                localStorage.setItem(PREF_KEY_FILTER, activeFilter);
+                localStorage.setItem(PREF_KEY_SORT_OFFLINE, prioritizeOffline ? '1' : '0');
+                localStorage.setItem(PREF_KEY_SEARCH, stationSearchInput?.value || '');
+            }
+
+            function clearMenuPreferences() {
+                localStorage.removeItem(PREF_KEY_FILTER);
+                localStorage.removeItem(PREF_KEY_SORT_OFFLINE);
+                localStorage.removeItem(PREF_KEY_SEARCH);
+            }
+
+            loadMenuPreferences();
+
+            const copyMenuUrlBtn = document.getElementById('copyMenuUrlBtn');
+            copyMenuUrlBtn.addEventListener('click', async () => {
+                try {
+                    await navigator.clipboard.writeText(menuUrl);
+                    copyMenuUrlBtn.innerHTML = '<i class="bi bi-check2 me-1"></i>คัดลอกแล้ว';
+                    setTimeout(() => {
+                        copyMenuUrlBtn.innerHTML = '<i class="bi bi-copy me-1"></i>คัดลอกลิงก์เมนู';
+                    }, 1800);
+                } catch {
+                    copyMenuUrlBtn.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>คัดลอกไม่สำเร็จ';
+                }
+            });
+
+
+            function formatCheckedTime(isoText) {
+                if (!isoText) return '-';
+                const dt = new Date(isoText);
+                if (Number.isNaN(dt.getTime())) return '-';
+                return dt.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            }
+
+            function applyHealthState(card, state, text, checkedAt) {
+                const badge = card.querySelector('[data-health-badge]');
+                const textEl = card.querySelector('[data-health-text]');
+                const timeEl = card.querySelector('[data-health-time]');
+
+                badge.classList.remove('checking', 'online', 'offline');
+                badge.classList.add(state);
+
+                if (state === 'online') {
+                    badge.querySelector('i').className = 'bi bi-wifi';
+                } else if (state === 'offline') {
+                    badge.querySelector('i').className = 'bi bi-wifi-off';
+                } else {
+                    badge.querySelector('i').className = 'bi bi-hourglass-split';
+                }
+
+                textEl.textContent = text;
+                timeEl.textContent = `ตรวจล่าสุด: ${formatCheckedTime(checkedAt)}`;
+                card.dataset.healthState = state;
+                card.dataset.healthMessage = text;
+                card.dataset.healthCheckedAt = checkedAt || '';
+            }
+
+            function updateFleetSummary() {
+                const cards = Array.from(document.querySelectorAll('[data-station-card]'));
+                let online = 0;
+                let offline = 0;
+                let checking = 0;
+
+                cards.forEach((card) => {
+                    const state = card.dataset.healthState || 'checking';
+                    if (state === 'online') {
+                        online++;
+                    } else if (state === 'offline') {
+                        offline++;
+                    } else {
+                        checking++;
+                    }
+                });
+
+                fleetOnlineCount.textContent = String(online);
+                fleetOfflineCount.textContent = String(offline);
+                fleetCheckingCount.textContent = String(checking);
+                fleetUpdatedAt.textContent = `อัปเดตล่าสุด: ${new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+                if (exportOfflineCsvBtn) {
+                    exportOfflineCsvBtn.disabled = offline === 0;
+                }
+            }
+
+            function applyCardFilter() {
+                if (!stationSearchInput || !stationResultCount) {
+                    return;
+                }
+
+                const cards = Array.from(document.querySelectorAll('[data-station-card]'));
+                const query = (stationSearchInput.value || '').trim().toLowerCase();
+                const queryCompact = compactSearchText(query);
+                let visibleCount = 0;
+
+                cards.forEach((card) => {
+                    const state = card.dataset.healthState || 'checking';
+                    const nameLabel = card.querySelector('[data-station-name-label]');
+                    const codeLabel = card.querySelector('[data-station-code-label]');
+                    const stationCodeRaw = card.dataset.stationCode || '';
+                    const stationNameRaw = card.dataset.stationName || '';
+                    let visible = true;
+
+                    if (activeFilter === 'online') {
+                        visible = state === 'online';
+                    } else if (activeFilter === 'offline') {
+                        visible = state === 'offline';
+                    } else if (activeFilter === 'checking') {
+                        visible = state === 'checking';
+                    }
+
+                    if (visible && queryCompact) {
+                        const stationCode = stationCodeRaw.toLowerCase();
+                        const stationName = stationNameRaw.toLowerCase();
+                        const stationCodeCompact = compactSearchText(stationCode);
+                        const stationNameCompact = compactSearchText(stationName);
+                        visible = stationCodeCompact.includes(queryCompact) || stationNameCompact.includes(queryCompact);
+                    }
+
+                    paintSearchHighlight(nameLabel, stationNameRaw, query);
+                    paintSearchHighlight(codeLabel, stationCodeRaw, query);
+
+                    card.parentElement.style.display = visible ? '' : 'none';
+                    if (visible) {
+                        visibleCount++;
+                    }
+                });
+
+                stationResultCount.textContent = `แสดง ${visibleCount} สถานี`;
+            }
+
+            function compactSearchText(text) {
+                return (text || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+            }
+
+            function buildLooseRegex(query) {
+                const chars = Array.from((query || '').toLowerCase())
+                    .map((ch) => ch.trim())
+                    .filter((ch) => ch.length > 0 && /[\p{L}\p{N}]/u.test(ch));
+
+                if (chars.length === 0) {
+                    return null;
+                }
+
+                const escaped = chars.map((ch) => ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+                const pattern = escaped.join('[^\\p{L}\\p{N}]*');
+                return new RegExp(pattern, 'giu');
+            }
+
+            function paintSearchHighlight(element, text, query) {
+                if (!element) return;
+
+                element.textContent = '';
+                if (!query) {
+                    element.appendChild(document.createTextNode(text));
+                    return;
+                }
+
+                const matcher = buildLooseRegex(query);
+                if (!matcher) {
+                    element.appendChild(document.createTextNode(text));
+                    return;
+                }
+
+                const matches = Array.from(text.matchAll(matcher));
+                if (matches.length === 0) {
+                    element.appendChild(document.createTextNode(text));
+                    return;
+                }
+
+                let cursor = 0;
+                matches.forEach((m) => {
+                    const idx = m.index ?? -1;
+                    const chunk = m[0] ?? '';
+                    if (idx < 0 || !chunk) {
+                        return;
+                    }
+
+                    if (idx > cursor) {
+                        element.appendChild(document.createTextNode(text.slice(cursor, idx)));
+                    }
+
+                    const mark = document.createElement('mark');
+                    mark.className = 'search-hit';
+                    mark.textContent = text.slice(idx, idx + chunk.length);
+                    element.appendChild(mark);
+                    cursor = idx + chunk.length;
+                });
+
+                if (cursor < text.length) {
+                    element.appendChild(document.createTextNode(text.slice(cursor)));
+                }
+            }
+
+            function csvEscape(value) {
+                const text = String(value ?? '');
+                if (text.includes('"') || text.includes(',') || text.includes('\n')) {
+                    return `"${text.replace(/"/g, '""')}"`;
+                }
+                return text;
+            }
+
+            function exportOfflineStationsCsv() {
+                const cards = Array.from(document.querySelectorAll('[data-station-card]'));
+                const offlineCards = cards.filter((card) => (card.dataset.healthState || 'checking') === 'offline');
+                if (offlineCards.length === 0) {
+                    return;
+                }
+
+                const headers = ['StationCode', 'StationName', 'Location', 'CameraType', 'StatusMessage', 'CheckedAtLocal'];
+                const rows = offlineCards.map((card) => {
+                    const stationCode = card.dataset.stationCode || '';
+                    const stationName = card.dataset.stationName || '';
+                    const location = (card.querySelector('.small.text-muted')?.textContent || '').replace('ตำแหน่ง:', '').trim();
+                    const cameraLine = card.querySelectorAll('.small.text-muted')[1]?.textContent || '';
+                    const cameraType = cameraLine.replace('กล้อง:', '').trim();
+                    const statusMessage = card.dataset.healthMessage || 'ออฟไลน์';
+                    const checkedAtRaw = card.dataset.healthCheckedAt || '';
+                    const checkedAtLocal = checkedAtRaw
+                        ? new Date(checkedAtRaw).toLocaleString('th-TH', { hour12: false })
+                        : '-';
+
+                    return [stationCode, stationName, location, cameraType, statusMessage, checkedAtLocal]
+                        .map(csvEscape)
+                        .join(',');
+                });
+
+                const csvContent = [headers.join(','), ...rows].join('\r\n');
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const now = new Date();
+                const dateTag = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+
+                link.href = URL.createObjectURL(blob);
+                link.download = `offline-stations-${dateTag}.csv`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(link.href);
+            }
+
+            function statePriority(state) {
+                if (state === 'offline') return 0;
+                if (state === 'checking') return 1;
+                return 2;
+            }
+
+            function applyCardSort() {
+                if (!stationGrid) return;
+
+                const cols = Array.from(stationGrid.querySelectorAll('[data-station-col]'));
+                const orderedCols = cols.sort((a, b) => {
+                    const cardA = a.querySelector('[data-station-card]');
+                    const cardB = b.querySelector('[data-station-card]');
+                    const stateA = cardA?.dataset.healthState || 'checking';
+                    const stateB = cardB?.dataset.healthState || 'checking';
+                    const idxA = Number(a.dataset.originalIndex || '0');
+                    const idxB = Number(b.dataset.originalIndex || '0');
+
+                    if (!prioritizeOffline) {
+                        return idxA - idxB;
+                    }
+
+                    const pri = statePriority(stateA) - statePriority(stateB);
+                    return pri !== 0 ? pri : idxA - idxB;
+                });
+
+                orderedCols.forEach((col) => stationGrid.appendChild(col));
+            }
+
+            async function refreshCardHealth(card) {
+                const stationCode = card.getAttribute('data-station-code');
+                if (!stationCode) return;
+
+                applyHealthState(card, 'checking', 'กำลังตรวจสอบ...', null);
+                try {
+                    const response = await fetch(`${healthApi}${encodeURIComponent(stationCode)}`, { cache: 'no-store' });
+                    if (!response.ok) {
+                        applyHealthState(card, 'offline', `ตรวจสอบไม่สำเร็จ (${response.status})`, null);
+                        return;
+                    }
+
+                    const payload = await response.json();
+                    if (payload.online) {
+                        applyHealthState(card, 'online', 'กล้องออนไลน์', payload.checkedAt);
+                    } else {
+                        const message = payload.message || 'ออฟไลน์';
+                        applyHealthState(card, 'offline', message, payload.checkedAt);
+                    }
+                } catch {
+                    applyHealthState(card, 'offline', 'เครือข่ายขัดข้อง', null);
+                }
+            }
+
+            async function refreshAllHealth() {
+                const cards = Array.from(document.querySelectorAll('[data-station-card]'));
+                refreshHealthBtn.disabled = true;
+                refreshHealthBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>กำลังตรวจสอบ...';
+
+                cards.forEach((card) => {
+                    card.dataset.healthState = 'checking';
+                });
+                updateFleetSummary();
+
+                try {
+                    await Promise.all(cards.map((card) => refreshCardHealth(card)));
+                } finally {
+                    refreshHealthBtn.disabled = false;
+                    refreshHealthBtn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>รีเฟรชสถานะกล้อง';
+                    updateFleetSummary();
+                    applyCardSort();
+                    applyCardFilter();
+                }
+            }
+
+            refreshHealthBtn.addEventListener('click', refreshAllHealth);
+
+            if (hasStationControls) {
+                stationSearchInput.addEventListener('input', () => {
+                    saveMenuPreferences();
+                    applyCardFilter();
+                });
+                stationSearchClearBtn.addEventListener('click', () => {
+                    stationSearchInput.value = '';
+                    stationSearchInput.focus();
+                    saveMenuPreferences();
+                    applyCardFilter();
+                });
+
+                prioritizeOfflineBtn.addEventListener('click', () => {
+                    prioritizeOffline = !prioritizeOffline;
+                    prioritizeOfflineBtn.classList.toggle('active', prioritizeOffline);
+                    prioritizeOfflineBtn.textContent = `เรียงออฟไลน์ขึ้นก่อน: ${prioritizeOffline ? 'เปิด' : 'ปิด'}`;
+                    saveMenuPreferences();
+                    applyCardSort();
+                });
+
+                resetViewBtn.addEventListener('click', () => {
+                    activeFilter = 'all';
+                    prioritizeOffline = false;
+                    stationSearchInput.value = '';
+
+                    filterButtons.forEach((btn) => {
+                        const state = btn.getAttribute('data-filter-status') || 'all';
+                        btn.classList.toggle('active', state === 'all');
+                    });
+                    prioritizeOfflineBtn.classList.remove('active');
+                    prioritizeOfflineBtn.textContent = 'เรียงออฟไลน์ขึ้นก่อน: ปิด';
+
+                    clearMenuPreferences();
+                    applyCardSort();
+                    applyCardFilter();
+                });
+
+                exportOfflineCsvBtn.addEventListener('click', exportOfflineStationsCsv);
+
+                filterButtons.forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        activeFilter = btn.getAttribute('data-filter-status') || 'all';
+                        filterButtons.forEach((x) => x.classList.toggle('active', x === btn));
+                        saveMenuPreferences();
+                        applyCardFilter();
+                    });
+                });
+            }
+
+            refreshAllHealth();
+            setInterval(refreshAllHealth, 60000);
+            Array.from(document.querySelectorAll('[data-station-col]')).forEach((col, index) => {
+                col.dataset.originalIndex = String(index);
+            });
+
+            if (hasStationControls) {
+                filterButtons.forEach((btn) => {
+                    const state = btn.getAttribute('data-filter-status') || 'all';
+                    btn.classList.toggle('active', state === activeFilter);
+                });
+                prioritizeOfflineBtn.classList.toggle('active', prioritizeOffline);
+                prioritizeOfflineBtn.textContent = `เรียงออฟไลน์ขึ้นก่อน: ${prioritizeOffline ? 'เปิด' : 'ปิด'}`;
+            }
+
+            document.querySelectorAll('.station-qr').forEach((qrWrap) => {
+                const stationCode = qrWrap.getAttribute('data-qr-station-code');
+                if (!stationCode) return;
+
+                const stationUrl = `${window.location.origin}/IpCamera/WalkBy?stationCode=${encodeURIComponent(stationCode)}&kiosk=1&minimal=1&autofs=1`;
+                const img = document.createElement('img');
+                img.alt = `QR ${stationCode}`;
+                img.style.width = '82px';
+                img.style.height = '82px';
+                img.style.objectFit = 'contain';
+                img.src = `${qrApi}180x180&data=${encodeURIComponent(stationUrl)}`;
+                qrWrap.appendChild(img);
+            });
+
+            applyCardSort();
+            if (hasStationControls) {
+                applyCardFilter();
+            }
+        })();
+    </script>
+</body>
+</html>

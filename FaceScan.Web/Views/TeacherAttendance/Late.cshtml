@@ -1,0 +1,183 @@
+@model TeacherAttendanceDailyViewModel
+@{
+    ViewData["Title"] = "รายงานครูมาปฏิบัติราชการสาย";
+}
+
+<div class="teacher-shell">
+    <section class="teacher-hero teacher-hero-warm mb-3">
+        <div class="teacher-hero-body">
+            <div class="teacher-hero-copy">
+                <div class="teacher-kicker">Late Arrival Report</div>
+                <h1 class="teacher-hero-title">รายงานครูมาปฏิบัติราชการสาย</h1>
+                <p class="teacher-hero-text">
+                    แสดงเฉพาะครูที่เช็คเข้าหลังเวลา @Model.LateAfterTime.ToString(@"hh\:mm") น. เพื่อให้ติดตามและตรวจสอบได้สะดวกบนมือถือ
+                </p>
+            </div>
+            <div class="teacher-hero-stack">
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">วันที่</span>
+                    <strong>@Model.Filter.Date?.ToThaiDate("dd MMMM yyyy")</strong>
+                </div>
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">เกณฑ์มาสาย</span>
+                    <strong>@Model.LateAfterTime.ToString(@"hh\:mm") น.</strong>
+                </div>
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">ครูที่มาสาย</span>
+                    <strong>@Model.Rows.Count คน</strong>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <form method="get" class="teacher-filter-card mb-3">
+        <div class="teacher-section-head">
+            <div>
+                <div class="teacher-section-kicker">Filters</div>
+                <h2 class="teacher-section-title">กรองรายงานมาสาย</h2>
+            </div>
+            <div class="teacher-page-actions">
+                <a asp-action="Daily"
+                   asp-route-Date="@Model.Filter.Date?.ToString("yyyy-MM-dd")"
+                   asp-route-RoleName="@Model.Filter.RoleName"
+                   asp-route-AssignedClassroomId="@Model.Filter.AssignedClassroomId"
+                   asp-route-TeacherKeyword="@Model.Filter.TeacherKeyword"
+                   class="btn btn-outline-secondary">กลับไปสรุปรายวัน</a>
+            </div>
+        </div>
+
+        <div class="row g-2">
+            <div class="col-md-3">
+                <input type="date" class="form-control" name="Date" value="@Model.Filter.Date?.ToString("yyyy-MM-dd")" />
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" name="RoleName">
+                    <option value="">ทุกบทบาท</option>
+                    @foreach (var role in Model.Roles)
+                    {
+                        <option value="@role" selected="@(Model.Filter.RoleName == role ? "selected" : null)">@role</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" name="AssignedClassroomId">
+                    <option value="">ทุกห้อง</option>
+                    @foreach (var item in Model.Classrooms)
+                    {
+                        <option value="@item.Value" selected="@(Model.Filter.AssignedClassroomId == item.Value ? "selected" : null)">@item.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <input type="text" class="form-control" name="TeacherKeyword" value="@Model.Filter.TeacherKeyword" placeholder="ค้นหาบัญชีหรือชื่อครู" />
+            </div>
+            <div class="col-md-2 d-grid">
+                <button type="submit" class="btn btn-danger">แสดงรายงาน</button>
+            </div>
+        </div>
+    </form>
+
+    <section class="teacher-section-card">
+        <div class="teacher-section-head">
+            <div>
+                <div class="teacher-section-kicker">Results</div>
+                <h2 class="teacher-section-title">ครูที่มาปฏิบัติราชการสาย</h2>
+            </div>
+            <div class="teacher-section-note">อ่านชื่อ เวลา และเปิดดูพิกัดได้จากการ์ดใบเดียวบนมือถือ</div>
+        </div>
+
+        <div class="d-none d-lg-block table-responsive">
+            <table class="table table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th>บัญชีผู้ใช้</th>
+                        <th>ชื่อครู</th>
+                        <th>บทบาท</th>
+                        <th>ห้องที่รับผิดชอบ</th>
+                        <th>เวลาเข้า</th>
+                        <th>พิกัดเข้า</th>
+                        <th>สถานะ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Rows.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="7" class="text-center text-muted">ไม่พบข้อมูลครูมาสาย</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var item in Model.Rows)
+                        {
+                            <tr>
+                                <td>@item.Username</td>
+                                <td>@item.FullName</td>
+                                <td>@item.RoleName</td>
+                                <td>@item.AssignedClassroomName</td>
+                                <td>@item.FirstCheckInTime?.ToString("HH:mm:ss")</td>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(item.CheckInMapUrl))
+                                    {
+                                        <a href="@item.CheckInMapUrl" target="_blank">ดูแผนที่</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">-</span>
+                                    }
+                                </td>
+                                <td><span class="badge bg-danger">@item.StatusLabel</span></td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="teacher-mobile-list d-lg-none">
+            @if (Model.Rows.Count == 0)
+            {
+                <div class="teacher-note-banner">
+                    <strong>ไม่พบข้อมูลครูมาสาย</strong> ไม่มีรายการที่ตรงกับเงื่อนไขในวันที่เลือก
+                </div>
+            }
+            else
+            {
+                @foreach (var item in Model.Rows)
+                {
+                    <article class="teacher-data-card">
+                        <div class="teacher-data-card-head">
+                            <div>
+                                <div class="teacher-data-title">@item.FullName</div>
+                                <div class="teacher-data-subtitle">@item.Username</div>
+                            </div>
+                            <span class="badge bg-danger">@item.StatusLabel</span>
+                        </div>
+
+                        <div class="teacher-data-grid">
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">บทบาท</div>
+                                <div class="teacher-data-value">@item.RoleName</div>
+                            </div>
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">ห้องที่รับผิดชอบ</div>
+                                <div class="teacher-data-value">@item.AssignedClassroomName</div>
+                            </div>
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">เวลาเข้า</div>
+                                <div class="teacher-data-value">@item.FirstCheckInTime?.ToString("HH:mm:ss")</div>
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(item.CheckInMapUrl))
+                        {
+                            <div class="teacher-action-row mt-3">
+                                <a href="@item.CheckInMapUrl" target="_blank" class="btn btn-outline-danger">ดูพิกัดเข้า</a>
+                            </div>
+                        }
+                    </article>
+                }
+            }
+        </div>
+    </section>
+</div>

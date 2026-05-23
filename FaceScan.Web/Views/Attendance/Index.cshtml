@@ -1,0 +1,110 @@
+@model AttendanceIndexViewModel
+@{
+    ViewData["Title"] = "รายการสแกน";
+
+    static string ScanTypeLabel(string? scanType) => scanType switch
+    {
+        "CheckIn" => "เข้าเรียน",
+        "CheckOut" => "กลับบ้าน",
+        _ => scanType ?? "-"
+    };
+}
+
+<h2 class="mb-3">รายการสแกน</h2>
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-2">
+        <input type="date" class="form-control" name="Date" value="@Model.Filter.Date?.ToString("yyyy-MM-dd")" />
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" name="AcademicYearId">
+            <option value="">ปีการศึกษา</option>
+            @foreach (var x in Model.AcademicYears)
+            {
+                <option value="@x.Value" selected="@(Model.Filter.AcademicYearId == x.Value ? "selected" : null)">@x.Text</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" name="GradeLevelId">
+            <option value="">ระดับชั้น</option>
+            @foreach (var x in Model.GradeLevels)
+            {
+                <option value="@x.Value" selected="@(Model.Filter.GradeLevelId == x.Value ? "selected" : null)">@x.Text</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" name="ClassroomId">
+            <option value="">ห้อง</option>
+            @foreach (var x in Model.Classrooms)
+            {
+                <option value="@x.Value" selected="@(Model.Filter.ClassroomId == x.Value ? "selected" : null)">@x.Text</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <input type="text" class="form-control" name="StudentKeyword" value="@Model.Filter.StudentKeyword" placeholder="รหัส/ชื่อ-นามสกุล" />
+    </div>
+    <div class="col-md-1 d-grid">
+        <button class="btn btn-outline-primary" type="submit">ค้นหา</button>
+    </div>
+</form>
+
+<div class="table-responsive">
+    <table class="table table-striped table-hover align-middle">
+        <thead>
+            <tr>
+                <th>วันเวลา</th>
+                <th>รหัส</th>
+                <th>ชื่อ</th>
+                <th>ประเภท</th>
+                <th>พิกัด</th>
+                <th>ซ้ำ</th>
+                <th>ความมั่นใจ</th>
+                <th>เอนจิน</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Transactions.Count == 0)
+            {
+                <tr><td colspan="8" class="text-center text-muted">ไม่พบข้อมูล</td></tr>
+            }
+            else
+            {
+                @foreach (var item in Model.Transactions)
+                {
+                    <tr>
+                        <td>@item.ScanTime.ToThaiDate("yyyy-MM-dd HH:mm:ss")</td>
+                        <td>@item.StudentCode</td>
+                        <td>@item.StudentName</td>
+                        <td>@ScanTypeLabel(item.ScanType)</td>
+                        <td>
+                            @if (!string.IsNullOrWhiteSpace(item.MapUrl))
+                            {
+                                <a href="@item.MapUrl" target="_blank">ดูตำแหน่ง</a>
+                                <div class="small text-muted">@item.Latitude?.ToString("0.######"), @item.Longitude?.ToString("0.######")</div>
+                            }
+                            else
+                            {
+                                <span class="text-muted">ไม่มีข้อมูล</span>
+                            }
+                        </td>
+                        <td>
+                            @if (item.IsDuplicate)
+                            {
+                                <span class="badge bg-warning text-dark">ใช่</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-success">ไม่ใช่</span>
+                            }
+                        </td>
+                        <td>@item.Confidence</td>
+                        <td>@item.Provider</td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>

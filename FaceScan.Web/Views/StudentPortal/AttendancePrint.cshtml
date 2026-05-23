@@ -1,0 +1,69 @@
+@model StudentAttendanceReportViewModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>รายงานเข้า-กลับนักเรียน</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <style>
+        body { padding: 20px; font-size: 14px; }
+        .print-header { margin-bottom: 16px; }
+        @@media print {
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print mb-3">
+        <button class="btn btn-primary" onclick="window.print()">พิมพ์รายงาน</button>
+    </div>
+
+    <div class="print-header">
+        <h4 class="mb-1">รายงานการมาเรียนและเวลากลับ</h4>
+        <div>รหัสนักเรียน: @Model.StudentCode</div>
+        <div>ชื่อ: @Model.StudentName</div>
+        <div>ชั้น @Model.GradeLevel ห้อง @Model.Classroom</div>
+        <div>ช่วงวันที่ @Model.Filter.StartDate.ToThaiDate("dd/MM/yyyy") - @Model.Filter.EndDate.ToThaiDate("dd/MM/yyyy")</div>
+        <div>เงื่อนไขมาสาย: หลังเวลา @Model.LateAfterTime.ToString(@"hh\:mm") น.</div>
+    </div>
+
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>วันที่</th>
+                <th>เวลาเข้า</th>
+                <th>ตำแหน่งเข้า</th>
+                <th>เวลาออก</th>
+                <th>ตำแหน่งออก</th>
+                <th>สถานะ</th>
+                <th>มาสาย</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Rows.Count == 0)
+            {
+                <tr><td colspan="7" class="text-center">ไม่พบข้อมูล</td></tr>
+            }
+            else
+            {
+                @foreach (var row in Model.Rows)
+                {
+                    <tr>
+                        <td>@row.Date.ToThaiDate("dd/MM/yyyy")</td>
+                        <td>@row.FirstCheckInTime?.ToString("HH:mm:ss")</td>
+                        <td>@(row.CheckInMapUrl ?? "-")</td>
+                        <td>@row.LastCheckOutTime?.ToString("HH:mm:ss")</td>
+                        <td>@(row.CheckOutMapUrl ?? "-")</td>
+                        <td>@row.StatusLabel</td>
+                        <td>@(row.IsLate ? "ใช่" : "ไม่ใช่")</td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</body>
+</html>

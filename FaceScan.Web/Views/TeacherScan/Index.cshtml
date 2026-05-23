@@ -1,0 +1,1514 @@
+﻿@model ScanViewModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "สแกนลงเวลาปฏิบัติราชการ";
+}
+
+<div class="teacher-shell @(Model.IsPublicMode ? "teacher-shell-public" : "")">
+    <section class="teacher-hero teacher-hero-teal mb-3">
+        <div class="teacher-hero-body">
+            <div class="teacher-hero-copy">
+                <div class="teacher-kicker">Teacher Face Scan</div>
+                <h1 class="teacher-hero-title">สแกนลงเวลาปฏิบัติราชการ</h1>
+                <p class="teacher-hero-text">
+                    สแกนใบหน้าเพื่อเช็คเข้าหรือเช็คออกจากการปฏิบัติราชการ โดยออกแบบปุ่มและลำดับการใช้งานให้เหมาะกับมือถือจอเล็ก
+                </p>
+            </div>
+            <div class="teacher-hero-stack">
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">สถานะการใช้งาน</span>
+                    <strong>@(Model.IsPublicMode ? "โหมดสาธารณะ" : "โหมดภายในระบบ")</strong>
+                </div>
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">สถานศึกษา</span>
+                    <strong>@Model.SchoolName</strong>
+                </div>
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">รูปแบบหน้าจอ</span>
+                    <strong>Mobile-first</strong>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="row g-3">
+        <div class="col-xl-7">
+            <div class="teacher-scan-flow">
+                <div class="teacher-section-card teacher-scan-primary-card">
+                    <div class="teacher-section-head">
+                        <div>
+                            <div class="teacher-section-kicker">Quick Select</div>
+                            <h2 class="teacher-section-title">เลือกการลงเวลา</h2>
+                        </div>
+                        <div class="teacher-section-note">เริ่มจากเลือกว่าจะเช็คเข้า หรือเช็คออกก่อนสแกนใบหน้า</div>
+                    </div>
+
+                    <label for="requestedType" class="form-label">ประเภทการสแกน</label>
+                    <select id="requestedType" class="form-select form-select-lg">
+                        <option value="1" selected="@(Model.RequestedType == ScanType.CheckIn ? "selected" : null)">เช็คเข้าปฏิบัติราชการ</option>
+                        <option value="2" selected="@(Model.RequestedType == ScanType.CheckOut ? "selected" : null)">เช็คออกจากการปฏิบัติราชการ</option>
+                    </select>
+                </div>
+
+                <div class="teacher-section-card teacher-scan-secondary-card">
+                    <div class="teacher-section-head">
+                        <div>
+                            <div class="teacher-section-kicker">Setup</div>
+                            <h2 class="teacher-section-title">ตั้งค่าการสแกนเพิ่มเติม</h2>
+                        </div>
+                        <div class="teacher-section-note">ปรับโหมดการรู้จำและตรวจสอบตำแหน่งก่อนบันทึกเวลา</div>
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <label for="recognitionProfile" class="form-label">โหมดการรู้จำใบหน้า</label>
+                            <select id="recognitionProfile" class="form-select">
+                                <option value="@FaceRecognitionProfiles.Fast">เร็ว</option>
+                                <option value="@FaceRecognitionProfiles.Auto" selected>อัตโนมัติ</option>
+                                <option value="@FaceRecognitionProfiles.Stable">เสถียร</option>
+                                <option value="@FaceRecognitionProfiles.Accurate">แม่นยำสูง</option>
+                            </select>
+                            <div class="form-text">ระบบจะเลือก OpenCV Lite, Dlib, InsightFace หรือ DeepFace ตาม engine ที่พร้อมใช้งาน</div>
+                        </div>
+                    </div>
+
+                    <div class="teacher-note-banner mt-3">
+                        <strong>ตำแหน่งจีพีเอส</strong>
+                        <div id="locationStatus" class="small mt-1">กำลังรอตำแหน่ง...</div>
+                    </div>
+                </div>
+
+                <div class="teacher-section-card teacher-scan-camera-card">
+                    <div class="teacher-topline mb-3">
+                        <div>
+                            <div class="teacher-section-kicker">Camera</div>
+                            <h2 class="teacher-section-title">กล้องสแกนใบหน้า</h2>
+                        </div>
+                        <div class="teacher-meta-pills">
+                            <span class="teacher-meta-pill"><i class="bi bi-clock"></i> <span id="clock"></span></span>
+                        </div>
+                    </div>
+
+                    <div class="teacher-camera-helper mb-3">
+                        <i class="bi bi-info-circle"></i>
+                        <span>จัดใบหน้าให้อยู่กึ่งกลางกรอบ ระบบจะเริ่มสแกนอัตโนมัติเมื่อพร้อม หรือกด “สแกนตอนนี้” ได้ทันที</span>
+                    </div>
+
+                    <div id="matchingStatusCard" class="matching-status-card matching-state-idle mb-3">
+                        <span class="matching-dot"></span>
+                        <div>
+                            <div id="matchingMain" class="matching-main">สถานะการแมตช์: รอเริ่มต้น</div>
+                            <div id="matchingSub" class="matching-sub">กดเปิดกล้องเพื่อเริ่มสแกน</div>
+                        </div>
+                    </div>
+
+                    <div class="teacher-camera-frame mb-3" id="cameraPreviewShell" tabindex="-1">
+                        <video id="video" autoplay playsinline muted class="w-100 h-100"></video>
+                        <canvas id="overlayCanvas"></canvas>
+                        <div id="liveNameBadge" class="live-name-badge d-none"></div>
+                        <div id="liveStatusBadge" class="live-status-badge live-status-idle d-none"></div>
+                    </div>
+                    <canvas id="canvas" class="d-none"></canvas>
+                    <div id="scanGuideHint" class="small text-muted mb-2">จัดใบหน้าให้อยู่กลางกรอบ ระบบจะเริ่มสแกนอัตโนมัติเมื่อพร้อม</div>
+                    <div id="scanCountdown" class="small fw-semibold text-primary mb-3 d-none"></div>
+
+                    <div class="teacher-sticky-actions teacher-action-row">
+                        <button id="btnStart" type="button" class="btn btn-primary teacher-scan-action-btn">
+                            <i class="bi bi-camera-video me-1"></i> เปิดกล้อง
+                        </button>
+                        <button id="btnSwitch" type="button" class="btn btn-outline-secondary teacher-scan-action-btn">
+                            <i class="bi bi-arrow-repeat me-1"></i> สลับกล้อง
+                        </button>
+                        <button id="btnScan" type="button" class="btn btn-success teacher-scan-action-btn">
+                            <i class="bi bi-person-check me-1"></i> สแกนตอนนี้
+                        </button>
+                    </div>
+
+                    <div id="resultBox" class="alert alert-secondary mt-3 mb-0">พร้อมใช้งาน</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-5">
+            <div class="teacher-section-card mb-3">
+                <div class="teacher-section-head">
+                    <div>
+                        <div class="teacher-section-kicker">Latest Result</div>
+                        <h2 class="teacher-section-title">ผลล่าสุดที่สแกนสำเร็จ</h2>
+                    </div>
+                </div>
+                <div id="latestSuccess">
+                    <div class="teacher-note-banner">ยังไม่มีข้อมูล</div>
+                </div>
+            </div>
+
+            <div class="teacher-section-card">
+                <div class="teacher-section-head">
+                    <div>
+                        <div class="teacher-section-kicker">Recent Activity</div>
+                        <h2 class="teacher-section-title">รายการสแกนล่าสุดของครู</h2>
+                    </div>
+                    <div class="teacher-page-actions">
+                        <button type="button" id="btnRefreshRecent" class="btn btn-outline-secondary">รีเฟรช</button>
+                    </div>
+                </div>
+
+                <div id="recentScansCards" class="teacher-mobile-list d-lg-none">
+                    <div class="teacher-note-banner">ยังไม่มีข้อมูล</div>
+                </div>
+
+                <div class="d-none d-lg-block table-responsive">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>เวลา</th>
+                                <th>บัญชี</th>
+                                <th>ชื่อ</th>
+                                <th>ประเภท</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentScansBody">
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-3">ยังไม่มีข้อมูล</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<input type="hidden" id="stationCode" value="@Model.StationCode" />
+<input type="hidden" id="stationToken" value="@Model.StationToken" />
+<input type="hidden" id="isPublicMode" value="@(Model.IsPublicMode ? "true" : "false")" />
+
+<div id="retryScanPrompt" class="scan-retry-sheet" hidden>
+    <div class="scan-retry-backdrop" data-retry-close="true"></div>
+    <div class="scan-retry-dialog" role="dialog" aria-modal="true" aria-labelledby="retryScanPromptLabel">
+        <div class="scan-retry-head">
+            <h5 class="scan-retry-title" id="retryScanPromptLabel">สแกนไม่สำเร็จ</h5>
+            <button type="button" class="btn-close" id="btnRetryClose" aria-label="Close"></button>
+        </div>
+        <div class="scan-retry-body">
+            ไม่พบใบหน้าที่ตรงกับระบบภายใน 45 วินาที ต้องการเริ่มสแกนอีกครั้งหรือไม่?
+        </div>
+        <div class="scan-retry-actions">
+            <button type="button" class="btn btn-outline-secondary" id="btnRetryCancel">ยังไม่สแกนต่อ</button>
+            <button type="button" class="btn btn-primary" id="btnRetryScan">สแกนอีกครั้ง</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (() => {
+            const video = document.getElementById('video');
+            const overlayCanvas = document.getElementById('overlayCanvas');
+            const overlayCtx = overlayCanvas.getContext('2d');
+            const canvas = document.getElementById('canvas');
+            const requestedType = document.getElementById('requestedType');
+            const recognitionProfile = document.getElementById('recognitionProfile');
+            const stationCode = document.getElementById('stationCode').value;
+            const stationToken = document.getElementById('stationToken').value;
+            const isPublicMode = document.getElementById('isPublicMode').value === 'true';
+            const clock = document.getElementById('clock');
+            const locationStatus = document.getElementById('locationStatus');
+            const resultBox = document.getElementById('resultBox');
+            const latestSuccess = document.getElementById('latestSuccess');
+            const recentScansBody = document.getElementById('recentScansBody');
+            const recentScansCards = document.getElementById('recentScansCards');
+            const liveNameBadge = document.getElementById('liveNameBadge');
+            const liveStatusBadge = document.getElementById('liveStatusBadge');
+            const scanGuideHint = document.getElementById('scanGuideHint');
+            const scanCountdown = document.getElementById('scanCountdown');
+            const matchingStatusCard = document.getElementById('matchingStatusCard');
+            const matchingMain = document.getElementById('matchingMain');
+            const matchingSub = document.getElementById('matchingSub');
+            const cameraPreviewShell = document.getElementById('cameraPreviewShell');
+            const btnStart = document.getElementById('btnStart');
+            const btnSwitch = document.getElementById('btnSwitch');
+            const btnScan = document.getElementById('btnScan');
+            const btnRefreshRecent = document.getElementById('btnRefreshRecent');
+            const retryScanPromptElement = document.getElementById('retryScanPrompt');
+            const btnRetryScan = document.getElementById('btnRetryScan');
+            const btnRetryCancel = document.getElementById('btnRetryCancel');
+            const btnRetryClose = document.getElementById('btnRetryClose');
+
+            const verifyUrl = '@Url.Action("Verify", "TeacherScan")';
+            const previewUrl = '@Url.Action("Preview", "TeacherScan")';
+            const recentUrl = '@Url.Action("Recent", "TeacherScan")';
+            const PREVIEW_INTERVAL_MS = 2200;
+            const SCAN_COOLDOWN_MS = 1600;
+            const SCAN_SESSION_TIMEOUT_MS = 45000;
+            const READY_FRAME_THRESHOLD = 2;
+
+            let stream = null;
+            let facingMode = 'user';
+            let latestLocation = null;
+            let locationWatchId = null;
+            let scanning = false;
+            let faceDetector = null;
+            let supportsLiveDetection = false;
+            let latestFaceRect = null;
+            let detectionTimer = null;
+            let detectionBusy = false;
+            let previewing = false;
+            let lastPreviewAt = 0;
+            let readyFrameStreak = 0;
+            let lastScanAt = 0;
+            let scanSessionTimer = null;
+            let scanCountdownTimer = null;
+            let scanSessionDeadline = 0;
+            let scanSessionExpired = false;
+            let retryPromptVisible = false;
+            let gpsConsentConfirmed = false;
+
+            function updateClock() {
+                clock.textContent = new Date().toLocaleString('th-TH');
+            }
+
+            function scanTypeLabel(scanType) {
+                if (scanType === 1 || scanType === 'CheckIn') return 'เช็คเข้า';
+                if (scanType === 2 || scanType === 'CheckOut') return 'เช็คออก';
+                return '-';
+            }
+
+            function setResult(message, kind) {
+                resultBox.textContent = message;
+                resultBox.className = 'alert mt-3 mb-0';
+                if (kind === 'success') resultBox.classList.add('alert-success');
+                else if (kind === 'warning') resultBox.classList.add('alert-warning');
+                else if (kind === 'danger') resultBox.classList.add('alert-danger');
+                else resultBox.classList.add('alert-secondary');
+            }
+
+            function escapeHtml(value) {
+                return String(value ?? '')
+                    .replaceAll('&', '&amp;')
+                    .replaceAll('<', '&lt;')
+                    .replaceAll('>', '&gt;')
+                    .replaceAll('"', '&quot;')
+                    .replaceAll("'", '&#39;');
+            }
+
+            function renderLatestSuccess(data) {
+                if (!data || !data.success) {
+                    latestSuccess.innerHTML = '<div class="teacher-note-banner">ยังไม่มีข้อมูล</div>';
+                    return;
+                }
+
+                latestSuccess.innerHTML = `
+                    <article class="teacher-data-card">
+                        <div class="teacher-data-card-head">
+                            <div>
+                                <div class="teacher-data-title">${escapeHtml(data.studentName || '-')}</div>
+                                <div class="teacher-data-subtitle">${escapeHtml(data.studentCode || '-')}</div>
+                            </div>
+                            <span class="badge bg-success">${escapeHtml(scanTypeLabel(data.scanType))}</span>
+                        </div>
+                        <div class="teacher-data-grid">
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">เวลา</div>
+                                <div class="teacher-data-value">${escapeHtml(new Date(data.scanTime).toLocaleString('th-TH'))}</div>
+                            </div>
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">ผลการสแกน</div>
+                                <div class="teacher-data-value">${escapeHtml(data.message || '-')}</div>
+                            </div>
+                        </div>
+                    </article>
+                `;
+            }
+
+            function renderRecentScans(items) {
+                if (!items || items.length === 0) {
+                    recentScansBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">ยังไม่มีข้อมูล</td></tr>';
+                    recentScansCards.innerHTML = '<div class="teacher-note-banner">ยังไม่มีข้อมูล</div>';
+                    return;
+                }
+
+                recentScansBody.innerHTML = items.map(item => `
+                    <tr>
+                        <td class="text-nowrap">${escapeHtml(new Date(item.scanTime).toLocaleString('th-TH'))}</td>
+                        <td>${escapeHtml(item.studentCode)}</td>
+                        <td>${escapeHtml(item.studentName)}</td>
+                        <td>${escapeHtml(scanTypeLabel(item.scanType))}</td>
+                    </tr>
+                `).join('');
+
+                recentScansCards.innerHTML = items.map(item => `
+                    <article class="teacher-data-card">
+                        <div class="teacher-data-card-head">
+                            <div>
+                                <div class="teacher-data-title">${escapeHtml(item.studentName)}</div>
+                                <div class="teacher-data-subtitle">${escapeHtml(item.studentCode)}</div>
+                            </div>
+                            <span class="badge bg-secondary">${escapeHtml(scanTypeLabel(item.scanType))}</span>
+                        </div>
+                        <div class="teacher-data-grid">
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">เวลา</div>
+                                <div class="teacher-data-value">${escapeHtml(new Date(item.scanTime).toLocaleString('th-TH'))}</div>
+                            </div>
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">ความมั่นใจ</div>
+                                <div class="teacher-data-value">${escapeHtml(item.confidence)}</div>
+                            </div>
+                        </div>
+                    </article>
+                `).join('');
+            }
+
+            function normalizeRecognitionProfile(value) {
+                const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+                if (normalized === 'fast') return 'fast';
+                if (normalized === 'stable') return 'stable';
+                if (normalized === 'accurate') return 'accurate';
+                return 'auto';
+            }
+
+            function recognitionProfileLabel(value) {
+                const normalized = normalizeRecognitionProfile(value);
+                if (normalized === 'fast') return 'เร็ว';
+                if (normalized === 'stable') return 'เสถียร';
+                if (normalized === 'accurate') return 'แม่นยำสูง';
+                return 'อัตโนมัติ';
+            }
+
+            function formatConfidence(confidence) {
+                const numberValue = Number(confidence);
+                return Number.isNaN(numberValue) ? '-' : numberValue.toFixed(2);
+            }
+
+            function normalizeProvider(provider) {
+                return typeof provider === 'string' ? provider.trim() : '';
+            }
+
+            function providerEngineLabel(engine) {
+                const normalized = typeof engine === 'string' ? engine.trim().toLowerCase() : '';
+                if (!normalized) return '';
+                if (normalized === 'opencv_lite') return 'OpenCV Lite';
+                if (normalized === 'dlib') return 'Dlib';
+                if (normalized === 'insightface') return 'InsightFace';
+                if (normalized === 'deepface') return 'DeepFace';
+                if (normalized === 'mock_phash') return 'Mock';
+                return engine;
+            }
+
+            function providerLabel(provider) {
+                const normalized = normalizeProvider(provider);
+                if (!normalized) return '-';
+
+                const lower = normalized.toLowerCase();
+                if (lower.startsWith('hybridfaceengine')) {
+                    const match = normalized.match(/\[(.+)\]/);
+                    if (!match || !match[1]) {
+                        return 'HybridFaceEngine';
+                    }
+
+                    const engines = match[1]
+                        .split('+')
+                        .map((item) => providerEngineLabel(item))
+                        .filter(Boolean);
+
+                    return engines.length > 0
+                        ? `HybridFaceEngine (${engines.join(' + ')})`
+                        : 'HybridFaceEngine';
+                }
+
+                if (lower.includes('opencv')) return 'OpenCV Lite';
+                if (lower.includes('insightface')) return 'InsightFace';
+                if (lower.includes('deepface')) return 'DeepFace';
+                if (lower.includes('dlib')) return 'Dlib';
+                if (lower.includes('mock')) return 'MockFaceEngine';
+                return normalized;
+            }
+
+            function buildResultMessage(data, fallbackMessage) {
+                const baseMessage = data?.message || fallbackMessage || '-';
+                const details = [];
+
+                if (data?.recognitionProfile) {
+                    details.push(`Mode ${recognitionProfileLabel(data.recognitionProfile)}`);
+                }
+
+                if (data?.provider) {
+                    details.push(`Provider ${providerLabel(data.provider)}`);
+                }
+
+                return details.length > 0
+                    ? `${baseMessage} | ${details.join(' | ')}`
+                    : baseMessage;
+            }
+
+            function updateStartButtonLabel(canRestart) {
+                btnStart.innerHTML = canRestart
+                    ? '<i class="bi bi-arrow-clockwise me-1"></i> เปิดกล้องอีกครั้ง'
+                    : '<i class="bi bi-camera-video me-1"></i> เปิดกล้อง';
+            }
+
+            function setActionButtonsBusy(isBusy) {
+                btnStart.disabled = isBusy;
+                btnSwitch.disabled = isBusy;
+                btnScan.disabled = isBusy;
+                requestedType.disabled = isBusy;
+                recognitionProfile.disabled = isBusy;
+                if (btnRetryScan) btnRetryScan.disabled = isBusy;
+                if (btnRetryCancel) btnRetryCancel.disabled = isBusy;
+                if (btnRetryClose) btnRetryClose.disabled = isBusy;
+            }
+
+            function withProviderText(subText, provider, recognitionProfileValue = recognitionProfile.value) {
+                const details = [];
+                const modeLabel = recognitionProfileLabel(recognitionProfileValue);
+                const currentProvider = providerLabel(provider);
+                if (modeLabel) details.push(`โหมด: ${modeLabel}`);
+                if (currentProvider && currentProvider !== '-') details.push(`เอนจิน: ${currentProvider}`);
+                return details.length > 0 ? `${subText} | ${details.join(' | ')}` : subText;
+            }
+
+            function clearLiveName() {
+                liveNameBadge.textContent = '';
+                liveNameBadge.classList.add('d-none');
+            }
+
+            function clearLiveStatus() {
+                liveStatusBadge.textContent = '';
+                liveStatusBadge.className = 'live-status-badge live-status-idle d-none';
+            }
+
+            function setLiveName(name, rect) {
+                if (!name || !rect) {
+                    clearLiveName();
+                    return;
+                }
+
+                liveNameBadge.style.left = `${Math.max(8, Math.floor(rect.x))}px`;
+                liveNameBadge.style.top = `${Math.max(8, Math.floor(rect.y - 34))}px`;
+                liveNameBadge.textContent = name;
+                liveNameBadge.classList.remove('d-none');
+            }
+
+            function setLiveStatus(text, state, rect) {
+                if (!text || !rect || !stream) {
+                    clearLiveStatus();
+                    return;
+                }
+
+                const badgeWidth = Math.min(280, Math.max(170, rect.width));
+                const maxX = Math.max(8, overlayCanvas.width - badgeWidth - 8);
+                const left = Math.max(8, Math.min(Math.floor(rect.x), maxX));
+                const desiredTop = Math.floor(rect.y + rect.height + 12);
+                const fallbackTop = Math.floor(rect.y - 44);
+                const top = desiredTop <= overlayCanvas.height - 36
+                    ? desiredTop
+                    : Math.max(8, fallbackTop);
+
+                liveStatusBadge.style.left = `${left}px`;
+                liveStatusBadge.style.top = `${top}px`;
+                liveStatusBadge.style.width = `${badgeWidth}px`;
+                liveStatusBadge.textContent = text;
+                liveStatusBadge.className = `live-status-badge live-status-${state}`;
+                liveStatusBadge.classList.remove('d-none');
+            }
+
+            function setMatchingStatus(state, mainText, subText, provider, recognitionProfileValue = recognitionProfile.value) {
+                matchingStatusCard.className = `matching-status-card matching-state-${state}`;
+                matchingMain.textContent = mainText;
+                matchingSub.textContent = withProviderText(subText, provider, recognitionProfileValue);
+                const overlayRect = overlayCanvas.width > 0 && overlayCanvas.height > 0
+                    ? (latestFaceRect ?? buildGuideRect())
+                    : null;
+                setLiveStatus(mainText, state, overlayRect);
+            }
+
+            function renderLatestSuccess(data) {
+                if (!data || !data.success) {
+                    latestSuccess.innerHTML = '<div class="teacher-note-banner">ยังไม่มีข้อมูล</div>';
+                    return;
+                }
+
+                latestSuccess.innerHTML = `
+                    <article class="teacher-data-card">
+                        <div class="teacher-data-card-head">
+                            <div>
+                                <div class="teacher-data-title">${escapeHtml(data.studentName || '-')}</div>
+                                <div class="teacher-data-subtitle">${escapeHtml(data.studentCode || '-')}</div>
+                            </div>
+                            <span class="badge bg-success">${escapeHtml(scanTypeLabel(data.scanType))}</span>
+                        </div>
+                        <div class="teacher-data-grid">
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">Time</div>
+                                <div class="teacher-data-value">${escapeHtml(new Date(data.scanTime).toLocaleString('th-TH'))}</div>
+                            </div>
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">Result</div>
+                                <div class="teacher-data-value">${escapeHtml(data.message || '-')}</div>
+                            </div>
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">Mode</div>
+                                <div class="teacher-data-value">${escapeHtml(recognitionProfileLabel(data.recognitionProfile))}</div>
+                            </div>
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">Provider</div>
+                                <div class="teacher-data-value">${escapeHtml(providerLabel(data.provider))}</div>
+                            </div>
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">Confidence</div>
+                                <div class="teacher-data-value">${escapeHtml(formatConfidence(data.confidence))}</div>
+                            </div>
+                        </div>
+                    </article>
+                `;
+            }
+
+            function renderRecentScans(items) {
+                if (!items || items.length === 0) {
+                    recentScansBody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">ยังไม่มีข้อมูล</td></tr>';
+                    recentScansCards.innerHTML = '<div class="teacher-note-banner">ยังไม่มีข้อมูล</div>';
+                    return;
+                }
+
+                recentScansBody.innerHTML = items.map(item => `
+                    <tr>
+                        <td class="text-nowrap">${escapeHtml(new Date(item.scanTime).toLocaleString('th-TH'))}</td>
+                        <td>${escapeHtml(item.studentCode)}</td>
+                        <td>
+                            <div>${escapeHtml(item.studentName)}</div>
+                            <div class="small text-muted">${escapeHtml(providerLabel(item.provider))}</div>
+                        </td>
+                        <td>
+                            <div>${escapeHtml(scanTypeLabel(item.scanType))}</div>
+                            <div class="small text-muted">Conf ${escapeHtml(formatConfidence(item.confidence))}</div>
+                        </td>
+                    </tr>
+                `).join('');
+
+                recentScansCards.innerHTML = items.map(item => `
+                    <article class="teacher-data-card">
+                        <div class="teacher-data-card-head">
+                            <div>
+                                <div class="teacher-data-title">${escapeHtml(item.studentName)}</div>
+                                <div class="teacher-data-subtitle">${escapeHtml(item.studentCode)}</div>
+                            </div>
+                            <span class="badge bg-secondary">${escapeHtml(scanTypeLabel(item.scanType))}</span>
+                        </div>
+                        <div class="teacher-data-grid">
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">Time</div>
+                                <div class="teacher-data-value">${escapeHtml(new Date(item.scanTime).toLocaleString('th-TH'))}</div>
+                            </div>
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">Confidence</div>
+                                <div class="teacher-data-value">${escapeHtml(formatConfidence(item.confidence))}</div>
+                            </div>
+                            <div class="teacher-data-row">
+                                <div class="teacher-data-label">Provider</div>
+                                <div class="teacher-data-value">${escapeHtml(providerLabel(item.provider))}</div>
+                            </div>
+                        </div>
+                    </article>
+                `).join('');
+            }
+
+            async function refreshRecentScans() {
+                const query = new URLSearchParams();
+                if (!isPublicMode) {
+                    if (stationCode) query.set('stationCode', stationCode);
+                    if (stationToken) query.set('stationToken', stationToken);
+                }
+                if (isPublicMode) {
+                    query.set('isPublicMode', 'true');
+                }
+
+                const response = await fetch(`${recentUrl}?${query.toString()}`, { method: 'GET' });
+                const data = await response.json();
+                if (response.ok && data?.success) {
+                    renderRecentScans(data.items);
+                    return;
+                }
+
+                renderRecentScans([]);
+            }
+
+            function describeCameraError(error) {
+                const currentPath = `${location.pathname}${location.search}`;
+                const fallbackUrl = location.hostname === '127.0.0.1'
+                    ? `http://localhost:5248${currentPath} หรือ https://localhost:7089${currentPath}`
+                    : `https://localhost:7089${currentPath}`;
+
+                if (!navigator.mediaDevices?.getUserMedia) {
+                    return `เบราว์เซอร์นี้ไม่อนุญาตให้เปิดกล้องจากหน้านี้ ลองเปิดผ่าน ${fallbackUrl}`;
+                }
+
+                if (!error || typeof error !== 'object') {
+                    return 'ไม่สามารถเปิดกล้องได้ (ตรวจสอบสิทธิ์หรืออุปกรณ์)';
+                }
+
+                switch (error.name) {
+                    case 'NotAllowedError':
+                    case 'PermissionDeniedError':
+                        return 'สิทธิ์กล้องถูกบล็อก กรุณาอนุญาต Camera ในเบราว์เซอร์แล้วกดเปิดกล้องอีกครั้ง';
+                    case 'NotFoundError':
+                    case 'DevicesNotFoundError':
+                        return 'ไม่พบอุปกรณ์กล้องในเครื่องนี้';
+                    case 'NotReadableError':
+                    case 'TrackStartError':
+                    case 'AbortError':
+                        return 'กล้องอาจถูกใช้งานโดยแอปอื่นอยู่ กรุณาปิดแอปกล้องหรือประชุมออนไลน์ก่อน';
+                    case 'OverconstrainedError':
+                    case 'ConstraintNotSatisfiedError':
+                        return 'กล้องที่ระบบพยายามเปิดไม่พร้อมใช้งาน ลองกดสลับกล้องหรือเปิดใหม่อีกครั้ง';
+                    case 'SecurityError':
+                        return `เบราว์เซอร์บล็อกการเปิดกล้องจากหน้านี้ ลองเปิดผ่าน ${fallbackUrl}`;
+                    default:
+                        return error.message || 'ไม่สามารถเปิดกล้องได้ (ตรวจสอบสิทธิ์หรืออุปกรณ์)';
+                }
+            }
+
+            function updateLocationStatusText() {
+                if (!latestLocation?.coords) {
+                    locationStatus.textContent = 'ยังไม่ได้รับตำแหน่ง GPS (ต้องอนุญาตก่อนเปิดกล้อง)';
+                    return;
+                }
+
+                const { latitude, longitude, accuracy } = latestLocation.coords;
+                locationStatus.textContent = `ละติจูด ${latitude.toFixed(6)}, ลองจิจูด ${longitude.toFixed(6)} (±${accuracy.toFixed(0)} เมตร)`;
+            }
+
+            function stopLocationWatch() {
+                if (locationWatchId !== null && navigator.geolocation) {
+                    navigator.geolocation.clearWatch(locationWatchId);
+                }
+                locationWatchId = null;
+            }
+
+            function getCurrentLocation() {
+                if (!latestLocation?.coords) return null;
+                return {
+                    latitude: latestLocation.coords.latitude,
+                    longitude: latestLocation.coords.longitude,
+                    accuracy: latestLocation.coords.accuracy
+                };
+            }
+
+            function focusCameraPreview() {
+                if (!cameraPreviewShell) return;
+                cameraPreviewShell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                window.setTimeout(() => {
+                    try {
+                        cameraPreviewShell.focus({ preventScroll: true });
+                    } catch {
+                        cameraPreviewShell.focus();
+                    }
+                }, 120);
+            }
+
+            function readCurrentLocation(options = {}) {
+                return new Promise((resolve) => {
+                    if (!navigator.geolocation) {
+                        resolve(null);
+                        return;
+                    }
+
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            latestLocation = position;
+                            updateLocationStatusText();
+                            resolve(position);
+                        },
+                        () => resolve(null),
+                        {
+                            enableHighAccuracy: true,
+                            timeout: options.timeout ?? 10000,
+                            maximumAge: options.maximumAge ?? 0
+                        });
+                });
+            }
+
+            async function ensureGpsReadyBeforeScan() {
+                if (!navigator.geolocation) {
+                    const message = 'อุปกรณ์ไม่รองรับ GPS จึงไม่สามารถเข้าสู่โหมดสแกนใบหน้าได้';
+                    setResult(message, 'warning');
+                    setMatchingStatus('warn', 'ไม่พร้อมเริ่มสแกน', message);
+                    updateLocationStatusText();
+                    return false;
+                }
+
+                if (!gpsConsentConfirmed) {
+                    const accepted = window.confirm('ระบบต้องยืนยันการเก็บตำแหน่ง GPS ก่อนเปิดกล้องเพื่อเข้าสู่โหมดสแกนใบหน้า\nคุณต้องการอนุญาตหรือไม่?');
+                    if (!accepted) {
+                        const message = 'ไม่ได้รับการยืนยันเก็บตำแหน่ง GPS จึงไม่สามารถเข้าสู่โหมดสแกนใบหน้าได้';
+                        setResult(message, 'warning');
+                        setMatchingStatus('warn', 'ยืนยัน GPS ไม่สำเร็จ', message);
+                        updateLocationStatusText();
+                        return false;
+                    }
+                    gpsConsentConfirmed = true;
+                }
+
+                locationStatus.textContent = 'กำลังตรวจสอบตำแหน่ง GPS...';
+                const location = latestLocation?.coords ? latestLocation : await readCurrentLocation({ timeout: 10000, maximumAge: 0 });
+                if (!location?.coords) {
+                    latestLocation = null;
+                    const message = 'ไม่พบตำแหน่ง GPS หรือไม่ได้รับสิทธิ์ตำแหน่ง จึงไม่สามารถเข้าสู่โหมดสแกนใบหน้าได้';
+                    setResult(message, 'warning');
+                    setMatchingStatus('warn', 'ไม่พร้อมเริ่มสแกน', message);
+                    updateLocationStatusText();
+                    return false;
+                }
+
+                startLocationWatch();
+                updateLocationStatusText();
+                return true;
+            }
+
+            function resizeOverlayCanvas() {
+                overlayCanvas.width = video.clientWidth || 640;
+                overlayCanvas.height = video.clientHeight || 480;
+            }
+
+            function clearScanCountdown() {
+                scanCountdown.textContent = '';
+                scanCountdown.classList.add('d-none');
+            }
+
+            function updateScanCountdown() {
+                if (!scanSessionDeadline || scanSessionExpired) {
+                    clearScanCountdown();
+                    return;
+                }
+
+                const remainingMs = Math.max(0, scanSessionDeadline - Date.now());
+                scanCountdown.textContent = `เวลาสแกนคงเหลือ ${Math.ceil(remainingMs / 1000)} วินาที`;
+                scanCountdown.classList.remove('d-none');
+            }
+
+            function stopScanSessionCountdown() {
+                if (scanSessionTimer) clearTimeout(scanSessionTimer);
+                if (scanCountdownTimer) clearInterval(scanCountdownTimer);
+                scanSessionTimer = null;
+                scanCountdownTimer = null;
+                scanSessionDeadline = 0;
+                scanSessionExpired = false;
+                clearScanCountdown();
+            }
+
+            function setRetryPromptVisibility(isVisible) {
+                if (!retryScanPromptElement) return false;
+                retryScanPromptElement.hidden = !isVisible;
+                retryScanPromptElement.classList.toggle('is-visible', isVisible);
+                document.body.classList.toggle('retry-prompt-open', isVisible);
+                return true;
+            }
+
+            function hideRetryPrompt() {
+                retryPromptVisible = false;
+                setRetryPromptVisibility(false);
+            }
+
+            function stopCameraTracks() {
+                if (!stream) return;
+                stream.getTracks().forEach((track) => track.stop());
+                video.srcObject = null;
+                stream = null;
+            }
+
+            function clampRect(rect) {
+                const x = Math.max(0, Math.min(rect.x, overlayCanvas.width - 1));
+                const y = Math.max(0, Math.min(rect.y, overlayCanvas.height - 1));
+                return {
+                    x,
+                    y,
+                    width: Math.max(1, Math.min(rect.width, overlayCanvas.width - x)),
+                    height: Math.max(1, Math.min(rect.height, overlayCanvas.height - y))
+                };
+            }
+
+            function buildGuideRect() {
+                const width = overlayCanvas.width * 0.50;
+                const height = overlayCanvas.height * 0.66;
+                return { x: (overlayCanvas.width - width) / 2, y: (overlayCanvas.height - height) / 2, width, height };
+            }
+
+            function expandRect(rect, ratio) {
+                const expandX = rect.width * ratio;
+                const expandY = rect.height * ratio;
+                return clampRect({
+                    x: rect.x - expandX,
+                    y: rect.y - expandY,
+                    width: rect.width + (expandX * 2),
+                    height: rect.height + (expandY * 2)
+                });
+            }
+
+            function drawGuideRect(message) {
+                resizeOverlayCanvas();
+                const guideRect = buildGuideRect();
+                overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                overlayCtx.strokeStyle = '#6ca6ff';
+                overlayCtx.lineWidth = 2;
+                overlayCtx.setLineDash([8, 6]);
+                overlayCtx.strokeRect(guideRect.x, guideRect.y, guideRect.width, guideRect.height);
+                overlayCtx.setLineDash([]);
+                scanGuideHint.textContent = message ?? 'จัดใบหน้าให้อยู่ในกรอบ ระบบจะเริ่มสแกนอัตโนมัติทันที';
+                return guideRect;
+            }
+
+            function drawFaceRect(rect, isReady) {
+                drawGuideRect();
+                overlayCtx.strokeStyle = isReady ? '#1dd75f' : '#f5b132';
+                overlayCtx.lineWidth = 3;
+                overlayCtx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+                scanGuideHint.textContent = isReady
+                    ? 'พบใบหน้าในกรอบแล้ว ระบบกำลังเริ่มสแกนอัตโนมัติ'
+                    : 'ปรับใบหน้าให้อยู่กลางกรอบและขยับเข้าใกล้กล้องอีกเล็กน้อย';
+            }
+
+            function scaleFaceRect(faceBox) {
+                const scaleX = overlayCanvas.width / video.videoWidth;
+                const scaleY = overlayCanvas.height / video.videoHeight;
+                return clampRect({
+                    x: faceBox.x * scaleX,
+                    y: faceBox.y * scaleY,
+                    width: faceBox.width * scaleX,
+                    height: faceBox.height * scaleY
+                });
+            }
+
+            function isFaceReady(faceRect) {
+                const guideRect = buildGuideRect();
+                const centerX = faceRect.x + (faceRect.width / 2);
+                const centerY = faceRect.y + (faceRect.height / 2);
+                return centerX >= guideRect.x
+                    && centerX <= guideRect.x + guideRect.width
+                    && centerY >= guideRect.y
+                    && centerY <= guideRect.y + guideRect.height
+                    && faceRect.width >= guideRect.width * 0.30
+                    && faceRect.height >= guideRect.height * 0.30;
+            }
+
+            function mapOverlayRectToVideo(rect) {
+                const scaleX = video.videoWidth / overlayCanvas.width;
+                const scaleY = video.videoHeight / overlayCanvas.height;
+                return {
+                    x: Math.max(0, Math.floor(rect.x * scaleX)),
+                    y: Math.max(0, Math.floor(rect.y * scaleY)),
+                    width: Math.max(1, Math.floor(rect.width * scaleX)),
+                    height: Math.max(1, Math.floor(rect.height * scaleY))
+                };
+            }
+
+            function scaleDimensionsToFit(width, height, maxWidth, maxHeight) {
+                const widthRatio = maxWidth / width;
+                const heightRatio = maxHeight / height;
+                const ratio = Math.min(1, widthRatio, heightRatio);
+                return {
+                    width: Math.max(1, Math.round(width * ratio)),
+                    height: Math.max(1, Math.round(height * ratio))
+                };
+            }
+
+            async function captureImageBlob(rect) {
+                const sourceRect = mapOverlayRectToVideo(clampRect(rect ?? buildGuideRect()));
+                const outputSize = scaleDimensionsToFit(sourceRect.width, sourceRect.height, 720, 720);
+                canvas.width = outputSize.width;
+                canvas.height = outputSize.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, sourceRect.x, sourceRect.y, sourceRect.width, sourceRect.height, 0, 0, outputSize.width, outputSize.height);
+                return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+            }
+
+            async function parseResponseJson(response) {
+                try {
+                    return await response.json();
+                } catch {
+                    return null;
+                }
+            }
+
+            function hasResolvedIdentity(data) {
+                return Boolean(data && ((data.studentCode && data.studentCode !== '-') || (data.studentName && data.studentName !== '-')));
+            }
+
+            function stopDetectionLoop(preserveBadges = false) {
+                if (detectionTimer) clearInterval(detectionTimer);
+                detectionTimer = null;
+                latestFaceRect = null;
+                readyFrameStreak = 0;
+                detectionBusy = false;
+                if (!preserveBadges) {
+                    clearLiveName();
+                    clearLiveStatus();
+                    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+                }
+            }
+
+            function pauseScanSession(preserveBadges) {
+                stopScanSessionCountdown();
+                stopDetectionLoop(preserveBadges);
+                stopLocationWatch();
+                previewing = false;
+                lastPreviewAt = 0;
+                readyFrameStreak = 0;
+                setActionButtonsBusy(false);
+                updateStartButtonLabel(true);
+            }
+
+            function stopActiveScanSession() {
+                pauseScanSession(false);
+                stopCameraTracks();
+            }
+
+            function showRetryPrompt() {
+                retryPromptVisible = true;
+                if (setRetryPromptVisibility(true)) return;
+                retryPromptVisible = false;
+                if (window.confirm('ไม่พบใบหน้าที่ตรงกับระบบภายใน 45 วินาที ต้องการเริ่มสแกนอีกครั้งหรือไม่?')) startCamera().catch(console.error);
+            }
+
+            function handleScanTimeout() {
+                if (scanSessionExpired || retryPromptVisible) return;
+                scanSessionExpired = true;
+                stopDetectionLoop();
+                stopCameraTracks();
+                stopLocationWatch();
+                clearScanCountdown();
+                clearLiveName();
+                clearLiveStatus();
+                setResult('ไม่พบใบหน้าที่ตรงกับระบบภายใน 45 วินาที', 'warning');
+                setMatchingStatus('warn', 'หมดเวลาการสแกน', 'ไม่พบใบหน้าที่ตรงกับระบบภายในเวลาที่กำหนด');
+                showRetryPrompt();
+            }
+
+            function startScanSessionCountdown() {
+                stopScanSessionCountdown();
+                scanSessionDeadline = Date.now() + SCAN_SESSION_TIMEOUT_MS;
+                updateScanCountdown();
+                scanCountdownTimer = setInterval(updateScanCountdown, 250);
+                scanSessionTimer = setTimeout(handleScanTimeout, SCAN_SESSION_TIMEOUT_MS + 50);
+            }
+
+            function initFaceDetector() {
+                supportsLiveDetection = false;
+                faceDetector = null;
+                if (!('FaceDetector' in window)) return;
+                try {
+                    faceDetector = new FaceDetector({ fastMode: true, maxDetectedFaces: 1 });
+                    supportsLiveDetection = true;
+                } catch {
+                    faceDetector = null;
+                    supportsLiveDetection = false;
+                }
+            }
+
+            async function previewRecognition() {
+                if (!stream || previewing || scanning || video.readyState < 2 || scanSessionExpired || retryPromptVisible || supportsLiveDetection) return;
+                if (Date.now() - lastPreviewAt < PREVIEW_INTERVAL_MS) return;
+
+                lastPreviewAt = Date.now();
+                previewing = true;
+
+                try {
+                    const blob = await captureImageBlob(buildGuideRect());
+                    if (!blob) return;
+
+                    const formData = new FormData();
+                    formData.append('Image', blob, 'teacher-preview.jpg');
+                    formData.append('RecognitionProfile', recognitionProfile.value);
+                    formData.append('IsPublicMode', isPublicMode ? 'true' : 'false');
+                    if (!isPublicMode) {
+                        formData.append('StationCode', stationCode || '');
+                        formData.append('StationToken', stationToken || '');
+                    }
+
+                    const response = await fetch(previewUrl, { method: 'POST', body: formData });
+                    const data = await parseResponseJson(response);
+                    const provider = data?.provider;
+                    const effectiveRecognitionProfile = normalizeRecognitionProfile(data?.recognitionProfile || recognitionProfile.value);
+
+                    if (response.ok && data?.success && data.studentName) {
+                        const guideRect = buildGuideRect();
+                        setLiveName(data.studentName, guideRect);
+                        setMatchingStatus('ready', 'พร้อมสแกนอัตโนมัติ', `พบชื่อ: ${data.studentName} (ความมั่นใจ ${formatConfidence(data.confidence)}) ระบบกำลังยืนยันการสแกน...`, provider, effectiveRecognitionProfile);
+                        await captureAndSend({ allowWithoutReadyCheck: true });
+                        return;
+                    }
+
+                    if (data?.studentName) setLiveName(data.studentName, buildGuideRect());
+                    else clearLiveName();
+
+                    if (!scanning) {
+                        setMatchingStatus(
+                            data?.studentName ? 'warn' : 'track',
+                            data?.studentName ? 'พบใบหน้าแล้ว' : 'กำลังตรวจจับใบหน้า',
+                            data?.message || (data?.studentName ? `พบชื่อ: ${data.studentName} แต่ยังต้องขยับให้อยู่ในจุดที่เหมาะสม` : 'กำลังตรวจสอบใบหน้าในกรอบ'),
+                            provider,
+                            effectiveRecognitionProfile);
+                    }
+                } catch (error) {
+                    console.error(error);
+                } finally {
+                    previewing = false;
+                }
+            }
+
+            async function runDetectionFrame() {
+                if (!stream || video.readyState < 2) {
+                    readyFrameStreak = 0;
+                    drawGuideRect('กำลังรอสัญญาณกล้อง...');
+                    setMatchingStatus('idle', 'สถานะการแมตช์: รอเริ่มต้น', 'กดเปิดกล้องเพื่อเริ่มสแกน');
+                    return;
+                }
+
+                if (!supportsLiveDetection || !faceDetector) {
+                    latestFaceRect = buildGuideRect();
+                    readyFrameStreak = 0;
+                    drawGuideRect('โหมดมาตรฐาน: จัดใบหน้าให้อยู่ในกรอบ ระบบกำลังตรวจสอบอัตโนมัติ');
+                    if (!scanning) setMatchingStatus('track', 'โหมดมาตรฐาน', 'กำลังตรวจสอบใบหน้าอัตโนมัติจากภาพในกรอบ');
+                    await previewRecognition();
+                    return;
+                }
+
+                if (detectionBusy) return;
+                detectionBusy = true;
+
+                try {
+                    const faces = await faceDetector.detect(video);
+                    if (!faces || faces.length === 0) {
+                        latestFaceRect = null;
+                        readyFrameStreak = 0;
+                        clearLiveName();
+                        drawGuideRect('กำลังค้นหาใบหน้า...');
+                        if (!scanning) setMatchingStatus('track', 'กำลังตรวจจับใบหน้า', 'ยังไม่พบใบหน้าในภาพ');
+                        return;
+                    }
+
+                    const scaledRect = scaleFaceRect(faces[0].boundingBox);
+                    latestFaceRect = scaledRect;
+                    const ready = isFaceReady(scaledRect);
+                    drawFaceRect(scaledRect, ready);
+
+                    if (!ready) {
+                        readyFrameStreak = 0;
+                        clearLiveName();
+                        if (!scanning) setMatchingStatus('track', 'กำลังจัดตำแหน่งใบหน้า', 'พบใบหน้าแล้ว แต่ยังไม่อยู่ในตำแหน่งที่เหมาะสม');
+                        return;
+                    }
+
+                    readyFrameStreak += 1;
+                    if (!scanning) setMatchingStatus('ready', 'พบใบหน้าแล้ว', 'พบใบหน้าในกรอบ ระบบจะเริ่มสแกนอัตโนมัติ');
+                    if (!scanSessionExpired && !retryPromptVisible && readyFrameStreak >= READY_FRAME_THRESHOLD) {
+                        await captureAndSend({ allowWithoutReadyCheck: true });
+                    }
+                } catch (error) {
+                    console.error(error);
+                    supportsLiveDetection = false;
+                    faceDetector = null;
+                    latestFaceRect = buildGuideRect();
+                    readyFrameStreak = 0;
+                    drawGuideRect('เปลี่ยนเป็นโหมดมาตรฐานอัตโนมัติ');
+                    setMatchingStatus('warn', 'Live Detection ไม่พร้อมใช้งาน', 'ระบบเปลี่ยนเป็นโหมดกรอบมาตรฐานให้แล้ว');
+                } finally {
+                    detectionBusy = false;
+                }
+            }
+
+            function startDetectionLoop() {
+                stopDetectionLoop();
+                detectionTimer = setInterval(() => runDetectionFrame().catch(console.error), 380);
+            }
+
+            async function startCamera() {
+                try {
+                    setResult('กำลังเปิดกล้อง...', 'secondary');
+
+                    if (stream) {
+                        stream.getTracks().forEach(track => track.stop());
+                        stream = null;
+                        video.srcObject = null;
+                    }
+
+                    if (!navigator.mediaDevices?.getUserMedia) {
+                        throw new Error(describeCameraError({ name: 'SecurityError' }));
+                    }
+
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode,
+                            width: { ideal: 960 },
+                            height: { ideal: 540 }
+                        },
+                        audio: false
+                    });
+
+                    video.srcObject = stream;
+                    video.setAttribute('playsinline', 'true');
+                    await video.play();
+                    btnStart.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> เปิดกล้องอีกครั้ง';
+                    setResult('กล้องพร้อมใช้งานแล้ว', 'success');
+                } catch (error) {
+                    console.error(error);
+                    const message = describeCameraError(error);
+                    setResult(message, 'danger');
+                }
+            }
+
+            async function switchCamera() {
+                facingMode = facingMode === 'user' ? 'environment' : 'user';
+                await startCamera();
+            }
+
+            function startLocationWatch() {
+                if (!navigator.geolocation) {
+                    locationStatus.textContent = 'อุปกรณ์ไม่รองรับการระบุตำแหน่ง';
+                    return;
+                }
+
+                if (locationWatchId !== null) {
+                    navigator.geolocation.clearWatch(locationWatchId);
+                }
+
+                locationWatchId = navigator.geolocation.watchPosition(
+                    (position) => {
+                        latestLocation = position;
+                        updateLocationStatusText();
+                    },
+                    () => {
+                        locationStatus.textContent = 'ไม่สามารถอ่านตำแหน่งปัจจุบันได้';
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 5000
+                    });
+            }
+
+            function captureFrame() {
+                return new Promise((resolve, reject) => {
+                    if (!stream || video.videoWidth === 0 || video.videoHeight === 0) {
+                        reject(new Error('ยังไม่สามารถจับภาพจากกล้องได้'));
+                        return;
+                    }
+
+                    const maxSide = 720;
+                    const ratio = Math.min(1, maxSide / Math.max(video.videoWidth, video.videoHeight));
+                    canvas.width = Math.max(1, Math.round(video.videoWidth * ratio));
+                    canvas.height = Math.max(1, Math.round(video.videoHeight * ratio));
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight, 0, 0, canvas.width, canvas.height);
+
+                    canvas.toBlob((blob) => {
+                        if (!blob) {
+                            reject(new Error('ไม่สามารถสร้างภาพสำหรับสแกนได้'));
+                            return;
+                        }
+
+                        resolve(blob);
+                    }, 'image/jpeg', 0.82);
+                });
+            }
+
+            function formatClientTimestamp(date) {
+                const pad = (value) => String(value).padStart(2, '0');
+                return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+            }
+
+            async function submitScan() {
+                if (scanning) {
+                    return;
+                }
+
+                try {
+                    scanning = true;
+                    btnScan.disabled = true;
+                    setResult('กำลังประมวลผลการสแกน...', 'secondary');
+
+                    const blob = await captureFrame();
+                    const formData = new FormData();
+                    formData.append('Image', blob, 'teacher-scan.jpg');
+                    formData.append('RequestedType', requestedType.value);
+                    formData.append('RecognitionProfile', recognitionProfile.value);
+                    formData.append('ClientCapturedAtLocal', formatClientTimestamp(new Date()));
+                    formData.append('IsPublicMode', isPublicMode ? 'true' : 'false');
+
+                    if (!isPublicMode) {
+                        formData.append('StationCode', stationCode || '');
+                        formData.append('StationToken', stationToken || '');
+                    }
+
+                    if (latestLocation?.coords) {
+                        formData.append('Latitude', String(latestLocation.coords.latitude));
+                        formData.append('Longitude', String(latestLocation.coords.longitude));
+                        formData.append('LocationAccuracyMeters', String(latestLocation.coords.accuracy));
+                    }
+
+                    const response = await fetch(verifyUrl, { method: 'POST', body: formData });
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        setResult(data?.message || 'ไม่สามารถสแกนได้', 'danger');
+                        return;
+                    }
+
+                    const kind = data.success ? 'success' : data.isDuplicate ? 'warning' : 'danger';
+                    setResult(data.message || 'ประมวลผลแล้ว', kind);
+
+                    if (data.success) {
+                        renderLatestSuccess(data);
+                        await refreshRecentScans();
+                    }
+                } catch (error) {
+                    console.error(error);
+                    setResult(error instanceof Error ? error.message : 'เกิดข้อผิดพลาดระหว่างสแกน', 'danger');
+                } finally {
+                    scanning = false;
+                    btnScan.disabled = false;
+                }
+            }
+
+            async function submitScan() {
+                if (scanning) {
+                    return;
+                }
+
+                try {
+                    scanning = true;
+                    btnScan.disabled = true;
+                    recognitionProfile.value = normalizeRecognitionProfile(recognitionProfile.value);
+                    setResult('กำลังประมวลผลการสแกน...', 'secondary');
+
+                    const blob = await captureFrame();
+                    const formData = new FormData();
+                    formData.append('Image', blob, 'teacher-scan.jpg');
+                    formData.append('RequestedType', requestedType.value);
+                    formData.append('RecognitionProfile', recognitionProfile.value);
+                    formData.append('ClientCapturedAtLocal', formatClientTimestamp(new Date()));
+                    formData.append('IsPublicMode', isPublicMode ? 'true' : 'false');
+
+                    if (!isPublicMode) {
+                        formData.append('StationCode', stationCode || '');
+                        formData.append('StationToken', stationToken || '');
+                    }
+
+                    if (latestLocation?.coords) {
+                        formData.append('Latitude', String(latestLocation.coords.latitude));
+                        formData.append('Longitude', String(latestLocation.coords.longitude));
+                        formData.append('LocationAccuracyMeters', String(latestLocation.coords.accuracy));
+                    }
+
+                    const response = await fetch(verifyUrl, { method: 'POST', body: formData });
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        setResult(buildResultMessage(data, 'ไม่สามารถสแกนได้'), 'danger');
+                        return;
+                    }
+
+                    const kind = data.success ? 'success' : data.isDuplicate ? 'warning' : 'danger';
+                    setResult(buildResultMessage(data, 'ประมวลผลแล้ว'), kind);
+
+                    if (data.success) {
+                        renderLatestSuccess(data);
+                        await refreshRecentScans();
+                    }
+                } catch (error) {
+                    console.error(error);
+                    setResult(error instanceof Error ? error.message : 'เกิดข้อผิดพลาดระหว่างสแกน', 'danger');
+                } finally {
+                    scanning = false;
+                    btnScan.disabled = false;
+                }
+            }
+
+            async function startCamera() {
+                try {
+                    hideRetryPrompt();
+                    stopActiveScanSession();
+                    focusCameraPreview();
+                    const gpsReady = await ensureGpsReadyBeforeScan();
+                    if (!gpsReady) return;
+                    scanSessionExpired = false;
+                    setMatchingStatus('idle', 'กำลังเปิดกล้อง', 'กรุณาอนุญาตการเข้าถึงกล้อง');
+                    if (!navigator.mediaDevices?.getUserMedia) {
+                        throw new Error(describeCameraError({ name: 'SecurityError' }));
+                    }
+
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            facingMode: { ideal: facingMode },
+                            width: { ideal: 960 },
+                            height: { ideal: 540 }
+                        },
+                        audio: false
+                    });
+
+                    video.srcObject = stream;
+                    video.setAttribute('playsinline', 'true');
+                    await video.play();
+                    focusCameraPreview();
+                    resizeOverlayCanvas();
+                    initFaceDetector();
+                    startLocationWatch();
+                    startScanSessionCountdown();
+                    startDetectionLoop();
+                    updateStartButtonLabel(true);
+                    setResult('กล้องพร้อมใช้งาน ระบบจะเริ่มสแกนอัตโนมัติเมื่อพบใบหน้าในกรอบ หรือกด "สแกนตอนนี้" ได้ทันที', 'success');
+                    setMatchingStatus('track', 'กล้องพร้อมใช้งาน', 'จัดใบหน้าให้อยู่ในกรอบ ระบบจะเริ่มสแกนอัตโนมัติหรือกดสแกนทันทีได้');
+                } catch (error) {
+                    console.error(error);
+                    stopScanSessionCountdown();
+                    const message = describeCameraError(error);
+                    setResult(message, 'danger');
+                    setMatchingStatus('error', 'เปิดกล้องไม่สำเร็จ', message);
+                }
+            }
+
+            async function switchCamera() {
+                facingMode = facingMode === 'user' ? 'environment' : 'user';
+                await startCamera();
+            }
+
+            async function captureAndSend(options = {}) {
+                const allowWithoutReadyCheck = options.allowWithoutReadyCheck === true;
+                if (!stream || scanSessionExpired || retryPromptVisible) return;
+                if (!allowWithoutReadyCheck && (!supportsLiveDetection || !latestFaceRect || !isFaceReady(latestFaceRect))) {
+                    setResult('กรุณาจัดใบหน้าให้อยู่ในกรอบก่อนสแกน', 'warning');
+                    setMatchingStatus('track', 'รอพบใบหน้า', 'ระบบจะเริ่มทำงานเมื่อพบใบหน้า');
+                    return;
+                }
+                if (scanning || (Date.now() - lastScanAt) < SCAN_COOLDOWN_MS) return;
+
+                scanning = true;
+                lastScanAt = Date.now();
+                setActionButtonsBusy(true);
+
+                try {
+                    recognitionProfile.value = normalizeRecognitionProfile(recognitionProfile.value);
+                    setMatchingStatus('capture', 'กำลังจับภาพใบหน้า', 'ระบบกำลังเตรียมภาพสำหรับแมตช์');
+                    const captureRect = supportsLiveDetection && latestFaceRect
+                        ? expandRect(latestFaceRect, 0.18)
+                        : buildGuideRect();
+                    const blob = await captureImageBlob(captureRect);
+
+                    if (!blob) {
+                        setResult('ไม่สามารถจับภาพได้', 'danger');
+                        setMatchingStatus('error', 'จับภาพไม่สำเร็จ', 'กรุณาลองใหม่อีกครั้ง');
+                        return;
+                    }
+
+                    setMatchingStatus('matching', 'กำลังแมตช์ใบหน้า', 'ระบบกำลังตรวจสอบตัวตนจากภาพที่สแกน');
+                    const location = getCurrentLocation();
+                    const formData = new FormData();
+                    formData.append('Image', blob, 'teacher-scan.jpg');
+                    formData.append('RequestedType', requestedType.value);
+                    formData.append('RecognitionProfile', recognitionProfile.value);
+                    formData.append('ClientCapturedAtLocal', formatClientTimestamp(new Date()));
+                    formData.append('IsPublicMode', isPublicMode ? 'true' : 'false');
+
+                    if (!isPublicMode) {
+                        formData.append('StationCode', stationCode || '');
+                        formData.append('StationToken', stationToken || '');
+                    }
+
+                    if (location) {
+                        formData.append('Latitude', String(location.latitude));
+                        formData.append('Longitude', String(location.longitude));
+                        formData.append('LocationAccuracyMeters', String(location.accuracy));
+                    }
+
+                    const response = await fetch(verifyUrl, { method: 'POST', body: formData });
+                    const data = await parseResponseJson(response);
+                    const provider = data?.provider;
+                    const effectiveRecognitionProfile = normalizeRecognitionProfile(data?.recognitionProfile || recognitionProfile.value);
+                    const resolvedIdentity = hasResolvedIdentity(data);
+
+                    if (!response.ok || !data || !data.success) {
+                        const failMessage = buildResultMessage(data, 'ไม่สามารถสแกนได้');
+                        const failKind = data?.isDuplicate || resolvedIdentity ? 'warning' : 'danger';
+                        setResult(failMessage, failKind);
+                        setMatchingStatus(
+                            data?.isDuplicate || resolvedIdentity ? 'warn' : 'error',
+                            resolvedIdentity ? 'พบข้อมูลแล้ว' : 'แมตช์ไม่สำเร็จ',
+                            failMessage,
+                            provider,
+                            effectiveRecognitionProfile);
+
+                        if (resolvedIdentity) {
+                            const nameRect = latestFaceRect && isFaceReady(latestFaceRect) ? latestFaceRect : buildGuideRect();
+                            setLiveName(data.studentName || '-', nameRect);
+                            pauseScanSession(true);
+                        }
+                        return;
+                    }
+
+                    const successMessage = buildResultMessage(data, 'ประมวลผลแล้ว');
+                    setResult(successMessage, 'success');
+                    const nameRect = latestFaceRect && isFaceReady(latestFaceRect) ? latestFaceRect : buildGuideRect();
+                    setLiveName(data.studentName || '-', nameRect);
+                    setMatchingStatus('success', 'แมตช์สำเร็จ', `พบชื่อ: ${data.studentName || '-'} (ความมั่นใจ ${formatConfidence(data.confidence)})`, provider, effectiveRecognitionProfile);
+                    renderLatestSuccess(data);
+                    pauseScanSession(true);
+                    await refreshRecentScans();
+                } catch (error) {
+                    console.error(error);
+                    setResult('เกิดข้อผิดพลาดระหว่างส่งภาพ', 'danger');
+                    setMatchingStatus('error', 'แมตช์ไม่สำเร็จ', 'เกิดข้อผิดพลาดระหว่างติดต่อเซิร์ฟเวอร์');
+                } finally {
+                    scanning = false;
+                    setActionButtonsBusy(false);
+                }
+            }
+
+            if (retryScanPromptElement) {
+                retryScanPromptElement.addEventListener('click', (event) => {
+                    const target = event.target;
+                    if (!(target instanceof HTMLElement)) return;
+                    if (target.dataset.retryClose === 'true') hideRetryPrompt();
+                });
+            }
+
+            btnStart.addEventListener('click', () => startCamera().catch(console.error));
+
+            btnSwitch.addEventListener('click', () => switchCamera().catch((error) => {
+                console.error(error);
+                setResult('สลับกล้องไม่สำเร็จ', 'warning');
+            }));
+
+            btnScan.addEventListener('click', () => captureAndSend().catch(console.error));
+            btnRefreshRecent.addEventListener('click', () => refreshRecentScans().catch(console.error));
+            if (btnRetryScan) {
+                btnRetryScan.addEventListener('click', () => {
+                    hideRetryPrompt();
+                    startCamera().catch(console.error);
+                });
+            }
+            if (btnRetryCancel) btnRetryCancel.addEventListener('click', hideRetryPrompt);
+            if (btnRetryClose) btnRetryClose.addEventListener('click', hideRetryPrompt);
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && retryPromptVisible) hideRetryPrompt();
+            });
+
+            recognitionProfile.value = normalizeRecognitionProfile(recognitionProfile.value);
+            updateStartButtonLabel(false);
+            updateClock();
+            setInterval(updateClock, 1000);
+            updateLocationStatusText();
+            refreshRecentScans().catch(console.error);
+            setResult('กด "เปิดกล้อง" เพื่อเริ่มใช้งานกล้องก่อนสแกน', 'secondary');
+            setMatchingStatus('idle', 'สถานะการแมตช์: รอเริ่มต้น', 'กดปุ่มเปิดกล้องก่อนเริ่มสแกน');
+            window.addEventListener('resize', resizeOverlayCanvas);
+
+            window.addEventListener('beforeunload', () => {
+                stopDetectionLoop();
+                stopCameraTracks();
+                stopLocationWatch();
+                stopScanSessionCountdown();
+                document.body.classList.remove('retry-prompt-open');
+            });
+        })();
+    </script>
+}
+

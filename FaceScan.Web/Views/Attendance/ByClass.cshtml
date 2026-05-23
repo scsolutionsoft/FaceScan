@@ -1,0 +1,90 @@
+@model AttendanceByClassViewModel
+@{
+    ViewData["Title"] = "รายงานตามชั้น/ห้อง";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">รายงานตามชั้น/ห้อง</h2>
+    <a class="btn btn-outline-success" asp-action="ExportByClassCsv"
+       asp-route-Date="@Model.Filter.Date?.ToString("yyyy-MM-dd")"
+       asp-route-AcademicYearId="@Model.Filter.AcademicYearId"
+       asp-route-GradeLevelId="@Model.Filter.GradeLevelId"
+       asp-route-ClassroomId="@Model.Filter.ClassroomId"
+       asp-route-StudentKeyword="@Model.Filter.StudentKeyword">ส่งออกไฟล์ซีเอสวี</a>
+</div>
+
+<form method="get" class="row g-2 mb-3">
+    <div class="col-md-2">
+        <input type="date" class="form-control" name="Date" value="@Model.Filter.Date?.ToString("yyyy-MM-dd")" />
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" name="AcademicYearId">
+            <option value="">ปีการศึกษา</option>
+            @foreach (var x in Model.AcademicYears)
+            {
+                <option value="@x.Value" selected="@(Model.Filter.AcademicYearId == x.Value ? "selected" : null)">@x.Text</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" name="GradeLevelId">
+            <option value="">ระดับชั้น</option>
+            @foreach (var x in Model.GradeLevels)
+            {
+                <option value="@x.Value" selected="@(Model.Filter.GradeLevelId == x.Value ? "selected" : null)">@x.Text</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <select class="form-select" name="ClassroomId">
+            <option value="">ห้อง</option>
+            @foreach (var x in Model.Classrooms)
+            {
+                <option value="@x.Value" selected="@(Model.Filter.ClassroomId == x.Value ? "selected" : null)">@x.Text</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <input type="text" class="form-control" name="StudentKeyword" value="@Model.Filter.StudentKeyword" placeholder="รหัส/ชื่อ-นามสกุล" />
+    </div>
+    <div class="col-md-1 d-grid">
+        <button class="btn btn-primary" type="submit">ค้นหา</button>
+    </div>
+</form>
+
+<div class="table-responsive">
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>ชั้น</th>
+                <th>ห้อง</th>
+                <th class="text-end">ทั้งหมด</th>
+                <th class="text-end text-success">มาเรียน</th>
+                <th class="text-end text-danger">มาสาย</th>
+                <th class="text-end text-secondary">ขาด</th>
+                <th class="text-end text-warning">ยังไม่เช็คกลับ/ข้อมูลไม่สมบูรณ์</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Items.Count == 0)
+            {
+                <tr><td colspan="7" class="text-center text-muted">ไม่พบข้อมูล</td></tr>
+            }
+            else
+            {
+                @foreach (var item in Model.Items)
+                {
+                    <tr>
+                        <td>@item.GradeLevel</td>
+                        <td>@item.Classroom</td>
+                        <td class="text-end">@item.TotalCount</td>
+                        <td class="text-end text-success">@item.PresentCount</td>
+                        <td class="text-end text-danger">@item.LateCount</td>
+                        <td class="text-end text-secondary">@item.AbsentCount</td>
+                        <td class="text-end text-warning">@item.PartialCount</td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>

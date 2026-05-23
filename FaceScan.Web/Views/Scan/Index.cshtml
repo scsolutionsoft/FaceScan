@@ -1,0 +1,1195 @@
+﻿@model ScanViewModel
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "สแกนผ่านมือถือ";
+}
+
+<div class="scan-wrapper">
+    <div class="card scan-hero mb-3 border-0">
+        <div class="card-body">
+            <div>
+                <div class="hero-kicker">สถานีสแกนผ่านมือถือ</div>
+                <h2 class="mb-1">@Model.SchoolName</h2>
+                <div class="text-white-50">สแกนใบหน้าเพื่อเช็คเวลาเข้า-ออกด้วยมือถือ</div>
+                <div id="clock" class="scan-clock mt-2"></div>
+            </div>
+            <img src="~/img/facescan-mark.svg" class="scan-hero-mark" alt="สแกนใบหน้า" />
+        </div>
+    </div>
+
+    <div class="card scan-card mb-3">
+        <div class="card-body">
+            <div class="scan-setup-grid mb-3">
+                <div class="scan-setting-card">
+                    <div class="scan-setting-head">
+                        <label for="requestedType" class="form-label fw-semibold mb-0">ประเภทการสแกน</label>
+                        <span class="scan-setting-badge">เลือกก่อนสแกน</span>
+                    </div>
+                    <select id="requestedType" class="form-select form-select-lg mt-2">
+                        <option value="1" selected="@(Model.RequestedType == ScanType.CheckIn ? "selected" : null)">เข้าเรียน</option>
+                        <option value="2" selected="@(Model.RequestedType == ScanType.CheckOut ? "selected" : null)">กลับบ้าน</option>
+                    </select>
+                </div>
+
+                <div class="scan-setting-card">
+                    <div class="scan-setting-head">
+                        <div>
+                            <div class="form-label fw-semibold mb-0">อัลกอริทึมสแกน</div>
+                            <div class="scan-setting-subtitle">เลือกให้เหมาะกับความเร็วและความแม่นยำของอุปกรณ์</div>
+                        </div>
+                        <span class="scan-setting-badge">เร็ว/อัตโนมัติ/เสถียร/แม่นยำ</span>
+                    </div>
+
+                    <div class="scan-profile-grid mt-2" id="recognitionProfileOptions">
+                        <button type="button" class="scan-profile-card" data-recognition-profile="@FaceRecognitionProfiles.Fast">
+                            <span class="scan-profile-kicker">เร็ว</span>
+                            <span class="scan-profile-title">รวดเร็ว</span>
+                            <span class="scan-profile-note">ใช้ OpenCV Lite หรือโหมดสำรองที่เบาสุดก่อน เหมาะกับมือถือและจังหวะสแกนหนาแน่น</span>
+                        </button>
+                        <button type="button" class="scan-profile-card is-active" data-recognition-profile="@FaceRecognitionProfiles.Auto">
+                            <span class="scan-profile-kicker">แนะนำ</span>
+                            <span class="scan-profile-title">อัตโนมัติ</span>
+                            <span class="scan-profile-note">ให้ระบบเลือก OpenCV Lite, Dlib, InsightFace หรือ DeepFace ตาม engine ที่พร้อมใช้งานอัตโนมัติ</span>
+                        </button>
+                        <button type="button" class="scan-profile-card" data-recognition-profile="@FaceRecognitionProfiles.Stable">
+                            <span class="scan-profile-kicker">เสถียร</span>
+                            <span class="scan-profile-title">เสถียรสูง</span>
+                            <span class="scan-profile-note">ให้ความสำคัญกับ engine ที่นิ่งและตอบสนองดีบนเครื่องหน้างานก่อน ลดโอกาส fallback แบบหนัก</span>
+                        </button>
+                        <button type="button" class="scan-profile-card" data-recognition-profile="@FaceRecognitionProfiles.Accurate">
+                            <span class="scan-profile-kicker">แม่นยำ</span>
+                            <span class="scan-profile-title">แม่นยำสูง</span>
+                            <span class="scan-profile-note">พยายามใช้ InsightFace, Dlib และ DeepFace ก่อน เหมาะเมื่อเน้นความมั่นใจของผลลัพธ์</span>
+                        </button>
+                    </div>
+
+                    <div id="recognitionProfileHint" class="scan-profile-hint">โหมดอัตโนมัติเหมาะกับการใช้งานทั่วไปบนมือถือและแท็บเล็ต เพราะเลือก engine ให้ตามสภาพแวดล้อมจริง</div>
+                </div>
+            </div>
+
+            <div class="scan-info-card mb-3">
+                <div class="scan-info-label"><i class="bi bi-geo-alt me-1"></i> ตำแหน่งจีพีเอส</div>
+                <div id="locationStatus" class="small text-muted">กำลังรอตำแหน่ง...</div>
+            </div>
+
+            <div id="matchingStatusCard" class="matching-status-card matching-state-idle mb-3">
+                <span class="matching-dot"></span>
+                <div>
+                    <div id="matchingMain" class="matching-main">สถานะการแมตช์: รอเริ่มต้น</div>
+                    <div id="matchingSub" class="matching-sub">กดเปิดกล้องเพื่อเริ่มสแกน</div>
+                </div>
+            </div>
+
+            <div class="d-grid mb-3">
+                <button id="btnStartInline" class="btn btn-lg btn-outline-primary scan-primary-action">
+                    <i class="bi bi-camera-video me-1"></i> เปิดกล้องก่อนเริ่มสแกน
+                </button>
+            </div>
+
+            <div class="video-shell mb-2" id="cameraPreviewShell" tabindex="-1">
+                <div class="video-stage">
+                    <video id="video" autoplay playsinline muted></video>
+                    <canvas id="overlayCanvas"></canvas>
+                    <div id="liveNameBadge" class="live-name-badge d-none"></div>
+                    <div id="liveStatusBadge" class="live-status-badge live-status-idle d-none"></div>
+                </div>
+                <canvas id="canvas" class="d-none"></canvas>
+            </div>
+
+            <div id="scanGuideHint" class="small text-muted mb-3">จัดใบหน้าให้อยู่กลางกรอบ ระบบจะเริ่มสแกนอัตโนมัติเมื่อพร้อม</div>
+
+            <div class="row g-2 scan-actions">
+                <div class="col-12 col-sm-4 d-grid">
+                    <button id="btnStart" class="btn btn-lg btn-primary">
+                        <i class="bi bi-camera-video me-1"></i> เปิดกล้อง
+                    </button>
+                </div>
+                <div class="col-12 col-sm-4 d-grid">
+                    <button id="btnSwitch" class="btn btn-lg btn-outline-secondary">
+                        <i class="bi bi-arrow-repeat me-1"></i> สลับกล้อง
+                    </button>
+                </div>
+                <div class="col-12 col-sm-4 d-grid">
+                    <button id="btnScan" class="btn btn-lg btn-success">
+                        <i class="bi bi-person-check me-1"></i> สแกนตอนนี้
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="resultBox" class="alert alert-secondary fs-5 scan-result-box" role="alert">พร้อมใช้งาน</div>
+
+    <div class="card">
+        <div class="card-header fw-semibold">
+            <i class="bi bi-person-check me-1"></i> ผลล่าสุดที่สแกนสำเร็จ
+        </div>
+        <div class="card-body" id="latestSuccess">
+            <div class="scan-success-empty text-muted">ยังไม่มีข้อมูล</div>
+        </div>
+    </div>
+
+    <div class="card mt-3">
+        <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+            <span><i class="bi bi-clock-history me-1"></i> รายงานสแกนล่าสุด</span>
+            <button type="button" id="btnRefreshRecent" class="btn btn-sm btn-outline-secondary">รีเฟรช</button>
+        </div>
+        <div class="card-body p-0">
+            <div id="recentScansCards" class="recent-scan-cards d-md-none p-3">
+                <div class="text-center text-muted py-2">ยังไม่มีข้อมูล</div>
+            </div>
+            <div class="table-responsive d-none d-md-block">
+                <table class="table table-sm table-striped mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="text-nowrap">วันเวลา</th>
+                            <th class="text-nowrap">รหัส</th>
+                            <th class="text-nowrap">ชื่อ</th>
+                            <th class="text-nowrap">ประเภท</th>
+                            <th class="text-nowrap">ความมั่นใจ</th>
+                            <th class="text-nowrap">เอนจิน</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recentScansBody">
+                        <tr>
+                            <td colspan="6" class="text-center text-muted py-3">ยังไม่มีข้อมูล</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<input type="hidden" id="stationCode" value="@Model.StationCode" />
+<input type="hidden" id="stationToken" value="@Model.StationToken" />
+<input type="hidden" id="isPublicMode" value="@(Model.IsPublicMode ? "true" : "false")" />
+<input type="hidden" id="recognitionProfile" value="@Model.RecognitionProfile" />
+
+<div class="toast-container position-fixed top-0 end-0 p-3">
+    <div id="scanToast" class="toast text-bg-primary border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div id="scanToastMessage" class="toast-body">-</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+<div id="retryScanPrompt" class="scan-retry-sheet" hidden>
+    <div class="scan-retry-backdrop" data-retry-close="true"></div>
+    <div class="scan-retry-dialog" role="dialog" aria-modal="true" aria-labelledby="retryScanPromptLabel">
+        <div class="scan-retry-head">
+            <h5 class="scan-retry-title" id="retryScanPromptLabel">สแกนไม่สำเร็จ</h5>
+            <button type="button" class="btn-close" id="btnRetryClose" aria-label="Close"></button>
+        </div>
+        <div class="scan-retry-body">
+            ไม่พบใบหน้าที่ตรงกับระบบภายใน 45 วินาที ต้องการเริ่มสแกนอีกครั้งหรือไม่?
+        </div>
+        <div class="scan-retry-actions">
+            <button type="button" class="btn btn-outline-secondary" id="btnRetryCancel">ยังไม่สแกนต่อ</button>
+            <button type="button" class="btn btn-primary" id="btnRetryScan">สแกนอีกครั้ง</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+<script>
+(() => {
+    const video = document.getElementById('video');
+    const overlayCanvas = document.getElementById('overlayCanvas');
+    const overlayCtx = overlayCanvas.getContext('2d');
+    const canvas = document.getElementById('canvas');
+    const requestedType = document.getElementById('requestedType');
+    const recognitionProfileInput = document.getElementById('recognitionProfile');
+    const recognitionProfileHint = document.getElementById('recognitionProfileHint');
+    const recognitionProfileButtons = Array.from(document.querySelectorAll('[data-recognition-profile]'));
+    const stationCode = document.getElementById('stationCode').value;
+    const stationToken = document.getElementById('stationToken').value;
+    const isPublicMode = document.getElementById('isPublicMode').value === 'true';
+    const resultBox = document.getElementById('resultBox');
+    const latestSuccess = document.getElementById('latestSuccess');
+    const recentScansBody = document.getElementById('recentScansBody');
+    const recentScansCards = document.getElementById('recentScansCards');
+    const clock = document.getElementById('clock');
+    const locationStatus = document.getElementById('locationStatus');
+    const liveNameBadge = document.getElementById('liveNameBadge');
+    const liveStatusBadge = document.getElementById('liveStatusBadge');
+    const scanGuideHint = document.getElementById('scanGuideHint');
+    const matchingStatusCard = document.getElementById('matchingStatusCard');
+    const matchingMain = document.getElementById('matchingMain');
+    const matchingSub = document.getElementById('matchingSub');
+    const cameraPreviewShell = document.getElementById('cameraPreviewShell');
+    const btnStart = document.getElementById('btnStart');
+    const btnStartInline = document.getElementById('btnStartInline');
+    const btnSwitch = document.getElementById('btnSwitch');
+    const btnScan = document.getElementById('btnScan');
+    const btnRefreshRecent = document.getElementById('btnRefreshRecent');
+    const retryScanPromptElement = document.getElementById('retryScanPrompt');
+    const btnRetryScan = document.getElementById('btnRetryScan');
+    const btnRetryCancel = document.getElementById('btnRetryCancel');
+    const btnRetryClose = document.getElementById('btnRetryClose');
+
+    const toastElement = document.getElementById('scanToast');
+    const toastMessage = document.getElementById('scanToastMessage');
+    const toast = window.bootstrap ? new bootstrap.Toast(toastElement, { delay: 3500 }) : null;
+
+    const PREVIEW_INTERVAL_MS = 2200;
+    const SCAN_COOLDOWN_MS = 1400;
+    const SCAN_SESSION_TIMEOUT_MS = 45000;
+    const READY_FRAME_THRESHOLD = 2;
+    const RECOGNITION_PROFILE_STORAGE_KEY = 'facescan.recognitionProfile';
+    const recognitionProfilePresets = {
+        fast: {
+            label: 'รวดเร็ว',
+            shortLabel: 'เร็ว',
+            hint: 'โหมดเร็วเหมาะกับมือถือจอเล็กหรือเครื่องที่สเปกไม่สูง ระบบจะเริ่มจาก OpenCV Lite และโหมดสำรองที่เบาสุดก่อน'
+        },
+        auto: {
+            label: 'อัตโนมัติ',
+            shortLabel: 'อัตโนมัติ',
+            hint: 'โหมดอัตโนมัติเหมาะกับการใช้งานทั่วไปบนมือถือและแท็บเล็ต ระบบจะเลือก engine ที่เร็วและเหมาะกับสภาพแวดล้อมให้เอง'
+        },
+        stable: {
+            label: 'เสถียรสูง',
+            shortLabel: 'เสถียร',
+            hint: 'โหมดเสถียรสูงจะพยายามใช้ engine ที่นิ่งบนเครื่องหน้างานก่อน เพื่อลดอาการแกว่งเมื่อมีคนสแกนต่อเนื่อง'
+        },
+        accurate: {
+            label: 'แม่นยำสูง',
+            shortLabel: 'แม่นยำ',
+            hint: 'โหมดแม่นยำสูงจะให้น้ำหนักกับ InsightFace, Dlib และ DeepFace ก่อน เมื่อ environment พร้อมใช้งาน'
+        }
+    };
+
+    let stream = null;
+    let facingMode = 'user';
+    let scanning = false;
+    let lastScanAt = 0;
+    let latestLocation = null;
+    let locationUpdatedAt = 0;
+    let locationWatchId = null;
+    let faceDetector = null;
+    let supportsLiveDetection = false;
+    let latestFaceRect = null;
+    let detectionTimer = null;
+    let detectionBusy = false;
+    let previewing = false;
+    let lastPreviewAt = 0;
+    let activeProvider = null;
+    let readyFrameStreak = 0;
+    let scanSessionTimer = null;
+    let scanCountdownTimer = null;
+    let scanSessionDeadline = 0;
+    let scanSessionExpired = false;
+    let retryPromptVisible = false;
+    let gpsConsentConfirmed = false;
+
+    scanGuideHint.textContent = 'จัดใบหน้าให้อยู่ในกรอบ ระบบจะเริ่มสแกนอัตโนมัติทันที';
+    scanGuideHint.classList.remove('mb-3');
+    scanGuideHint.classList.add('mb-2');
+
+    let scanCountdown = document.getElementById('scanCountdown');
+    if (!scanCountdown) {
+        scanCountdown = document.createElement('div');
+        scanCountdown.id = 'scanCountdown';
+        scanCountdown.className = 'small fw-semibold text-primary mb-3 d-none';
+        scanGuideHint.insertAdjacentElement('afterend', scanCountdown);
+    }
+
+    function updateClock() { clock.textContent = new Date().toLocaleString('th-TH'); }
+
+    function normalizeRecognitionProfile(value) {
+        const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+        if (normalized === 'fast' || normalized === 'mock') return 'fast';
+        if (normalized === 'auto' || normalized === 'balanced' || normalized === 'hybrid' || normalized === 'default') return 'auto';
+        if (normalized === 'stable' || normalized === 'steady' || normalized === 'reliable') return 'stable';
+        if (normalized === 'accurate' || normalized === 'dlib') return 'accurate';
+        return 'auto';
+    }
+
+    function getRecognitionProfileMeta(value) {
+        return recognitionProfilePresets[normalizeRecognitionProfile(value)] || recognitionProfilePresets.auto;
+    }
+
+    function recognitionProfileLabel(value) {
+        return getRecognitionProfileMeta(value).label;
+    }
+
+    function loadStoredRecognitionProfile() {
+        try {
+            return window.localStorage ? window.localStorage.getItem(RECOGNITION_PROFILE_STORAGE_KEY) : null;
+        } catch {
+            return null;
+        }
+    }
+
+    function storeRecognitionProfile(value) {
+        try {
+            if (window.localStorage) {
+                window.localStorage.setItem(RECOGNITION_PROFILE_STORAGE_KEY, normalizeRecognitionProfile(value));
+            }
+        } catch {
+            // Ignore storage errors.
+        }
+    }
+
+    function applyRecognitionProfile(profile, persist = true) {
+        const normalized = normalizeRecognitionProfile(profile || recognitionProfileInput?.value);
+        if (recognitionProfileInput) recognitionProfileInput.value = normalized;
+        recognitionProfileButtons.forEach((button) => {
+            button.classList.toggle('is-active', normalizeRecognitionProfile(button.dataset.recognitionProfile) === normalized);
+        });
+        if (recognitionProfileHint) {
+            recognitionProfileHint.textContent = getRecognitionProfileMeta(normalized).hint;
+        }
+        activeProvider = null;
+        if (persist) storeRecognitionProfile(normalized);
+        return normalized;
+    }
+
+    function setResult(message, kind) {
+        resultBox.textContent = message;
+        resultBox.className = 'alert fs-5 scan-result-box';
+        if (kind === 'success') resultBox.classList.add('alert-success');
+        else if (kind === 'warning') resultBox.classList.add('alert-warning');
+        else if (kind === 'danger') resultBox.classList.add('alert-danger');
+        else resultBox.classList.add('alert-secondary');
+    }
+
+    function setMatchingStatus(state, mainText, subText, provider, recognitionProfile = recognitionProfileInput?.value) {
+        matchingStatusCard.className = `matching-status-card matching-state-${state}`;
+        matchingMain.textContent = mainText;
+        matchingSub.textContent = withProviderText(subText, provider, recognitionProfile);
+        const overlayRect = overlayCanvas.width > 0 && overlayCanvas.height > 0
+            ? (latestFaceRect ?? buildGuideRect())
+            : null;
+        setLiveStatus(mainText, state, overlayRect);
+    }
+
+    function showPopup(message, kind) {
+        if (!toast) return;
+        toastMessage.textContent = message;
+        toastElement.className = 'toast border-0';
+        if (kind === 'success') toastElement.classList.add('text-bg-success');
+        else if (kind === 'warning') toastElement.classList.add('text-bg-warning');
+        else if (kind === 'danger') toastElement.classList.add('text-bg-danger');
+        else toastElement.classList.add('text-bg-primary');
+        toast.show();
+    }
+
+    function updateStartButtonLabel(canRestart) {
+        btnStart.innerHTML = canRestart
+            ? '<i class="bi bi-arrow-clockwise me-1"></i> เริ่มสแกนใหม่'
+            : '<i class="bi bi-camera-video me-1"></i> เปิดกล้อง';
+        if (btnStartInline) {
+            btnStartInline.innerHTML = canRestart
+                ? '<i class="bi bi-arrow-clockwise me-1"></i> เปิดกล้องอีกครั้ง'
+                : '<i class="bi bi-camera-video me-1"></i> เปิดกล้องก่อนเริ่มสแกน';
+        }
+    }
+
+    function setActionButtonsBusy(isBusy) {
+        btnStart.disabled = isBusy;
+        if (btnStartInline) btnStartInline.disabled = isBusy;
+        btnSwitch.disabled = isBusy;
+        btnScan.disabled = isBusy;
+        requestedType.disabled = isBusy;
+        recognitionProfileButtons.forEach((button) => { button.disabled = isBusy; });
+        if (btnRetryScan) btnRetryScan.disabled = isBusy;
+        if (btnRetryCancel) btnRetryCancel.disabled = isBusy;
+        if (btnRetryClose) btnRetryClose.disabled = isBusy;
+    }
+
+    function describeCameraError(error) {
+        const fallbackUrl = location.hostname === '127.0.0.1'
+            ? 'http://localhost:5248/Scan/Public หรือ https://localhost:7089/Scan/Public'
+            : 'https://localhost:7089/Scan/Public';
+
+        if (!navigator.mediaDevices?.getUserMedia) {
+            return `เบราว์เซอร์นี้ไม่อนุญาตให้เปิดกล้องจากหน้านี้ ลองเปิดผ่าน ${fallbackUrl}`;
+        }
+
+        if (!error || typeof error !== 'object') {
+            return 'ไม่สามารถเปิดกล้องได้ (ตรวจสอบสิทธิ์หรืออุปกรณ์)';
+        }
+
+        switch (error.name) {
+            case 'NotAllowedError':
+            case 'PermissionDeniedError':
+                return 'สิทธิ์กล้องถูกบล็อก กรุณาอนุญาต Camera ในเบราว์เซอร์แล้วกดเปิดกล้องอีกครั้ง';
+            case 'NotFoundError':
+            case 'DevicesNotFoundError':
+                return 'ไม่พบอุปกรณ์กล้องในเครื่องนี้';
+            case 'NotReadableError':
+            case 'TrackStartError':
+            case 'AbortError':
+                return 'กล้องอาจถูกใช้งานโดยแอปอื่นอยู่ กรุณาปิดแอปกล้องหรือประชุมออนไลน์ก่อน';
+            case 'OverconstrainedError':
+            case 'ConstraintNotSatisfiedError':
+                return 'กล้องที่ระบบพยายามเปิดไม่พร้อมใช้งาน ลองกดสลับกล้องหรือเปิดใหม่อีกครั้ง';
+            case 'SecurityError':
+                return `เบราว์เซอร์บล็อกการเปิดกล้องจากหน้านี้ ลองเปิดผ่าน ${fallbackUrl}`;
+            default:
+                return error.message || 'ไม่สามารถเปิดกล้องได้ (ตรวจสอบสิทธิ์หรืออุปกรณ์)';
+        }
+    }
+
+    function clearLiveName() {
+        liveNameBadge.textContent = '';
+        liveNameBadge.classList.add('d-none');
+    }
+
+    function clearLiveStatus() {
+        liveStatusBadge.textContent = '';
+        liveStatusBadge.className = 'live-status-badge live-status-idle d-none';
+    }
+
+    function setLiveName(name, rect) {
+        if (!name || !rect) { clearLiveName(); return; }
+        liveNameBadge.style.left = `${Math.max(8, Math.floor(rect.x))}px`;
+        liveNameBadge.style.top = `${Math.max(8, Math.floor(rect.y - 34))}px`;
+        liveNameBadge.textContent = name;
+        liveNameBadge.classList.remove('d-none');
+    }
+
+    function setLiveStatus(text, state, rect) {
+        if (!text || !rect || !stream) { clearLiveStatus(); return; }
+        const badgeWidth = Math.min(280, Math.max(170, rect.width));
+        const maxX = Math.max(8, overlayCanvas.width - badgeWidth - 8);
+        const left = Math.max(8, Math.min(Math.floor(rect.x), maxX));
+        const desiredTop = Math.floor(rect.y + rect.height + 12);
+        const fallbackTop = Math.floor(rect.y - 44);
+        const top = desiredTop <= overlayCanvas.height - 36
+            ? desiredTop
+            : Math.max(8, fallbackTop);
+        liveStatusBadge.style.left = `${left}px`;
+        liveStatusBadge.style.top = `${top}px`;
+        liveStatusBadge.style.width = `${badgeWidth}px`;
+        liveStatusBadge.textContent = text;
+        liveStatusBadge.className = `live-status-badge live-status-${state}`;
+        liveStatusBadge.classList.remove('d-none');
+    }
+
+    function scanTypeLabel(scanType) {
+        if (scanType === 1 || scanType === 'CheckIn') return 'เข้าเรียน';
+        if (scanType === 2 || scanType === 'CheckOut') return 'กลับบ้าน';
+        return scanType ?? '-';
+    }
+
+    function formatConfidence(confidence) {
+        const numberValue = Number(confidence);
+        return Number.isNaN(numberValue) ? '-' : numberValue.toFixed(2);
+    }
+
+    function normalizeProvider(provider) { return typeof provider === 'string' ? provider.trim() : ''; }
+    function isMockProvider(provider) { return normalizeProvider(provider).toLowerCase().includes('mock'); }
+    function isFallbackProvider(provider, recognitionProfile = recognitionProfileInput?.value) {
+        const lower = normalizeProvider(provider).toLowerCase();
+        const hasPrimaryEngine = lower.includes('opencv') || lower.includes('dlib') || lower.includes('insightface') || lower.includes('deepface');
+        return isMockProvider(provider) && !hasPrimaryEngine && normalizeRecognitionProfile(recognitionProfile) !== 'fast';
+    }
+    function providerLabel(provider, recognitionProfile = recognitionProfileInput?.value, options = {}) {
+        const normalized = normalizeProvider(provider);
+        if (!normalized) return '';
+        const lower = normalized.toLowerCase();
+        const fallbackTag = options.showFallbackTag === false || !isFallbackProvider(provider, recognitionProfile)
+            ? ''
+            : ' (โหมดสำรอง)';
+        if (lower.includes('hybridfaceengine')) {
+            return normalized
+                .replace(/HybridFaceEngine/ig, 'Hybrid')
+                .replace(/opencv_lite/ig, 'OpenCV Lite')
+                .replace(/mock_phash/ig, `MockFaceEngine${fallbackTag}`)
+                .replace(/insightface/ig, 'InsightFace')
+                .replace(/deepface/ig, 'DeepFace')
+                .replace(/dlib/ig, 'Dlib');
+        }
+        if (lower.includes('opencv')) return 'OpenCV Lite';
+        if (lower.includes('insightface')) return 'InsightFace';
+        if (lower.includes('deepface')) return 'DeepFace';
+        if (lower.includes('dlib')) return 'Dlib';
+        if (lower.includes('mock')) {
+            return options.showFallbackTag === false || !isFallbackProvider(provider, recognitionProfile)
+                ? 'MockFaceEngine'
+                : `MockFaceEngine${fallbackTag}`;
+        }
+        return normalized;
+    }
+
+    function updateProvider(provider) {
+        const normalized = normalizeProvider(provider);
+        if (normalized) activeProvider = normalized;
+        return activeProvider;
+    }
+
+    function withProviderText(subText, provider, recognitionProfile = recognitionProfileInput?.value) {
+        const currentProvider = updateProvider(provider);
+        return currentProvider ? `${subText} | เอนจิน: ${providerLabel(currentProvider, recognitionProfile)}` : subText;
+    }
+
+    function formatClientLocalTimestamp(date) {
+        const value = date instanceof Date ? date : new Date();
+        const pad = (number) => String(number).padStart(2, '0');
+        return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}T${pad(value.getHours())}:${pad(value.getMinutes())}:${pad(value.getSeconds())}`;
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;');
+    }
+
+    function timeSourceLabel(timeSource) { return String(timeSource || '').toLowerCase() === 'client' ? 'เวลาเครื่องสแกน' : 'เวลาเซิร์ฟเวอร์'; }
+    function renderRecentScans(items) {
+        if (!Array.isArray(items) || items.length === 0) {
+            recentScansBody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">ยังไม่มีข้อมูล</td></tr>';
+            if (recentScansCards) {
+                recentScansCards.innerHTML = '<div class="text-center text-muted py-2">ยังไม่มีข้อมูล</div>';
+            }
+            return;
+        }
+        recentScansBody.innerHTML = items.map((item) => `
+            <tr>
+                <td class="text-nowrap">${new Date(item.scanTime).toLocaleString('th-TH')}</td>
+                <td>${escapeHtml(item.studentCode || '-')}</td>
+                <td class="text-nowrap">${escapeHtml(item.studentName || '-')}</td>
+                <td class="text-nowrap">${escapeHtml(scanTypeLabel(item.scanType))}</td>
+                <td>${formatConfidence(item.confidence)}</td>
+                <td class="text-nowrap">${escapeHtml(providerLabel(item.provider, null, { showFallbackTag: false }) || '-')}</td>
+            </tr>
+        `).join('');
+
+        if (recentScansCards) {
+            recentScansCards.innerHTML = items.map((item) => `
+                <article class="recent-scan-card">
+                    <div class="recent-scan-meta">
+                        <span class="scan-pill">${escapeHtml(scanTypeLabel(item.scanType))}</span>
+                        <span class="scan-pill recent-scan-provider">${escapeHtml(providerLabel(item.provider, null, { showFallbackTag: false }) || '-')}</span>
+                    </div>
+                    <div class="recent-scan-name">${escapeHtml(item.studentName || '-')}</div>
+                    <div class="recent-scan-code">รหัส ${escapeHtml(item.studentCode || '-')}</div>
+                    <div class="recent-scan-detail">เวลา ${new Date(item.scanTime).toLocaleString('th-TH')}</div>
+                    <div class="recent-scan-detail">ความมั่นใจ ${formatConfidence(item.confidence)}</div>
+                </article>
+            `).join('');
+        }
+    }
+
+    function renderLatestSuccess(data, location, recognitionProfile) {
+        const effectiveProfile = normalizeRecognitionProfile(recognitionProfile);
+        const mapLink = location ? `https://www.google.com/maps?q=${location.latitude},${location.longitude}` : null;
+        const fallback = isFallbackProvider(data?.provider, effectiveProfile);
+        latestSuccess.innerHTML = `
+            <div class="scan-success-panel">
+                <div class="scan-success-head">
+                    <div>
+                        <div class="scan-success-name">${escapeHtml(data?.studentName || '-')}</div>
+                        <div class="scan-success-subtitle">${escapeHtml(data?.message || 'สแกนสำเร็จ')}</div>
+                    </div>
+                    <div class="scan-success-badges">
+                        <span class="scan-pill scan-pill-soft">${escapeHtml(scanTypeLabel(data?.scanType))}</span>
+                        <span class="scan-pill scan-pill-soft">${escapeHtml(recognitionProfileLabel(effectiveProfile))}</span>
+                    </div>
+                </div>
+                <div class="scan-success-grid">
+                    <div class="scan-success-item">
+                        <span>รหัสนักเรียน</span>
+                        <strong>${escapeHtml(data?.studentCode || '-')}</strong>
+                    </div>
+                    <div class="scan-success-item">
+                        <span>ความมั่นใจ</span>
+                        <strong>${formatConfidence(data?.confidence)}</strong>
+                    </div>
+                    <div class="scan-success-item">
+                        <span>เวลา</span>
+                        <strong>${new Date(data?.scanTime).toLocaleString('th-TH')}</strong>
+                    </div>
+                    <div class="scan-success-item">
+                        <span>เอนจิน</span>
+                        <strong>${escapeHtml(providerLabel(data?.provider, effectiveProfile) || '-')}</strong>
+                    </div>
+                </div>
+                <div class="scan-success-footer">
+                    <div>แหล่งเวลา: ${escapeHtml(timeSourceLabel(data?.timeSource))}</div>
+                    ${data?.clockAnomaly ? `<div class="text-warning">ตรวจพบเวลาเครื่องกับเซิร์ฟเวอร์ต่างกัน${data?.clockSkewMinutes ? ` ${escapeHtml(data.clockSkewMinutes)} นาที` : ''}</div>` : ''}
+                    ${fallback ? '<div class="text-warning">ระบบกำลังใช้งานโหมดสำรองอัตโนมัติ</div>' : ''}
+                    ${mapLink ? `<div><a class="link-primary" target="_blank" href="${mapLink}">ดูตำแหน่งที่สแกนในกูเกิลแมปส์</a></div>` : '<div class="text-muted">ไม่มีตำแหน่งจีพีเอส</div>'}
+                </div>
+            </div>
+        `;
+    }
+
+    async function refreshRecentScans() {
+        try {
+            const query = new URLSearchParams({ stationCode: stationCode || '', stationToken: stationToken || '', isPublicMode: isPublicMode ? 'true' : 'false', take: '20' });
+            const response = await fetch(`/Scan/Recent?${query.toString()}`, { method: 'GET' });
+            const data = await parseResponseJson(response);
+            if (response.ok && data?.success) renderRecentScans(data.items);
+        } catch (error) {
+            console.error(error);
+        }
+    }
+
+    function updateLocationStatusText() {
+        if (!latestLocation) {
+            locationStatus.textContent = 'ยังไม่ได้รับตำแหน่งจีพีเอส (ต้องอนุญาต GPS ก่อนเปิดกล้อง)';
+            return;
+        }
+        const ageSec = Math.max(0, Math.floor((Date.now() - locationUpdatedAt) / 1000));
+        locationStatus.textContent = `Lat: ${latestLocation.latitude.toFixed(6)}, Lng: ${latestLocation.longitude.toFixed(6)}, Accuracy: ${Math.round(latestLocation.accuracy)} m, อัปเดต ${ageSec}s ที่แล้ว`;
+    }
+
+    function updateLocation(coords) { latestLocation = coords; locationUpdatedAt = Date.now(); updateLocationStatusText(); }
+
+    function focusCameraPreview() {
+        if (!cameraPreviewShell) return;
+        cameraPreviewShell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        window.setTimeout(() => {
+            try {
+                cameraPreviewShell.focus({ preventScroll: true });
+            } catch {
+                cameraPreviewShell.focus();
+            }
+        }, 120);
+    }
+
+    function startLocationWatch() {
+        if (!navigator.geolocation || locationWatchId !== null) return;
+        locationWatchId = navigator.geolocation.watchPosition(
+            (position) => updateLocation(position.coords),
+            () => updateLocationStatusText(),
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 });
+    }
+
+    function stopLocationWatch() {
+        if (!navigator.geolocation || locationWatchId === null) return;
+        navigator.geolocation.clearWatch(locationWatchId);
+        locationWatchId = null;
+    }
+
+    function readCurrentLocation(options = {}) {
+        return new Promise((resolve) => {
+            if (!navigator.geolocation) {
+                resolve(null);
+                return;
+            }
+            navigator.geolocation.getCurrentPosition(
+                (position) => { updateLocation(position.coords); resolve(latestLocation); },
+                () => resolve(null),
+                {
+                    enableHighAccuracy: true,
+                    timeout: options.timeout ?? 9000,
+                    maximumAge: options.maximumAge ?? 0
+                });
+        });
+    }
+
+    async function getCurrentLocation() {
+        if (latestLocation) return latestLocation;
+        return await readCurrentLocation({ timeout: 7000, maximumAge: 15000 });
+    }
+
+    async function ensureGpsReadyBeforeScan() {
+        if (!navigator.geolocation) {
+            const message = 'อุปกรณ์ไม่รองรับ GPS จึงไม่สามารถเข้าสู่โหมดสแกนใบหน้าได้';
+            setResult(message, 'warning');
+            showPopup(message, 'warning');
+            setMatchingStatus('warn', 'ไม่พร้อมเริ่มสแกน', message);
+            updateLocationStatusText();
+            return false;
+        }
+
+        if (!gpsConsentConfirmed) {
+            const accepted = window.confirm('ระบบต้องยืนยันการเก็บตำแหน่ง GPS ก่อนเปิดกล้องเพื่อเข้าสู่โหมดสแกนใบหน้า\nคุณต้องการอนุญาตหรือไม่?');
+            if (!accepted) {
+                const message = 'ไม่ได้รับการยืนยันเก็บตำแหน่ง GPS จึงไม่สามารถเข้าสู่โหมดสแกนใบหน้าได้';
+                setResult(message, 'warning');
+                showPopup(message, 'warning');
+                setMatchingStatus('warn', 'ยืนยัน GPS ไม่สำเร็จ', message);
+                updateLocationStatusText();
+                return false;
+            }
+            gpsConsentConfirmed = true;
+        }
+
+        locationStatus.textContent = 'กำลังตรวจสอบตำแหน่ง GPS...';
+        const location = latestLocation ?? await readCurrentLocation({ timeout: 10000, maximumAge: 0 });
+        if (!location) {
+            latestLocation = null;
+            locationUpdatedAt = 0;
+            const message = 'ไม่พบตำแหน่ง GPS หรือไม่ได้รับสิทธิ์ตำแหน่ง จึงไม่สามารถเข้าสู่โหมดสแกนใบหน้าได้';
+            setResult(message, 'warning');
+            showPopup(message, 'warning');
+            setMatchingStatus('warn', 'ไม่พร้อมเริ่มสแกน', message);
+            updateLocationStatusText();
+            return false;
+        }
+
+        startLocationWatch();
+        updateLocationStatusText();
+        return true;
+    }
+
+    function resizeOverlayCanvas() {
+        overlayCanvas.width = video.clientWidth || 640;
+        overlayCanvas.height = video.clientHeight || 480;
+    }
+
+    function clearScanCountdown() { scanCountdown.textContent = ''; scanCountdown.classList.add('d-none'); }
+    function updateScanCountdown() {
+        if (!scanSessionDeadline || scanSessionExpired) { clearScanCountdown(); return; }
+        const remainingMs = Math.max(0, scanSessionDeadline - Date.now());
+        scanCountdown.textContent = `เวลาสแกนคงเหลือ ${Math.ceil(remainingMs / 1000)} วินาที`;
+        scanCountdown.classList.remove('d-none');
+    }
+ 
+    function stopScanSessionCountdown() {
+        if (scanSessionTimer) clearTimeout(scanSessionTimer);
+        if (scanCountdownTimer) clearInterval(scanCountdownTimer);
+        scanSessionTimer = null;
+        scanCountdownTimer = null;
+        scanSessionDeadline = 0;
+        scanSessionExpired = false;
+        clearScanCountdown();
+    }
+ 
+    function setRetryPromptVisibility(isVisible) {
+        if (!retryScanPromptElement) return false;
+        retryScanPromptElement.hidden = !isVisible;
+        retryScanPromptElement.classList.toggle('is-visible', isVisible);
+        document.body.classList.toggle('retry-prompt-open', isVisible);
+        return true;
+    }
+ 
+    function hideRetryPrompt() {
+        retryPromptVisible = false;
+        setRetryPromptVisibility(false);
+    }
+ 
+    function stopActiveScanSession() {
+        pauseScanSession(false);
+        stopCameraTracks();
+    }
+ 
+    function pauseScanSession(preserveBadges) {
+        stopScanSessionCountdown();
+        stopDetectionLoop(preserveBadges);
+        stopLocationWatch();
+        previewing = false;
+        lastPreviewAt = 0;
+        readyFrameStreak = 0;
+        updateStartButtonLabel(true);
+    }
+ 
+    function showRetryPrompt() {
+        retryPromptVisible = true;
+        if (setRetryPromptVisibility(true)) return;
+        retryPromptVisible = false;
+        if (window.confirm('ไม่พบใบหน้าที่ตรงกับระบบภายใน 45 วินาที ต้องการเริ่มสแกนอีกครั้งหรือไม่?')) startCamera().catch(console.error);
+    }
+ 
+    function handleScanTimeout() {
+        if (scanSessionExpired) return;
+        if (scanning) { scanSessionTimer = setTimeout(handleScanTimeout, 300); return; }
+        scanSessionExpired = true;
+        stopDetectionLoop();
+        stopCameraTracks();
+        stopLocationWatch();
+        clearScanCountdown();
+        updateStartButtonLabel(true);
+        readyFrameStreak = 0;
+        setResult('ไม่พบใบหน้าที่ตรงกับระบบภายใน 45 วินาที', 'warning');
+        showPopup('ครบเวลา 45 วินาที ลองเริ่มสแกนใหม่ได้', 'warning');
+        setMatchingStatus('warn', 'หมดเวลาการสแกน', 'ไม่พบใบหน้าที่ตรงกับระบบภายในเวลาที่กำหนด');
+        showRetryPrompt();
+    }
+ 
+    function startScanSessionCountdown() {
+        stopScanSessionCountdown();
+        scanSessionDeadline = Date.now() + SCAN_SESSION_TIMEOUT_MS;
+        updateScanCountdown();
+        scanCountdownTimer = setInterval(updateScanCountdown, 250);
+        scanSessionTimer = setTimeout(handleScanTimeout, SCAN_SESSION_TIMEOUT_MS + 50);
+    }
+
+    function buildGuideRect() {
+        const width = overlayCanvas.width * 0.50;
+        const height = overlayCanvas.height * 0.66;
+        return { x: (overlayCanvas.width - width) / 2, y: (overlayCanvas.height - height) / 2, width, height };
+    }
+
+    function clampRect(rect) {
+        const x = Math.max(0, Math.min(rect.x, overlayCanvas.width - 1));
+        const y = Math.max(0, Math.min(rect.y, overlayCanvas.height - 1));
+        return { x, y, width: Math.max(1, Math.min(rect.width, overlayCanvas.width - x)), height: Math.max(1, Math.min(rect.height, overlayCanvas.height - y)) };
+    }
+
+    function expandRect(rect, ratio) {
+        const expandX = rect.width * ratio;
+        const expandY = rect.height * ratio;
+        return clampRect({ x: rect.x - expandX, y: rect.y - expandY, width: rect.width + (expandX * 2), height: rect.height + (expandY * 2) });
+    }
+
+    function drawGuideRect(message) {
+        resizeOverlayCanvas();
+        const guideRect = buildGuideRect();
+        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        overlayCtx.strokeStyle = '#6ca6ff';
+        overlayCtx.lineWidth = 2;
+        overlayCtx.setLineDash([8, 6]);
+        overlayCtx.strokeRect(guideRect.x, guideRect.y, guideRect.width, guideRect.height);
+        overlayCtx.setLineDash([]);
+        scanGuideHint.textContent = message ?? 'จัดใบหน้าให้อยู่ในกรอบ ระบบจะเริ่มสแกนอัตโนมัติทันที';
+        return guideRect;
+    }
+
+    function drawFaceRect(rect, isReady) {
+        drawGuideRect();
+        overlayCtx.strokeStyle = isReady ? '#1dd75f' : '#f5b132';
+        overlayCtx.lineWidth = 3;
+        overlayCtx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+        scanGuideHint.textContent = isReady ? 'พบใบหน้าในกรอบแล้ว ระบบกำลังเริ่มสแกนอัตโนมัติ' : 'ปรับใบหน้าให้อยู่กลางกรอบและขยับเข้าใกล้กล้องอีกเล็กน้อย';
+    }
+
+    function scaleFaceRect(faceBox) {
+        const scaleX = overlayCanvas.width / video.videoWidth;
+        const scaleY = overlayCanvas.height / video.videoHeight;
+        return clampRect({ x: faceBox.x * scaleX, y: faceBox.y * scaleY, width: faceBox.width * scaleX, height: faceBox.height * scaleY });
+    }
+
+    function isFaceReady(faceRect) {
+        const guideRect = buildGuideRect();
+        const centerX = faceRect.x + (faceRect.width / 2);
+        const centerY = faceRect.y + (faceRect.height / 2);
+        return centerX >= guideRect.x && centerX <= guideRect.x + guideRect.width && centerY >= guideRect.y && centerY <= guideRect.y + guideRect.height && faceRect.width >= guideRect.width * 0.30 && faceRect.height >= guideRect.height * 0.30;
+    }
+
+    function mapOverlayRectToVideo(rect) {
+        const scaleX = video.videoWidth / overlayCanvas.width;
+        const scaleY = video.videoHeight / overlayCanvas.height;
+        return { x: Math.max(0, Math.floor(rect.x * scaleX)), y: Math.max(0, Math.floor(rect.y * scaleY)), width: Math.max(1, Math.floor(rect.width * scaleX)), height: Math.max(1, Math.floor(rect.height * scaleY)) };
+    }
+
+    function scaleDimensionsToFit(width, height, maxWidth, maxHeight) {
+        const widthRatio = maxWidth / width;
+        const heightRatio = maxHeight / height;
+        const ratio = Math.min(1, widthRatio, heightRatio);
+        return {
+            width: Math.max(1, Math.round(width * ratio)),
+            height: Math.max(1, Math.round(height * ratio))
+        };
+    }
+
+    async function captureImageBlob(rect) {
+        const sourceRect = mapOverlayRectToVideo(clampRect(rect ?? buildGuideRect()));
+        const outputSize = scaleDimensionsToFit(sourceRect.width, sourceRect.height, 720, 720);
+        canvas.width = outputSize.width;
+        canvas.height = outputSize.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, sourceRect.x, sourceRect.y, sourceRect.width, sourceRect.height, 0, 0, outputSize.width, outputSize.height);
+        return new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+    }
+
+    async function parseResponseJson(response) { try { return await response.json(); } catch { return null; } }
+    function hasResolvedIdentity(data) { return Boolean(data && (data.studentId || (data.studentName && data.studentName !== '-'))); }
+    async function previewRecognition() {
+        if (!stream || previewing || scanning || video.readyState < 2 || scanSessionExpired || retryPromptVisible || supportsLiveDetection) return;
+        if (Date.now() - lastPreviewAt < PREVIEW_INTERVAL_MS) return;
+        lastPreviewAt = Date.now();
+        previewing = true;
+        try {
+            const blob = await captureImageBlob(buildGuideRect());
+            if (!blob) return;
+            const formData = new FormData();
+            formData.append('Image', blob, 'preview.jpg');
+            formData.append('StationCode', stationCode || '');
+            formData.append('StationToken', stationToken || '');
+            formData.append('IsPublicMode', isPublicMode ? 'true' : 'false');
+            formData.append('RecognitionProfile', recognitionProfileInput.value);
+            const response = await fetch('/Scan/Preview', { method: 'POST', body: formData });
+            const data = await parseResponseJson(response);
+            const provider = data?.provider;
+            const effectiveRecognitionProfile = normalizeRecognitionProfile(data?.recognitionProfile || recognitionProfileInput.value);
+            const fallbackMode = isFallbackProvider(provider, effectiveRecognitionProfile);
+            if (response.ok && data?.success && data.studentName) {
+                setLiveName(data.studentName, buildGuideRect());
+                setMatchingStatus(fallbackMode ? 'warn' : 'ready', fallbackMode ? 'พร้อมสแกนอัตโนมัติ (โหมดสำรอง)' : 'พร้อมสแกนอัตโนมัติ', `พบชื่อ: ${data.studentName} (ความมั่นใจ ${formatConfidence(data.confidence)}) ระบบกำลังยืนยันการสแกน...`, provider, effectiveRecognitionProfile);
+                await captureAndSend({ allowWithoutReadyCheck: true });
+                return;
+            }
+            clearLiveName();
+            if (!scanning) {
+                setMatchingStatus(fallbackMode ? 'warn' : 'track', fallbackMode ? 'กำลังระบุตัวตน (โหมดสำรอง)' : 'กำลังระบุตัวตน', data?.message || 'ตรวจพบใบหน้าแล้ว แต่ยังไม่ตรงกับฐานข้อมูล', provider, effectiveRecognitionProfile);
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            previewing = false;
+        }
+    }
+
+    async function runDetectionFrame() {
+        if (!stream || video.readyState < 2) {
+            readyFrameStreak = 0;
+            drawGuideRect('กำลังรอสัญญาณกล้อง...');
+            setMatchingStatus('idle', 'สถานะการแมตช์: รอเริ่มต้น', 'กดเปิดกล้องเพื่อเริ่มสแกน');
+            return;
+        }
+        if (!supportsLiveDetection || !faceDetector) {
+            latestFaceRect = buildGuideRect();
+            readyFrameStreak = 0;
+            drawGuideRect('โหมดมาตรฐาน: จัดใบหน้าให้อยู่ในกรอบ แล้วกด "สแกนตอนนี้"');
+            if (!scanning) setMatchingStatus('track', 'โหมดมาตรฐาน', 'กำลังตรวจสอบใบหน้าอัตโนมัติจากภาพในกรอบ');
+            await previewRecognition();
+            return;
+        }
+        if (detectionBusy) return;
+        detectionBusy = true;
+        try {
+            const faces = await faceDetector.detect(video);
+            if (!faces || faces.length === 0) {
+                latestFaceRect = null;
+                readyFrameStreak = 0;
+                clearLiveName();
+                drawGuideRect('กำลังค้นหาใบหน้า...');
+                if (!scanning) setMatchingStatus('track', 'กำลังตรวจจับใบหน้า', 'ยังไม่พบใบหน้าในภาพ');
+                return;
+            }
+            const scaledRect = scaleFaceRect(faces[0].boundingBox);
+            latestFaceRect = scaledRect;
+            const ready = isFaceReady(scaledRect);
+            drawFaceRect(scaledRect, ready);
+            if (!ready) {
+                readyFrameStreak = 0;
+                clearLiveName();
+                if (!scanning) setMatchingStatus('track', 'กำลังจัดตำแหน่งใบหน้า', 'พบใบหน้าแล้ว แต่ยังไม่อยู่ในตำแหน่งที่เหมาะสม');
+                return;
+            }
+            readyFrameStreak += 1;
+            if (!scanning) setMatchingStatus('ready', 'พบใบหน้าแล้ว', 'พบใบหน้าในกรอบ ระบบจะเริ่มสแกนอัตโนมัติ');
+            if (!scanSessionExpired && !retryPromptVisible && readyFrameStreak >= READY_FRAME_THRESHOLD) {
+                await captureAndSend({ allowWithoutReadyCheck: true });
+            }
+        } catch (error) {
+            console.error(error);
+            supportsLiveDetection = false;
+            faceDetector = null;
+            latestFaceRect = buildGuideRect();
+            readyFrameStreak = 0;
+            drawGuideRect('เปลี่ยนเป็นโหมดมาตรฐานอัตโนมัติ');
+            setMatchingStatus('warn', 'Live Detection ไม่พร้อมใช้งาน', 'ระบบเปลี่ยนเป็นโหมดกรอบมาตรฐานให้แล้ว');
+        } finally {
+            detectionBusy = false;
+        }
+    }
+
+    function startDetectionLoop() {
+        stopDetectionLoop();
+        detectionTimer = setInterval(() => runDetectionFrame().catch(console.error), 380);
+    }
+
+    function stopDetectionLoop(preserveBadges = false) {
+        if (detectionTimer) clearInterval(detectionTimer);
+        detectionTimer = null;
+        latestFaceRect = null;
+        readyFrameStreak = 0;
+        detectionBusy = false;
+        if (!preserveBadges) {
+            clearLiveName();
+            clearLiveStatus();
+            overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+        }
+    }
+
+    function stopCameraTracks() {
+        if (!stream) return;
+        stream.getTracks().forEach((track) => track.stop());
+        video.srcObject = null;
+        stream = null;
+    }
+
+    function initFaceDetector() {
+        supportsLiveDetection = false;
+        faceDetector = null;
+        if (!('FaceDetector' in window)) return;
+        try {
+            faceDetector = new FaceDetector({ fastMode: true, maxDetectedFaces: 1 });
+            supportsLiveDetection = true;
+        } catch {
+            faceDetector = null;
+            supportsLiveDetection = false;
+        }
+    }
+
+    async function startCamera() {
+        try {
+            hideRetryPrompt();
+            stopActiveScanSession();
+            focusCameraPreview();
+            const gpsReady = await ensureGpsReadyBeforeScan();
+            if (!gpsReady) return;
+            setMatchingStatus('idle', 'กำลังเปิดกล้อง', 'กรุณาอนุญาตการเข้าถึงกล้อง');
+            if (!navigator.mediaDevices?.getUserMedia) {
+                throw new Error(describeCameraError({ name: 'SecurityError' }));
+            }
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: facingMode }, width: { ideal: 960 }, height: { ideal: 540 } },
+                audio: false
+            });
+            video.srcObject = stream;
+            video.setAttribute('playsinline', 'true');
+            await video.play();
+            focusCameraPreview();
+            resizeOverlayCanvas();
+            initFaceDetector();
+            startLocationWatch();
+            startScanSessionCountdown();
+            startDetectionLoop();
+            updateStartButtonLabel(true);
+            setResult('กล้องพร้อมใช้งาน ระบบจะเริ่มสแกนอัตโนมัติเมื่อพบใบหน้าในกรอบ หรือกด "สแกนตอนนี้" ได้ทันที', 'success');
+            setMatchingStatus('track', 'กล้องพร้อมใช้งาน', 'จัดใบหน้าให้อยู่ในกรอบ ระบบจะเริ่มสแกนอัตโนมัติหรือกดสแกนทันทีได้');
+        } catch (error) {
+            console.error(error);
+            stopScanSessionCountdown();
+            const message = describeCameraError(error);
+            setResult(message, 'danger');
+            showPopup(message, 'danger');
+            setMatchingStatus('error', 'เปิดกล้องไม่สำเร็จ', message);
+        }
+    }
+
+    async function switchCamera() {
+        facingMode = facingMode === 'user' ? 'environment' : 'user';
+        await startCamera();
+    }
+    async function captureAndSend(options = {}) {
+        const allowWithoutReadyCheck = options.allowWithoutReadyCheck === true;
+        if (!stream || scanSessionExpired || retryPromptVisible) return;
+        if (!allowWithoutReadyCheck && (!supportsLiveDetection || !latestFaceRect || !isFaceReady(latestFaceRect))) {
+            setResult('กรุณาจัดใบหน้าให้อยู่ในกรอบก่อนสแกน', 'warning');
+            setMatchingStatus('track', 'รอพบใบหน้า', 'ระบบจะเริ่มทำงานเมื่อพบใบหน้า');
+            return;
+        }
+        if (scanning || (Date.now() - lastScanAt) < SCAN_COOLDOWN_MS) return;
+
+        scanning = true;
+        lastScanAt = Date.now();
+        setActionButtonsBusy(true);
+        try {
+            setMatchingStatus('capture', 'กำลังจับภาพใบหน้า', 'ระบบกำลังเตรียมภาพสำหรับแมตช์');
+            const captureRect = supportsLiveDetection && latestFaceRect ? expandRect(latestFaceRect, 0.18) : buildGuideRect();
+            const blob = await captureImageBlob(captureRect);
+            if (!blob) {
+                setResult('ไม่สามารถจับภาพได้', 'danger');
+                setMatchingStatus('error', 'จับภาพไม่สำเร็จ', 'กรุณาลองใหม่อีกครั้ง');
+                return;
+            }
+
+            setMatchingStatus('matching', 'กำลังแมตช์ใบหน้า', 'ระบบกำลังตรวจสอบตัวตนจากภาพที่สแกน');
+            const location = await getCurrentLocation();
+            const formData = new FormData();
+            formData.append('Image', blob, 'capture.jpg');
+            formData.append('StationCode', stationCode || '');
+            formData.append('StationToken', stationToken || '');
+            formData.append('RequestedType', requestedType.value);
+            formData.append('IsPublicMode', isPublicMode ? 'true' : 'false');
+            formData.append('RecognitionProfile', recognitionProfileInput.value);
+            formData.append('ClientCapturedAtLocal', formatClientLocalTimestamp(new Date()));
+            if (location) {
+                formData.append('Latitude', String(location.latitude));
+                formData.append('Longitude', String(location.longitude));
+                formData.append('LocationAccuracyMeters', String(location.accuracy));
+            }
+
+            const response = await fetch('/Scan/Verify', { method: 'POST', body: formData });
+            const data = await parseResponseJson(response);
+            const provider = data?.provider;
+            const timeSource = data?.timeSource;
+            const clockAnomaly = Boolean(data?.clockAnomaly);
+            const resolvedIdentity = hasResolvedIdentity(data);
+            const effectiveRecognitionProfile = normalizeRecognitionProfile(data?.recognitionProfile || recognitionProfileInput.value);
+            const fallbackMode = isFallbackProvider(provider, effectiveRecognitionProfile);
+
+            if (!response.ok || !data || !data.success) {
+                const failMessage = data?.message || 'สแกนไม่สำเร็จ';
+                const failKind = data?.isDuplicate || resolvedIdentity ? 'warning' : 'danger';
+                setResult(failMessage, failKind);
+                showPopup(failMessage, failKind);
+                setMatchingStatus(data?.isDuplicate || resolvedIdentity ? 'warn' : (fallbackMode ? 'warn' : 'error'), resolvedIdentity ? 'พบข้อมูลแล้ว' : (fallbackMode ? 'แมตช์ไม่สำเร็จ (โหมดสำรอง)' : 'แมตช์ไม่สำเร็จ'), failMessage, provider, effectiveRecognitionProfile);
+                if (resolvedIdentity) {
+                    const nameRect = latestFaceRect && isFaceReady(latestFaceRect) ? latestFaceRect : buildGuideRect();
+                    setLiveName(data.studentName || '-', nameRect);
+                    pauseScanSession(true);
+                }
+                return;
+            }
+
+            const successMessage = `${data.studentName || '-'} - ${data.message}`;
+            setResult(successMessage, 'success');
+            showPopup(successMessage, 'success');
+            const nameRect = latestFaceRect && isFaceReady(latestFaceRect) ? latestFaceRect : buildGuideRect();
+            setLiveName(data.studentName || '-', nameRect);
+            setMatchingStatus(fallbackMode ? 'warn' : 'success', fallbackMode ? 'แมตช์สำเร็จ (โหมดสำรอง)' : 'แมตช์สำเร็จ', `พบชื่อ: ${data.studentName || '-'} (ความมั่นใจ ${formatConfidence(data.confidence)})${clockAnomaly ? ` | เวลา: ${timeSourceLabel(timeSource)}` : ''}`, provider, effectiveRecognitionProfile);
+            renderLatestSuccess(data, location, effectiveRecognitionProfile);
+
+            pauseScanSession(true);
+            await refreshRecentScans();
+        } catch (error) {
+            console.error(error);
+            setResult('เกิดข้อผิดพลาดระหว่างส่งภาพ', 'danger');
+            showPopup('เกิดข้อผิดพลาดระหว่างส่งภาพ', 'danger');
+            setMatchingStatus('error', 'แมตช์ไม่สำเร็จ', 'เกิดข้อผิดพลาดระหว่างติดต่อเซิร์ฟเวอร์');
+        } finally {
+            scanning = false;
+            setActionButtonsBusy(false);
+        }
+    }
+
+    if (retryScanPromptElement) {
+        retryScanPromptElement.addEventListener('click', (event) => {
+            const target = event.target;
+            if (!(target instanceof HTMLElement)) return;
+            if (target.dataset.retryClose === 'true') hideRetryPrompt();
+        });
+    }
+
+    recognitionProfileButtons.forEach((button) => {
+        button.addEventListener('click', () => {
+            applyRecognitionProfile(button.dataset.recognitionProfile);
+        });
+    });
+    btnStart.addEventListener('click', startCamera);
+    if (btnStartInline) btnStartInline.addEventListener('click', startCamera);
+    btnSwitch.addEventListener('click', switchCamera);
+    btnScan.addEventListener('click', () => captureAndSend().catch(console.error));
+    btnRefreshRecent.addEventListener('click', () => refreshRecentScans().catch(console.error));
+    if (btnRetryScan) {
+        btnRetryScan.addEventListener('click', () => {
+            hideRetryPrompt();
+            startCamera().catch(console.error);
+        });
+    }
+    if (btnRetryCancel) btnRetryCancel.addEventListener('click', hideRetryPrompt);
+    if (btnRetryClose) btnRetryClose.addEventListener('click', hideRetryPrompt);
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && retryPromptVisible) hideRetryPrompt();
+    });
+    window.addEventListener('resize', resizeOverlayCanvas);
+    window.addEventListener('beforeunload', () => {
+        stopDetectionLoop();
+        stopCameraTracks();
+        stopLocationWatch();
+        stopScanSessionCountdown();
+        document.body.classList.remove('retry-prompt-open');
+    });
+
+    setRetryPromptVisibility(false);
+    applyRecognitionProfile(recognitionProfileInput.value || loadStoredRecognitionProfile(), false);
+    updateStartButtonLabel(false);
+    setInterval(updateClock, 1000);
+    updateClock();
+    updateLocationStatusText();
+    refreshRecentScans();
+    setResult('กด "เปิดกล้อง" เพื่อเริ่มใช้งานกล้องก่อนสแกน', 'secondary');
+    setMatchingStatus('idle', 'สถานะการแมตช์: รอเริ่มต้น', 'กดปุ่มเปิดกล้องก่อนเริ่มสแกน');
+})();
+</script>
+}
+

@@ -1,0 +1,56 @@
+@model StudentDetailViewModel
+@{
+    ViewData["Title"] = "รายละเอียดนักเรียน";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">รายละเอียดนักเรียน</h2>
+    <div class="d-flex gap-2">
+        <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-primary">แก้ไข</a>
+        <a asp-action="Index" class="btn btn-outline-secondary">กลับ</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-12 col-lg-8">
+        <div class="card h-100">
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">รหัสนักเรียน</dt><dd class="col-sm-8">@Model.StudentCode</dd>
+                    <dt class="col-sm-4">ชื่อ-สกุล</dt><dd class="col-sm-8">@Model.FullName</dd>
+                    <dt class="col-sm-4">เลขบัตรประชาชน</dt><dd class="col-sm-8">@(Model.NationalId ?? "-")</dd>
+                    <dt class="col-sm-4">เพศ</dt><dd class="col-sm-8">@Model.Gender</dd>
+                    <dt class="col-sm-4">วันเกิด</dt><dd class="col-sm-8">@Model.BirthDate.ToThaiDate("yyyy-MM-dd")</dd>
+                    <dt class="col-sm-4">ปีการศึกษา</dt><dd class="col-sm-8">@Model.AcademicYearName</dd>
+                    <dt class="col-sm-4">ชั้น/ห้อง</dt><dd class="col-sm-8">@Model.GradeLevelName / @Model.ClassroomName</dd>
+                    <dt class="col-sm-4">ผู้ปกครอง</dt><dd class="col-sm-8">@Model.GuardianName (@Model.GuardianPhone)</dd>
+                    <dt class="col-sm-4">ที่อยู่</dt><dd class="col-sm-8">@Model.Address</dd>
+                    <dt class="col-sm-4">หมายเหตุ</dt><dd class="col-sm-8">@Model.Notes</dd>
+                    <dt class="col-sm-4">สถานะใบหน้า</dt><dd class="col-sm-8"><span class="badge bg-secondary">@Model.EnrollmentStatus.GetDisplayName()</span></dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-4">
+        <div class="card h-100">
+            <div class="card-header">รูปนักเรียน</div>
+            <div class="card-body">
+                @if (Model.Photos.Count == 0)
+                {
+                    <div class="text-muted">ยังไม่มีรูป</div>
+                }
+                else
+                {
+                    <div class="row g-2">
+                        @foreach (var photo in Model.Photos)
+                        {
+                            <div class="col-6">
+                                <img src="~/@photo.FilePath" class="img-fluid rounded border" alt="photo" />
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>

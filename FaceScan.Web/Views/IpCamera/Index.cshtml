@@ -1,0 +1,3440 @@
+@{
+    Layout = null;
+    var stationCode  = ViewBag.StationCode  as string ?? "";
+    var stationToken = ViewBag.StationToken as string ?? "";
+    var stationName  = ViewBag.StationName  as string ?? stationCode;
+    var cameraType   = ViewBag.CameraType   as string ?? "generic";
+    var recognitionProfile = ViewBag.RecognitionProfile as string ?? "auto";
+    var intervalMs   = (int)(ViewBag.IntervalMs ?? 1000);
+    var minConfidence = (decimal)(ViewBag.CameraMinConfidence ?? 0.60m);
+    var skipFrames = (int)(ViewBag.CameraSkipFrames ?? 1);
+    var overlayEnabled = (bool)(ViewBag.CameraOverlayEnabled ?? true);
+    var appName      = ViewBag.AppName      as string ?? "FaceScan";
+}
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@appName – สถานีสแกน IP Camera: @stationName</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0; padding: 0;
+            background: #0f172a;
+            color: #f1f5f9;
+            font-family: 'Kanit', 'Sarabun', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+        body.kiosk-mode .station-header {
+            display: none;
+        }
+        body.kiosk-mode .main-layout {
+            height: 100vh;
+        }
+        body.minimal-mode .feed-panel {
+            display: none;
+        }
+        body.minimal-mode .cam-panel {
+            flex: 1 1 auto;
+        }
+        body.minimal-mode .cam-overlay .corner {
+            opacity: 0.65;
+        }
+
+        #kioskStartOverlay {
+            position: fixed;
+            inset: 0;
+            z-index: 1300;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(2, 6, 23, 0.84);
+            backdrop-filter: blur(3px);
+        }
+        body.kiosk-mode #kioskStartOverlay {
+            display: flex;
+        }
+        .kiosk-start-card {
+            width: min(92vw, 480px);
+            border: 1px solid #334155;
+            border-radius: 16px;
+            background: linear-gradient(165deg, #0f172a, #111827);
+            padding: 22px 20px;
+            text-align: center;
+            box-shadow: 0 20px 38px rgba(2, 6, 23, 0.45);
+        }
+        .kiosk-start-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .kiosk-start-sub {
+            color: #94a3b8;
+            font-size: 0.95rem;
+            margin-bottom: 16px;
+        }
+
+        #kioskFullscreenBtn {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1200;
+            border: 1px solid #3f3f46;
+            background: rgba(15, 23, 42, 0.9);
+            color: #e2e8f0;
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            display: none;
+        }
+        body.kiosk-mode #kioskFullscreenBtn {
+            display: inline-flex;
+            gap: 6px;
+            align-items: center;
+        }
+        .station-header {
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            border-bottom: 1px solid #334155;
+            padding: 8px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 48px;
+            flex-shrink: 0;
+        }
+        .station-header .station-name {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: #e2e8f0;
+        }
+        .station-header .status-pill {
+            font-size: 0.75rem;
+            padding: 3px 10px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .status-pill.scanning  { background: #16a34a22; color: #4ade80; border: 1px solid #16a34a55; }
+        .status-pill.error     { background: #dc262622; color: #f87171; border: 1px solid #dc262655; }
+        .status-pill.waiting   { background: #d9770622; color: #fb923c; border: 1px solid #d9770655; }
+        .station-header .clock { font-size: 0.85rem; color: #94a3b8; min-width: 80px; text-align: right; }
+
+        .main-layout {
+            display: flex;
+            height: calc(100vh - 48px - 52px);
+        }
+
+        /* ── LEFT: Camera feed ── */
+        .cam-panel {
+            flex: 1 1 0;
+            position: relative;
+            background: #111;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: auto;
+            padding: 16px;
+        }
+        .cam-stage {
+            position: relative;
+            width: 1280px;
+            height: 720px;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+        }
+        #camImg {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+        .cam-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+        #overlayCanvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        .result-splash {
+            background: rgba(0,0,0,0.82);
+            border-radius: 16px;
+            padding: 24px 32px;
+            text-align: center;
+            min-width: 280px;
+            max-width: 360px;
+            backdrop-filter: blur(8px);
+            animation: fadeIn .25s ease;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        @@keyframes fadeIn { from { opacity: 0; transform: scale(.93); } to { opacity: 1; transform: scale(1); } }
+        .result-splash.success { border-color: #4ade8055; }
+        .result-splash.dup     { border-color: #facc1555; }
+        .result-splash.failed  { border-color: #f8717155; }
+        .result-icon { font-size: 3rem; line-height: 1; margin-bottom: 8px; }
+        .result-name { font-size: 1.4rem; font-weight: 700; margin-bottom: 4px; }
+        .result-sub  { font-size: 0.88rem; color: #94a3b8; }
+
+        /* Corner scanline indicator */
+        .corner { position: absolute; width: 28px; height: 28px; }
+        .corner.tl { top: 14px; left: 14px; border-top: 3px solid #4ade80; border-left: 3px solid #4ade80; }
+        .corner.tr { top: 14px; right: 14px; border-top: 3px solid #4ade80; border-right: 3px solid #4ade80; }
+        .corner.bl { bottom: 14px; left: 14px; border-bottom: 3px solid #4ade80; border-left: 3px solid #4ade80; }
+        .corner.br { bottom: 14px; right: 14px; border-bottom: 3px solid #4ade80; border-right: 3px solid #4ade80; }
+        .cam-offline { color: #64748b; font-size: 1rem; }
+        .camera-retry-banner {
+            position: absolute;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 20;
+            border: 1px solid #f59e0b88;
+            background: rgba(15, 23, 42, 0.84);
+            color: #fde68a;
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 0.82rem;
+            display: none;
+            align-items: center;
+            gap: 6px;
+            backdrop-filter: blur(2px);
+        }
+        .pixel-controls {
+            position: absolute;
+            right: 12px;
+            top: 12px;
+            z-index: 30;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 7px;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            background: rgba(15, 23, 42, 0.82);
+            backdrop-filter: blur(2px);
+        }
+        .pixel-controls button {
+            border: 1px solid #334155;
+            background: #0f172a;
+            color: #e2e8f0;
+            border-radius: 6px;
+            font-size: 0.72rem;
+            padding: 2px 7px;
+            line-height: 1.2;
+        }
+        .pixel-controls button:hover {
+            background: #172033;
+            border-color: #475569;
+        }
+        .pixel-controls .pixel-badge {
+            min-width: 98px;
+            text-align: center;
+            color: #cbd5e1;
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+        .cctv-osd {
+            position: absolute;
+            left: 12px;
+            top: 12px;
+            z-index: 35;
+            display: none;
+            align-items: center;
+            gap: 7px;
+            padding: 4px 9px;
+            border: 1px solid #334155;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.84);
+            color: #cbd5e1;
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 0.01em;
+            backdrop-filter: blur(2px);
+        }
+        .cctv-osd .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #f59e0b;
+        }
+        .cctv-osd.critical {
+            border-color: #ef444488;
+            color: #fecaca;
+            background: rgba(127, 29, 29, 0.58);
+            box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.28) inset;
+        }
+        .cctv-osd.critical .dot {
+            background: #ef4444;
+            animation: osdBlink 0.9s steps(1) infinite;
+        }
+        @@keyframes osdBlink { 50% { opacity: 0.25; } }
+
+        /* ── RIGHT: Result feed ── */
+        .feed-panel {
+            width: 300px;
+            flex-shrink: 0;
+            background: #1e293b;
+            border-left: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .feed-panel .feed-header {
+            padding: 10px 14px;
+            border-bottom: 1px solid #334155;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: .05em;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .feed-clear-btn {
+            border: 1px solid #334155;
+            background: #0f172a;
+            color: #cbd5e1;
+            border-radius: 999px;
+            font-size: 0.68rem;
+            padding: 4px 10px;
+            line-height: 1;
+            transition: background .15s ease, border-color .15s ease, color .15s ease;
+        }
+        .feed-clear-btn:hover {
+            background: #172033;
+            border-color: #475569;
+            color: #f8fafc;
+        }
+        .counters {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 0;
+            border-bottom: 1px solid #334155;
+            flex-shrink: 0;
+        }
+        .cnt-box {
+            padding: 10px 8px;
+            text-align: center;
+            border-right: 1px solid #334155;
+        }
+        .cnt-box:last-child { border-right: none; }
+        .cnt-box .cnt-val { font-size: 1.5rem; font-weight: 700; }
+        .cnt-box .cnt-label { font-size: 0.68rem; color: #64748b; }
+        .cnt-box.success .cnt-val { color: #4ade80; }
+        .cnt-box.dup .cnt-val     { color: #facc15; }
+        .cnt-box.failed .cnt-val  { color: #f87171; }
+
+        .latency-panel {
+            border-bottom: 1px solid #334155;
+            padding: 8px 10px;
+            background: #172033;
+            flex-shrink: 0;
+        }
+        .latency-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.7rem;
+            color: #94a3b8;
+            margin-bottom: 6px;
+        }
+        .latency-mini {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 6px;
+            margin-bottom: 6px;
+        }
+        .latency-mini-item {
+            border: 1px solid #334155;
+            border-radius: 7px;
+            padding: 5px 7px;
+            background: #0f172a;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            font-size: 0.66rem;
+            color: #94a3b8;
+        }
+        .latency-mini-item strong {
+            font-size: 0.78rem;
+            color: #e2e8f0;
+            font-weight: 700;
+        }
+        .latency-value {
+            font-size: 0.86rem;
+            color: #e2e8f0;
+            font-weight: 700;
+        }
+        .latency-track {
+            width: 100%;
+            height: 7px;
+            border-radius: 999px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            overflow: hidden;
+            margin-bottom: 6px;
+        }
+        .latency-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #22c55e 0%, #facc15 55%, #ef4444 100%);
+            transition: width .2s ease;
+        }
+        .latency-tune {
+            font-size: 0.66rem;
+            color: #94a3b8;
+        }
+        .pipeline-health {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 6px;
+            margin: 4px 0 6px;
+        }
+        .pipeline-item {
+            border: 1px solid #334155;
+            border-radius: 7px;
+            background: #0f172a;
+            padding: 5px 6px;
+            font-size: 0.62rem;
+            color: #94a3b8;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 4px;
+        }
+        .pipeline-item strong {
+            color: #e2e8f0;
+            font-size: 0.68rem;
+        }
+        .pipeline-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: #94a3b8;
+            flex: 0 0 auto;
+        }
+        .pipeline-item.ok .pipeline-dot {
+            background: #22c55e;
+        }
+        .pipeline-item.warn .pipeline-dot {
+            background: #f59e0b;
+        }
+        .pipeline-item.bad .pipeline-dot {
+            background: #ef4444;
+        }
+        .fps-chart-wrap {
+            margin: 6px 0 5px;
+            border: 1px solid #334155;
+            border-radius: 7px;
+            background: #0f172a;
+            padding: 5px 6px 4px;
+        }
+        .fps-chart-head {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.62rem;
+            color: #94a3b8;
+            margin-bottom: 3px;
+        }
+        .fps-legend {
+            display: inline-flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .fps-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .fps-dot.display {
+            background: #22c55e;
+        }
+        .fps-dot.analysis {
+            background: #38bdf8;
+        }
+        #fpsSparkline {
+            width: 100%;
+            height: 46px;
+            display: block;
+        }
+        .debug-list-wrap {
+            border-bottom: 1px solid #334155;
+            padding: 6px 8px;
+            background: #162238;
+            flex-shrink: 0;
+        }
+        .debug-list-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.64rem;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+        .debug-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            max-height: 90px;
+            overflow-y: auto;
+        }
+        .debug-item {
+            border: 1px solid #334155;
+            border-radius: 6px;
+            background: #0f172a;
+            color: #cbd5e1;
+            font-size: 0.62rem;
+            padding: 4px 6px;
+            line-height: 1.35;
+            text-decoration: none;
+            display: block;
+        }
+        .debug-item:hover {
+            border-color: #64748b;
+            background: #111c31;
+            color: #f8fafc;
+        }
+        .debug-empty {
+            color: #64748b;
+            font-size: 0.62rem;
+        }
+
+        .feed-list {
+            flex: 1 1 0;
+            overflow-y: auto;
+            padding: 4px 0;
+        }
+        .feed-list::-webkit-scrollbar { width: 4px; }
+        .feed-list::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
+        .feed-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 12px;
+            border-bottom: 1px solid #1e293b;
+            font-size: 0.8rem;
+            animation: slideIn .2s ease;
+            border-left: 4px solid transparent;
+        }
+        @@keyframes slideIn { from { opacity: 0; transform: translateX(6px); } to { opacity: 1; transform: translateX(0); } }
+        .feed-item .feed-icon { font-size: 1rem; flex-shrink: 0; }
+        .feed-item .feed-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+        .feed-item .feed-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .feed-item .feed-sub { font-size: 0.68rem; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .feed-item .feed-time { font-size: 0.7rem; color: #64748b; white-space: nowrap; }
+        .feed-item.success { border-left-color: #22c55e; background: linear-gradient(90deg, rgba(34,197,94,0.12), rgba(34,197,94,0.02)); }
+        .feed-item.dup { border-left-color: #facc15; background: linear-gradient(90deg, rgba(250,204,21,0.12), rgba(250,204,21,0.02)); }
+        .feed-item.failed { border-left-color: #f87171; background: linear-gradient(90deg, rgba(248,113,113,0.12), rgba(248,113,113,0.02)); }
+        .feed-item.success .feed-icon { color: #4ade80; }
+        .feed-item.success .feed-sub { color: #86efac; }
+        .feed-item.dup .feed-icon { color: #facc15; }
+        .feed-item.dup .feed-sub { color: #fde68a; }
+        .feed-item.failed .feed-icon { color: #f87171; }
+        .feed-item.failed .feed-sub { color: #fca5a5; }
+        .feed-empty {
+            padding: 16px 14px;
+            font-size: 0.78rem;
+            color: #64748b;
+            text-align: center;
+        }
+
+        .config-bar {
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 52px;
+            padding: 8px 14px;
+            background: #0b1220;
+            border-top: 1px solid #334155;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            justify-content: flex-start;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            overflow-y: hidden;
+            z-index: 1050;
+            box-shadow: 0 -2px 12px rgba(0,0,0,0.45);
+        }
+        .config-bar select, .config-bar label {
+            font-size: 0.78rem;
+            background: #0f172a;
+            color: #cbd5e1;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 4px 8px;
+            height: 34px;
+            white-space: nowrap;
+        }
+        .config-bar select {
+            flex: 0 0 auto;
+            min-width: 150px;
+        }
+        .config-bar label {
+            flex: 0 0 auto;
+            min-width: 90px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        body.minimal-mode .config-bar { display: none; }
+    </style>
+</head>
+<body>
+
+<button type="button" id="kioskFullscreenBtn">
+    <i class="bi bi-arrows-fullscreen"></i>
+    เต็มจอ
+</button>
+
+<div id="kioskStartOverlay" role="dialog" aria-live="polite" aria-label="Kiosk fullscreen launcher">
+    <div class="kiosk-start-card">
+        <div class="kiosk-start-title">โหมด Kiosk พร้อมใช้งาน</div>
+        <div class="kiosk-start-sub">แตะปุ่มด้านล่างเพื่อเข้าสู่โหมดเต็มจอสำหรับจุดสแกน</div>
+        <div class="d-grid gap-2">
+            <button type="button" class="btn btn-success btn-lg" id="kioskStartBtn">
+                <i class="bi bi-arrows-fullscreen me-1"></i>เริ่มโหมดเต็มจอ
+            </button>
+            <button type="button" class="btn btn-outline-light btn-sm" id="kioskSkipBtn">
+                ใช้งานต่อโดยไม่เต็มจอ
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="station-header">
+    <div class="d-flex align-items-center gap-3">
+        <span class="text-primary fw-bold" style="font-size:1.2rem">
+            <i class="bi bi-camera-video-fill me-1" style="color:#4ade80"></i>@appName
+        </span>
+        <span class="station-name">@stationName</span>
+    </div>
+    <span id="statusPill" class="status-pill waiting">
+        <span id="statusDot">●</span> <span id="statusText">กำลังเชื่อมต่อ...</span>
+    </span>
+    <span class="clock" id="liveClock"></span>
+</div>
+
+<div class="main-layout">
+
+    <!-- Camera feed -->
+    <div class="cam-panel" id="camPanel">
+        <div class="camera-retry-banner" id="cameraRetryBanner">
+            <i class="bi bi-arrow-repeat"></i>
+            <span id="cameraRetryText">กำลังเชื่อมต่อกล้องใหม่...</span>
+        </div>
+        <div class="pixel-controls" title="ปรับขนาดพิกเซลกล้อง">
+            <button type="button" id="btnPixelDown">Pixel -</button>
+            <span class="pixel-badge" id="pixelBadge">640x360</span>
+            <button type="button" id="btnPixelUp">Pixel +</button>
+        </div>
+        <div class="cam-stage" id="camStage">
+            <img id="camImg" src="" alt="Camera feed" style="display:none" />
+            <div class="cctv-osd" id="cctvOsd"><span class="dot"></span><span id="cctvOsdText">CCTV LIVE</span></div>
+            <div class="cam-offline" id="camOffline" style="display:none">
+                <i class="bi bi-camera-video-off fs-1 d-block text-center mb-2"></i>
+                <div id="camOfflineText">ไม่สามารถรับภาพจากกล้องได้</div>
+            </div>
+            <div class="cam-overlay">
+                <canvas id="overlayCanvas"></canvas>
+                <div class="corner tl"></div>
+                <div class="corner tr"></div>
+                <div class="corner bl"></div>
+                <div class="corner br"></div>
+                <div id="resultSplash" style="display:none"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Result feed -->
+    <div class="feed-panel">
+        <div class="feed-header">
+            <span><i class="bi bi-broadcast me-1"></i>ผลสแกนสด</span>
+            <button type="button" id="feedClearBtn" class="feed-clear-btn"><i class="bi bi-trash3 me-1"></i>ล้างรายการ</button>
+        </div>
+        <div class="counters">
+            <div class="cnt-box success">
+                <div class="cnt-val" id="cntSuccess">0</div>
+                <div class="cnt-label">สำเร็จ</div>
+            </div>
+            <div class="cnt-box dup">
+                <div class="cnt-val" id="cntDup">0</div>
+                <div class="cnt-label">ซ้ำ</div>
+            </div>
+            <div class="cnt-box failed">
+                <div class="cnt-val" id="cntFail">0</div>
+                <div class="cnt-label">ไม่พบ</div>
+            </div>
+        </div>
+        <div class="latency-panel">
+            <div class="latency-row">
+                <span>Latency ต่อรอบสแกน</span>
+                <span class="latency-value" id="latencyValue">- ms</span>
+            </div>
+            <div class="latency-track"><div class="latency-fill" id="latencyFill"></div></div>
+            <div class="latency-mini">
+                <div class="latency-mini-item"><span>Display FPS</span><strong id="previewFpsValue">-</strong></div>
+                <div class="latency-mini-item"><span>Analysis FPS</span><strong id="analysisFpsValue">-</strong></div>
+            </div>
+            <div class="fps-chart-wrap" id="fpsChartWrap">
+                <div class="fps-chart-head">
+                    <span>Trend (ล่าสุด ~48 จุด)</span>
+                    <span class="fps-legend">
+                        <span><i class="fps-dot display"></i> Display</span>
+                        <span><i class="fps-dot analysis"></i> Analysis</span>
+                    </span>
+                </div>
+                <canvas id="fpsSparkline" width="260" height="46"></canvas>
+                <div class="latency-tune" id="fpsHealthText" style="margin-top:4px; font-size:0.62rem;">สถานะกราฟ: ปกติ</div>
+            </div>
+            <div class="latency-row" style="margin-bottom:4px">
+                <span>Analysis latency</span>
+                <span class="latency-value" id="analysisLatencyValue">- ms</span>
+            </div>
+            <div class="pipeline-health" id="pipelineHealth">
+                <div class="pipeline-item" id="videoHealth"><span><i class="pipeline-dot"></i>Video</span><strong>init</strong></div>
+                <div class="pipeline-item" id="detectHealth"><span><i class="pipeline-dot"></i>Detect</span><strong>init</strong></div>
+                <div class="pipeline-item" id="matchHealth"><span><i class="pipeline-dot"></i>Match</span><strong>init</strong></div>
+            </div>
+            <div class="latency-tune" id="latencyTune">Auto tuning: warming up...</div>
+            <div class="latency-tune" id="queueMetricsText" style="margin-top:4px; font-size:0.62rem; color:#93c5fd;">Queue metrics: loading...</div>
+        </div>
+        <div class="debug-list-wrap">
+            <div class="debug-list-head">
+                <span><i class="bi bi-camera me-1"></i>Debug Snapshots</span>
+                <span id="debugSnapshotHint">ล่าสุด</span>
+            </div>
+            <div class="debug-list" id="debugSnapshotList"></div>
+        </div>
+        <div class="feed-list" id="feedList"></div>
+    </div>
+</div>
+
+<div class="config-bar" id="configBar">
+            <select id="selPreset" title="Performance Preset">
+                <option value="balanced">Preset: สมดุล</option>
+                <option value="smooth">Preset: ลื่นสุด</option>
+                <option value="quality">Preset: ภาพคม</option>
+                <option value="lowlatency">Preset: หน่วงต่ำ</option>
+            </select>
+            <select id="selCctvProfile" title="CCTV Camera Profile">
+                <option value="generic" selected>Camera Profile: Generic RTSP</option>
+                <option value="hikvision">Camera Profile: Hikvision</option>
+                <option value="dahua">Camera Profile: Dahua</option>
+                <option value="axis">Camera Profile: Axis</option>
+            </select>
+            <select id="selViewMode" title="View Mode">
+                <option value="contain" selected>เห็นครบเฟรม (contain)</option>
+            </select>
+            <select id="selProfile" title="Recognition Profile">
+                <option value="auto">Auto</option>
+                <option value="fast">Fast</option>
+                <option value="stable">Stable</option>
+                <option value="accurate">Accurate</option>
+            </select>
+            <select id="selResolution" title="Realtime Pixels">
+                <option value="native">Native (ภาพจริง)</option>
+                <option value="1920x1080">1920x1080 (Full HD)</option>
+                <option value="1280x720" selected>1280x720 (HD)</option>
+                <option value="960x540">960x540</option>
+                <option value="640x360">640x360 (แนะนำ)</option>
+                <option value="480x270">480x270</option>
+                <option value="320x180">320x180 (ลื่นสุด)</option>
+            </select>
+            <select id="selDisplayFps" title="Display FPS">
+                <option value="6">Display 6 FPS (ประหยัด)</option>
+                <option value="8">Display 8 FPS</option>
+                <option value="10">Display 10 FPS</option>
+                <option value="12">Display 12 FPS</option>
+                <option value="15">Display 15 FPS</option>
+                <option value="20" selected>Display 20 FPS (แนะนำ)</option>
+                <option value="24">Display 24 FPS (ลื่นมาก)</option>
+            </select>
+            <select id="selAnalysisFps" title="Analysis FPS">
+                <option value="2">Analysis 2 FPS (เบาเครื่อง)</option>
+                <option value="4">Analysis 4 FPS</option>
+                <option value="6" selected>Analysis 6 FPS (แนะนำ)</option>
+                <option value="8">Analysis 8 FPS</option>
+                <option value="10">Analysis 10 FPS</option>
+            </select>
+            <select id="selFacePolicy" title="Face Policy">
+                <option value="single">ใบหน้าเดี่ยว</option>
+                <option value="multi">หลายใบหน้า (เลือกหน้าเด่นสุด)</option>
+            </select>
+            <select id="selScanEngine" title="Scan Engine">
+                <option value="classic">โหมดคลาสสิก (เสถียร)</option>
+                <option value="buffered">โหมดคิวบัฟเฟอร์ (เร็ว)</option>
+            </select>
+            <label style="cursor:pointer">
+                <input type="checkbox" id="chkAdaptiveStream" checked /> Adaptive Auto
+            </label>
+            <label style="cursor:pointer">
+                <input type="checkbox" id="chkPreviewPriority" checked /> CCTV Preview Priority
+            </label>
+            <label style="cursor:pointer">
+                <input type="checkbox" id="chkPresetLock" /> Lock Preset
+            </label>
+            <label style="cursor:pointer">
+                <input type="checkbox" id="chkFullConfigLock" /> Lock Full Config
+            </label>
+            <label style="cursor:pointer">
+                <input type="checkbox" id="chkAutoDebugSnapshot" /> Auto Debug Snap
+            </label>
+            <label style="cursor:pointer">
+                <input type="checkbox" id="chkSound" /> เสียง
+            </label>
+</div>
+
+<script src="~/js/ipcamera-page-module.js" asp-append-version="true"></script>
+<script>
+(function () {
+    'use strict';
+
+    const STATION_CODE  = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(stationCode));
+    const STATION_TOKEN = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(stationToken));
+    const urlParams = new URLSearchParams(window.location.search);
+    const KIOSK_MODE = urlParams.get('kiosk') === '1';
+    const MINIMAL_MODE = urlParams.get('minimal') === '1';
+    const AUTO_FULLSCREEN = urlParams.get('autofs') === '1';
+    const INTERVAL_MS   = 1000;
+    const MIN_CONFIDENCE = @Html.Raw(minConfidence.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    const SKIP_FRAMES = @skipFrames;
+    const OVERLAY_ENABLED = @overlayEnabled.ToString().ToLowerInvariant();
+    const CAMERA_FACE_MODE = @Html.Raw(System.Text.Json.JsonSerializer.Serialize((string)(ViewBag.ScanFaceMode ?? "single")));
+    const CAMERA_SCAN_ENGINE = @Html.Raw(System.Text.Json.JsonSerializer.Serialize((string)(ViewBag.ScanEngine ?? "classic")));
+    const CAMERA_AUTO_TUNE = @(((bool?)ViewBag.ScanAutoTuneEnabled ?? true).ToString().ToLowerInvariant());
+    const CAMERA_MULTI_FACE_MAX = @((int?)(ViewBag.ScanMultiFaceMax) ?? 3);
+    const SNAP_URL      = `/IpCamera/ProxySnapshot?stationCode=${encodeURIComponent(STATION_CODE)}&stationToken=${encodeURIComponent(STATION_TOKEN)}&t=`;
+    const MJPEG_STREAM_URL = `/IpCamera/MjpegStream?stationCode=${encodeURIComponent(STATION_CODE)}&stationToken=${encodeURIComponent(STATION_TOKEN)}`;
+    const TEST_CONNECTION_URL = `/IpCamera/TestConnection?stationCode=${encodeURIComponent(STATION_CODE)}&stationToken=${encodeURIComponent(STATION_TOKEN)}`;
+    const DEBUG_SNAPSHOT_UPLOAD_URL = `/IpCamera/UploadDebugSnapshot?stationCode=${encodeURIComponent(STATION_CODE)}&stationToken=${encodeURIComponent(STATION_TOKEN)}`;
+    const DEBUG_SNAPSHOT_LIST_URL = `/IpCamera/DebugSnapshots?stationCode=${encodeURIComponent(STATION_CODE)}&stationToken=${encodeURIComponent(STATION_TOKEN)}&take=8`;
+    const PREVIEW_URL   = '/Scan/Preview';
+    const VERIFY_URL    = '/Scan/Verify';
+    const VERIFY_QUEUE_URL = '/Scan/VerifyQueued';
+    const VERIFY_QUEUE_RESULT_URL = '/Scan/VerifyQueuedResult';
+    const VERIFY_QUEUE_METRICS_URL = '/Scan/VerifyQueuedMetrics';
+    const SPLASH_HOLD_MS = 3200;
+    const COOLDOWN_MS   = 60_000;   // per studentCode
+    const QUEUE_BACKPRESSURE_COOLDOWN_MS = 1500;
+    const FEED_MAX      = 80;
+    const FACE_STABLE_HITS = 2;     // Require 2 consecutive face frames before Verify
+    const VERIFY_MIN_GAP_MS = 900;  // Throttle verify calls for responsiveness
+    const FAST_INTERVAL_MS = Math.max(260, Math.floor(INTERVAL_MS * 0.55));
+    const NORMAL_INTERVAL_MS = INTERVAL_MS;
+    const IDLE_INTERVAL_MS = Math.min(2400, Math.max(INTERVAL_MS, Math.floor(INTERVAL_MS * 1.65)));
+    const PREVIEW_INTERVAL_MS = Math.max(220, Math.min(360, Math.floor(INTERVAL_MS * 0.24)));
+    const PREVIEW_IDLE_INTERVAL_MS = Math.max(PREVIEW_INTERVAL_MS, Math.min(900, Math.floor(INTERVAL_MS * 0.55)));
+    const QUEUE_MAX_ITEMS = 24;
+    const SERVER_PENDING_WARN_LIMIT = 24;
+    const SERVER_PENDING_HARD_LIMIT = 48;
+    const MULTI_FRAME_FACE_LIMIT = Math.max(3, Math.min(6, CAMERA_MULTI_FACE_MAX));
+    const RESOLUTION_STEPS = ['native', '960x540', '640x360', '480x270', '320x180'];
+    const AUTO_RESOLUTION_COOLDOWN_MS = 9000;
+    const AUTO_RESOLUTION_ENABLED = false;
+    const CAMERA_CONNECTION_CHECK_INTERVAL_MS = 45_000;
+    const FORCE_CONTAIN_MODE = true;
+    const LIVE_STREAM_ENABLED = (urlParams.get('stream') ?? '1') !== '0';
+    const DISPLAY_FPS_STEPS = [6, 8, 10, 12, 15, 20, 24];
+    const ANALYSIS_FPS_STEPS = [2, 4, 6, 8, 10];
+    const STREAM_ANALYSIS_MAX_FPS = 10;
+    const STREAM_ANALYSIS_MIN_DELAY_MS = 120;
+    const STREAM_ADAPTIVE_COOLDOWN_MS = 6000;
+    const STREAM_ANALYSIS_ADAPTIVE_COOLDOWN_MS = 7000;
+    const LATENCY_ALERT_MS = 1200;
+    const LATENCY_CRITICAL_MS = 1700;
+    const LATENCY_AUTO_PRESET_SWITCH_COOLDOWN_MS = 25_000;
+    const LATENCY_AUTO_PRESET_STREAK_REQUIRED = 5;
+    const LATENCY_AUTO_PRESET_RECOVERY_REQUIRED = 8;
+    const PREVIEW_API_MIN_GAP_MS = 450;
+    const PREVIEW_PRIORITY_WARN_EXTRA_DELAY_MS = 220;
+    const PREVIEW_PRIORITY_CRITICAL_EXTRA_DELAY_MS = 520;
+    const DEBUG_SNAPSHOT_CRITICAL_SECONDS = 8;
+    const DEBUG_SNAPSHOT_COOLDOWN_MS = 45_000;
+    const ANALYSIS_FRAME_SKIP_BASE = Math.max(1, SKIP_FRAMES);
+
+    let cntSuccess = 0, cntDup = 0, cntFail = 0;
+    let feedHistory = [];
+    let noFaceStreak = 0;
+    let frameCounter = 0;
+    let isBusy = false;
+    let consecutiveSnapError = 0;
+    let faceStableCount = 0;
+    let lastVerifyAt = 0;
+    let dynamicFaceStableHits = FACE_STABLE_HITS;
+    let dynamicVerifyGapMs = VERIFY_MIN_GAP_MS;
+    let dynamicFastIntervalMs = FAST_INTERVAL_MS;
+    let dynamicNormalIntervalMs = NORMAL_INTERVAL_MS;
+    let dynamicIdleIntervalMs = IDLE_INTERVAL_MS;
+    let avgLoopMs = 0;
+    let avgSnapMs = 0;
+    let avgVerifyMs = 0;
+    let avgAnalysisMs = 0;
+    let avgPreviewFrameMs = 0;
+    let lastPreviewPaintAt = 0;
+    let tuningSampleCount = 0;
+    let dynamicWorkers = 1;
+    let dynamicFrameSkip = ANALYSIS_FRAME_SKIP_BASE;
+    let activeWorkers = 0;
+    let autoResolutionLastChangedAt = 0;
+    let autoAnalysisLastChangedAt = 0;
+    let autoPresetLastChangedAt = 0;
+    let highLatencyStreak = 0;
+    let lowLatencyRecoveryStreak = 0;
+    let criticalSinceAt = 0;
+    let lastCriticalSeconds = 0;
+    let lastAnalysisQueuedAt = 0;
+    let lastPreviewApiAt = 0;
+    let lastDebugSnapshotAt = 0;
+    let debugSnapshotInFlight = false;
+    let latestAnalysisJob = null;
+    let analysisScheduled = false;
+    let analysisInFlight = false;
+    let previewNoFaceCooldownUntil = 0;
+    let previewLoopTimer = null;
+    let analysisLoopTimer = null;
+    let splitPipelinesRunning = false;
+    let queueBackpressureUntil = 0;
+    let queueBackpressureLevel = 0;
+    let queueMetricsRefreshInFlight = false;
+    let latestQueuePending = 0;
+    let latestQueueRejectedTotal = 0;
+    let latestQueueTimeoutTotal = 0;
+    let latestQueueAvgMs = 0;
+    let latestQueueCompleted = 0;
+    let queueRejectedDelta = 0;
+    let queueTimeoutDelta = 0;
+    let lastQueueMetricsAt = 0;
+    const pipelineHealthState = {
+        video: { level: 'warn', text: 'init' },
+        detect: { level: 'warn', text: 'init' },
+        match: { level: 'warn', text: 'init' }
+    };
+    const verifyQueue = [];
+    const cooldownMap = new Map(); // studentCode → timestamp
+    let debugSnapshotRefreshInFlight = false;
+
+    const camImg      = document.getElementById('camImg');
+    const camPanel    = document.getElementById('camPanel');
+    const camOffline  = document.getElementById('camOffline');
+    const cameraRetryBanner = document.getElementById('cameraRetryBanner');
+    const cameraRetryText = document.getElementById('cameraRetryText');
+    const btnPixelDown = document.getElementById('btnPixelDown');
+    const btnPixelUp = document.getElementById('btnPixelUp');
+    const pixelBadge = document.getElementById('pixelBadge');
+    const overlayCanvas = document.getElementById('overlayCanvas');
+    const overlayCtx = overlayCanvas.getContext('2d');
+    const statusPill  = document.getElementById('statusPill');
+    const statusDot   = document.getElementById('statusDot');
+    const statusTxt   = document.getElementById('statusText');
+    const camOfflineText = document.getElementById('camOfflineText');
+    const resultSplash = document.getElementById('resultSplash');
+    const feedList    = document.getElementById('feedList');
+    const feedClearBtn = document.getElementById('feedClearBtn');
+    const debugSnapshotList = document.getElementById('debugSnapshotList');
+    const debugSnapshotHint = document.getElementById('debugSnapshotHint');
+    const selPreset = document.getElementById('selPreset');
+    const selCctvProfile = document.getElementById('selCctvProfile');
+    const selViewMode = document.getElementById('selViewMode');
+    const selProfile  = document.getElementById('selProfile');
+    const selResolution = document.getElementById('selResolution');
+    const selDisplayFps = document.getElementById('selDisplayFps');
+    const selAnalysisFps = document.getElementById('selAnalysisFps');
+    const selFacePolicy = document.getElementById('selFacePolicy');
+    const selScanEngine = document.getElementById('selScanEngine');
+    const chkAdaptiveStream = document.getElementById('chkAdaptiveStream');
+    const chkPreviewPriority = document.getElementById('chkPreviewPriority');
+    const chkPresetLock = document.getElementById('chkPresetLock');
+    const chkFullConfigLock = document.getElementById('chkFullConfigLock');
+    const chkAutoDebugSnapshot = document.getElementById('chkAutoDebugSnapshot');
+    const chkSound    = document.getElementById('chkSound');
+    const latencyValue = document.getElementById('latencyValue');
+    const previewFpsValue = document.getElementById('previewFpsValue');
+    const analysisFpsValue = document.getElementById('analysisFpsValue');
+    const analysisLatencyValue = document.getElementById('analysisLatencyValue');
+    const latencyFill = document.getElementById('latencyFill');
+    const latencyTune = document.getElementById('latencyTune');
+    const queueMetricsText = document.getElementById('queueMetricsText');
+    const fpsChartWrap = document.getElementById('fpsChartWrap');
+    const fpsHealthText = document.getElementById('fpsHealthText');
+    const fpsSparkline = document.getElementById('fpsSparkline');
+    const fpsSparkCtx = fpsSparkline ? fpsSparkline.getContext('2d') : null;
+    const videoHealth = document.getElementById('videoHealth');
+    const detectHealth = document.getElementById('detectHealth');
+    const matchHealth = document.getElementById('matchHealth');
+    const cctvOsd = document.getElementById('cctvOsd');
+    const cctvOsdText = document.getElementById('cctvOsdText');
+    const pageModule = window.IpCameraPageModule || null;
+    const clock       = document.getElementById('liveClock');
+    const kioskFullscreenBtn = document.getElementById('kioskFullscreenBtn');
+    const kioskStartOverlay = document.getElementById('kioskStartOverlay');
+    const kioskStartBtn = document.getElementById('kioskStartBtn');
+    const kioskSkipBtn = document.getElementById('kioskSkipBtn');
+    const FEED_STORAGE_KEY = `ipcam-feed-history:${STATION_CODE || 'public'}`;
+    let autoFsAttempted = false;
+    let faceDetector  = null;
+    let supportsLiveDetection = false;
+    let latestFaceRect = null;
+    let latestOverlayConfidence = null;
+    let latestFrameWidth = 0;
+    let latestFrameHeight = 0;
+    let lastRenderedImageWidth = 0;
+    let lastRenderedImageHeight = 0;
+    let lastNaturalImageWidth = 0;
+    let lastNaturalImageHeight = 0;
+    let nextTickTimer = null;
+    let activeLiveStreamUrl = '';
+    const fpsHistoryMaxPoints = 48;
+    const displayFpsHistory = [];
+    const analysisFpsHistory = [];
+
+    // Restore preferences
+    selProfile.value = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(recognitionProfile));
+    const resolutionStorageKey = `ipcam-realtime-resolution:${STATION_CODE || 'default'}`;
+    const displayFpsStorageKey = `ipcam-display-fps:${STATION_CODE || 'default'}`;
+    const analysisFpsStorageKey = `ipcam-analysis-fps:${STATION_CODE || 'default'}`;
+    const adaptiveStreamStorageKey = `ipcam-adaptive-stream:${STATION_CODE || 'default'}`;
+    const cctvProfileStorageKey = `ipcam-cctv-profile:${STATION_CODE || 'default'}`;
+    const previewPriorityStorageKey = `ipcam-preview-priority:${STATION_CODE || 'default'}`;
+    const presetLockStorageKey = `ipcam-preset-lock:${STATION_CODE || 'default'}`;
+    const fullConfigLockStorageKey = `ipcam-full-config-lock:${STATION_CODE || 'default'}`;
+    const autoDebugSnapshotStorageKey = `ipcam-auto-debug-snapshot:${STATION_CODE || 'default'}`;
+    const presetStorageKey = `ipcam-performance-preset:${STATION_CODE || 'default'}`;
+    const viewModeStorageKey = `ipcam-view-mode:${STATION_CODE || 'default'}`;
+    const persistedResolution = localStorage.getItem(resolutionStorageKey);
+    const displayFpsFromQuery = Number.parseInt(urlParams.get('displayFps') || '', 10);
+    const analysisFpsFromQuery = Number.parseInt(urlParams.get('analysisFps') || '', 10);
+    const persistedDisplayFps = Number.parseInt(localStorage.getItem(displayFpsStorageKey) || '20', 10);
+    const persistedAnalysisFps = Number.parseInt(localStorage.getItem(analysisFpsStorageKey) || '6', 10);
+    const persistedAdaptiveStream = localStorage.getItem(adaptiveStreamStorageKey);
+    const persistedCctvProfile = localStorage.getItem(cctvProfileStorageKey);
+    const persistedPreviewPriority = localStorage.getItem(previewPriorityStorageKey);
+    const persistedPresetLock = localStorage.getItem(presetLockStorageKey);
+    const persistedFullConfigLock = localStorage.getItem(fullConfigLockStorageKey);
+    const persistedAutoDebugSnapshot = localStorage.getItem(autoDebugSnapshotStorageKey);
+    const effectiveDisplayFps = Number.isFinite(displayFpsFromQuery) ? displayFpsFromQuery : persistedDisplayFps;
+    const effectiveAnalysisFps = Number.isFinite(analysisFpsFromQuery) ? analysisFpsFromQuery : persistedAnalysisFps;
+    selResolution.value = persistedResolution || '1280x720';
+    selDisplayFps.value = String(DISPLAY_FPS_STEPS.includes(effectiveDisplayFps) ? effectiveDisplayFps : 20);
+    selAnalysisFps.value = String(ANALYSIS_FPS_STEPS.includes(effectiveAnalysisFps) ? effectiveAnalysisFps : 6);
+    chkAdaptiveStream.checked = persistedAdaptiveStream !== '0';
+    selCctvProfile.value = persistedCctvProfile || 'generic';
+    chkPreviewPriority.checked = persistedPreviewPriority !== '0';
+    chkPresetLock.checked = persistedPresetLock === '1';
+    chkFullConfigLock.checked = persistedFullConfigLock === '1';
+    chkAutoDebugSnapshot.checked = persistedAutoDebugSnapshot === '1';
+    selFacePolicy.value = (CAMERA_FACE_MODE === 'multi' ? 'multi' : 'single');
+    const scanEngineStorageKey = `ipcam-scan-engine:${STATION_CODE || 'default'}`;
+    const persistedEngine = localStorage.getItem(scanEngineStorageKey);
+    const cameraDefaultEngine = 'buffered';
+    selScanEngine.value = persistedEngine || cameraDefaultEngine;
+    selPreset.value = localStorage.getItem(presetStorageKey) || 'balanced';
+    const persistedViewMode = localStorage.getItem(viewModeStorageKey);
+    selViewMode.value = (FORCE_CONTAIN_MODE ? 'contain' : (persistedViewMode || 'contain'));
+    if (FORCE_CONTAIN_MODE) {
+        selViewMode.disabled = true;
+    }
+    if (selResolution.value !== 'native' && selViewMode.value === 'cover') {
+        selViewMode.value = 'contain';
+        localStorage.setItem(viewModeStorageKey, 'contain');
+    }
+    chkSound.checked = localStorage.getItem('ipcam-sound') === '1';
+    selProfile.addEventListener('change', () => localStorage.setItem(`ipcam-profile:${STATION_CODE || 'default'}`, selProfile.value));
+    selResolution.addEventListener('change', () => {
+        localStorage.setItem(resolutionStorageKey, selResolution.value);
+        autoResolutionLastChangedAt = Date.now();
+        if (selResolution.value !== 'native' && selViewMode.value === 'cover') {
+            applyViewMode('contain', true);
+        }
+        refreshPixelBadge();
+        autoFitCameraImage(latestFrameWidth, latestFrameHeight);
+        drawFaceOverlay(latestFaceRect, latestOverlayConfidence);
+        refreshLiveStreamSource(true);
+        setStatus('waiting', `ปรับภาพเรียลไทม์: ${getResolutionLabel(selResolution.value)}`);
+    });
+    selDisplayFps.addEventListener('change', () => {
+        localStorage.setItem(displayFpsStorageKey, selDisplayFps.value);
+        refreshLiveStreamSource(true);
+        setStatus('waiting', `ปรับความลื่นภาพ: ${selDisplayFps.value} FPS`);
+    });
+    selAnalysisFps.addEventListener('change', () => {
+        localStorage.setItem(analysisFpsStorageKey, selAnalysisFps.value);
+        setStatus('waiting', `ปรับความถี่วิเคราะห์: ${selAnalysisFps.value} FPS`);
+    });
+    chkAdaptiveStream.addEventListener('change', () => {
+        localStorage.setItem(adaptiveStreamStorageKey, chkAdaptiveStream.checked ? '1' : '0');
+        setStatus('waiting', chkAdaptiveStream.checked ? 'เปิด Adaptive Auto' : 'ปิด Adaptive Auto');
+    });
+    chkPreviewPriority.addEventListener('change', () => {
+        localStorage.setItem(previewPriorityStorageKey, chkPreviewPriority.checked ? '1' : '0');
+        setStatus('waiting', chkPreviewPriority.checked ? 'เปิด CCTV Preview Priority' : 'ปิด CCTV Preview Priority');
+    });
+    chkPresetLock.addEventListener('change', () => {
+        localStorage.setItem(presetLockStorageKey, chkPresetLock.checked ? '1' : '0');
+        applyPresetLockState();
+        setStatus('waiting', chkPresetLock.checked ? 'เปิด Lock Preset (ปิด auto-switch)' : 'ปิด Lock Preset');
+    });
+    chkFullConfigLock.addEventListener('change', () => {
+        localStorage.setItem(fullConfigLockStorageKey, chkFullConfigLock.checked ? '1' : '0');
+        applyPresetLockState();
+        setStatus('waiting', chkFullConfigLock.checked ? 'เปิด Lock Full Config (ค่าถูกล็อกคงที่)' : 'ปิด Lock Full Config');
+    });
+    chkAutoDebugSnapshot.addEventListener('change', () => {
+        localStorage.setItem(autoDebugSnapshotStorageKey, chkAutoDebugSnapshot.checked ? '1' : '0');
+        setStatus('waiting', chkAutoDebugSnapshot.checked ? 'เปิด Auto Debug Snapshot' : 'ปิด Auto Debug Snapshot');
+    });
+    selFacePolicy.addEventListener('change', () => {
+        if (!localStorage.getItem(scanEngineStorageKey)) {
+            selScanEngine.value = cameraDefaultEngine;
+        }
+    });
+    selScanEngine.addEventListener('change', () => {
+        localStorage.setItem(scanEngineStorageKey, selScanEngine.value);
+        if (selScanEngine.value !== 'buffered') {
+            verifyQueue.length = 0;
+        }
+        setStatus('waiting', selScanEngine.value === 'buffered' ? 'ใช้โหมดคิวบัฟเฟอร์' : 'ใช้โหมดคลาสสิก');
+    });
+    selCctvProfile.addEventListener('change', () => {
+        applyCameraProfile(selCctvProfile.value);
+    });
+    selPreset.addEventListener('change', () => {
+        applyPerformancePreset(selPreset.value);
+    });
+    selViewMode.addEventListener('change', () => {
+        applyViewMode(selViewMode.value);
+    });
+    chkSound.addEventListener('change',  () => localStorage.setItem('ipcam-sound', chkSound.checked ? '1' : '0'));
+    feedClearBtn.addEventListener('click', () => {
+        feedHistory = [];
+        persistFeedHistory();
+        renderFeedHistory();
+        setStatus('waiting', 'ล้างรายการที่แสดงแล้ว');
+    });
+
+    camImg.addEventListener('load', () => {
+        const naturalW = camImg.naturalWidth || 0;
+        const naturalH = camImg.naturalHeight || 0;
+        if (naturalW === 0 || naturalH === 0) {
+            return;
+        }
+
+        if (naturalW !== lastNaturalImageWidth || naturalH !== lastNaturalImageHeight) {
+            lastNaturalImageWidth = naturalW;
+            lastNaturalImageHeight = naturalH;
+            autoFitCameraImage(latestFrameWidth || naturalW, latestFrameHeight || naturalH);
+        }
+    });
+
+    applyPerformancePreset(selPreset.value, true);
+    applyCameraProfile(selCctvProfile.value, true);
+    applyViewMode(selViewMode.value, true);
+    applyPresetLockState();
+    refreshPixelBadge();
+    renderPipelineHealth();
+    updateMatchPipelineHealth();
+    updatePerformanceMetrics();
+    updateCctvOsd();
+    refreshLiveStreamSource(true);
+    void refreshDebugSnapshots();
+
+    btnPixelDown.addEventListener('click', () => {
+        stepCameraResolution(1);
+    });
+    btnPixelUp.addEventListener('click', () => {
+        stepCameraResolution(-1);
+    });
+
+    if (MINIMAL_MODE) {
+        document.body.classList.add('minimal-mode');
+    }
+
+    function updateFullscreenButtonText() {
+        kioskFullscreenBtn.innerHTML = document.fullscreenElement
+            ? '<i class="bi bi-fullscreen-exit"></i> ออกจากเต็มจอ'
+            : '<i class="bi bi-arrows-fullscreen"></i> เต็มจอ';
+    }
+
+    async function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            await document.documentElement.requestFullscreen();
+        } else {
+            await document.exitFullscreen();
+        }
+        updateFullscreenButtonText();
+    }
+
+    function hideKioskStartOverlay() {
+        kioskStartOverlay.style.display = 'none';
+    }
+
+    function armAutoFullscreenOnFirstInteraction() {
+        if (!KIOSK_MODE || !AUTO_FULLSCREEN || autoFsAttempted || document.fullscreenElement) {
+            return;
+        }
+
+        const onFirstInteraction = async () => {
+            if (autoFsAttempted || document.fullscreenElement) {
+                return;
+            }
+
+            autoFsAttempted = true;
+            try {
+                await toggleFullscreen();
+            } catch {
+                kioskFullscreenBtn.innerHTML = '<i class="bi bi-exclamation-circle"></i> เบราว์เซอร์บล็อกเต็มจอ';
+            } finally {
+                hideKioskStartOverlay();
+                document.removeEventListener('pointerdown', onFirstInteraction, true);
+                document.removeEventListener('keydown', onFirstInteraction, true);
+            }
+        };
+
+        document.addEventListener('pointerdown', onFirstInteraction, true);
+        document.addEventListener('keydown', onFirstInteraction, true);
+    }
+
+    if (KIOSK_MODE) {
+        document.body.classList.add('kiosk-mode');
+
+        kioskFullscreenBtn.addEventListener('click', async () => {
+            try {
+                await toggleFullscreen();
+            } catch {
+                kioskFullscreenBtn.innerHTML = '<i class="bi bi-exclamation-circle"></i> เบราว์เซอร์บล็อกเต็มจอ';
+            }
+        });
+
+        kioskStartBtn.addEventListener('click', async () => {
+            try {
+                await toggleFullscreen();
+            } catch {
+                kioskFullscreenBtn.innerHTML = '<i class="bi bi-exclamation-circle"></i> เบราว์เซอร์บล็อกเต็มจอ';
+            } finally {
+                hideKioskStartOverlay();
+            }
+        });
+
+        kioskSkipBtn.addEventListener('click', () => {
+            hideKioskStartOverlay();
+        });
+
+        document.addEventListener('fullscreenchange', updateFullscreenButtonText);
+        updateFullscreenButtonText();
+
+        if (AUTO_FULLSCREEN) {
+            kioskStartOverlay.querySelector('.kiosk-start-sub').textContent = 'แตะครั้งแรกบนหน้าจอเพื่อเข้าสู่โหมดเต็มจออัตโนมัติ';
+            armAutoFullscreenOnFirstInteraction();
+        }
+    }
+
+    // Clock
+    function updateClock() {
+        const now = new Date();
+        clock.textContent = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    function setStatus(state, text) {
+        statusPill.className = 'status-pill ' + state;
+        statusTxt.textContent = text;
+    }
+
+    function renderPipelineHealth() {
+        if (pageModule && typeof pageModule.renderPipelineHealth === 'function') {
+            pageModule.renderPipelineHealth({ videoHealth, detectHealth, matchHealth }, pipelineHealthState);
+            return;
+        }
+
+        const renderFallback = (el, state) => {
+            if (!el || !state) {
+                return;
+            }
+            el.classList.remove('ok', 'warn', 'bad');
+            el.classList.add(state.level || 'warn');
+            const labelEl = el.querySelector('strong');
+            if (labelEl) {
+                labelEl.textContent = state.text || '-';
+            }
+        };
+
+        renderFallback(videoHealth, pipelineHealthState.video);
+        renderFallback(detectHealth, pipelineHealthState.detect);
+        renderFallback(matchHealth, pipelineHealthState.match);
+    }
+
+    function setPipelineHealth(kind, level, text) {
+        if (!pipelineHealthState[kind]) {
+            return;
+        }
+
+        pipelineHealthState[kind] = { level, text };
+        renderPipelineHealth();
+    }
+
+    function updateMatchPipelineHealth() {
+        if (pageModule && typeof pageModule.getMatchPipelineState === 'function') {
+            const state = pageModule.getMatchPipelineState(activeWorkers, verifyQueue.length, QUEUE_MAX_ITEMS);
+            setPipelineHealth('match', state.level, state.text);
+            return;
+        }
+
+        const serverPending = Number.isFinite(latestQueuePending) ? latestQueuePending : 0;
+        if (activeWorkers > 0 || verifyQueue.length > 0 || serverPending > 0) {
+            const queueText = `q:${verifyQueue.length}/${serverPending} w:${activeWorkers}`;
+            const overloaded = verifyQueue.length >= Math.max(6, Math.floor(QUEUE_MAX_ITEMS * 0.6))
+                || serverPending >= 8
+                || queueRejectedDelta > 0
+                || queueTimeoutDelta > 0;
+            if (overloaded) {
+                setPipelineHealth('match', 'bad', queueText);
+            } else {
+                setPipelineHealth('match', 'warn', queueText);
+            }
+            return;
+        }
+
+        setPipelineHealth('match', 'ok', 'idle');
+    }
+
+    function getScanEngineLabel() {
+        return selScanEngine.value === 'buffered' ? 'คิวบัฟเฟอร์' : 'คลาสสิก';
+    }
+
+    function applyViewMode(mode, silent = false) {
+        const normalized = FORCE_CONTAIN_MODE ? 'contain' : (mode === 'cover' ? 'cover' : 'contain');
+        selViewMode.value = normalized;
+        localStorage.setItem(viewModeStorageKey, normalized);
+        camImg.style.objectFit = normalized;
+        autoFitCameraImage(latestFrameWidth, latestFrameHeight);
+        if (!silent) {
+            setStatus('waiting', normalized === 'cover' ? 'โหมดเต็มพื้นที่ (crop เล็กน้อย)' : 'โหมดเห็นครบเฟรม');
+        }
+    }
+
+    function applyPresetLockState() {
+        const fullLock = !!chkFullConfigLock.checked;
+        selPreset.disabled = !!chkPresetLock.checked || fullLock;
+        selPreset.title = chkPresetLock.checked ? 'Locked by Lock Preset' : 'Performance Preset';
+
+        selCctvProfile.disabled = fullLock;
+        selResolution.disabled = fullLock;
+        selDisplayFps.disabled = fullLock;
+        selAnalysisFps.disabled = fullLock;
+        selFacePolicy.disabled = fullLock;
+        selScanEngine.disabled = fullLock;
+        chkAdaptiveStream.disabled = fullLock;
+        chkPreviewPriority.disabled = fullLock;
+
+        if (fullLock) {
+            selPreset.title = 'Locked by Lock Full Config';
+        }
+    }
+
+    function appendFpsHistory(displayFps, analysisFps) {
+        if (!Number.isFinite(displayFps) || !Number.isFinite(analysisFps)) {
+            return;
+        }
+
+        displayFpsHistory.push(displayFps);
+        analysisFpsHistory.push(analysisFps);
+        if (displayFpsHistory.length > fpsHistoryMaxPoints) {
+            displayFpsHistory.shift();
+            analysisFpsHistory.shift();
+        }
+    }
+
+    function drawFpsSparkline() {
+        if (!fpsSparkCtx || !fpsSparkline || displayFpsHistory.length < 2 || analysisFpsHistory.length < 2) {
+            return;
+        }
+
+        const width = fpsSparkline.width;
+        const height = fpsSparkline.height;
+        fpsSparkCtx.clearRect(0, 0, width, height);
+
+        const maxFps = Math.max(10, ...displayFpsHistory, ...analysisFpsHistory);
+        const minFps = 0;
+        const range = Math.max(1, maxFps - minFps);
+        const points = displayFpsHistory.length;
+        const xStep = points > 1 ? (width - 2) / (points - 1) : width;
+
+        const yFromFps = (fps) => {
+            const normalized = (fps - minFps) / range;
+            return (height - 2) - (normalized * (height - 4));
+        };
+
+        fpsSparkCtx.strokeStyle = 'rgba(148,163,184,0.28)';
+        fpsSparkCtx.lineWidth = 1;
+        fpsSparkCtx.beginPath();
+        fpsSparkCtx.moveTo(0, yFromFps(maxFps * 0.5));
+        fpsSparkCtx.lineTo(width, yFromFps(maxFps * 0.5));
+        fpsSparkCtx.stroke();
+
+        const warnFps = 1000 / LATENCY_ALERT_MS;
+        const criticalFps = 1000 / LATENCY_CRITICAL_MS;
+        const drawThreshold = (fps, color) => {
+            const y = yFromFps(fps);
+            fpsSparkCtx.save();
+            fpsSparkCtx.setLineDash([4, 3]);
+            fpsSparkCtx.strokeStyle = color;
+            fpsSparkCtx.lineWidth = 1;
+            fpsSparkCtx.beginPath();
+            fpsSparkCtx.moveTo(0, y);
+            fpsSparkCtx.lineTo(width, y);
+            fpsSparkCtx.stroke();
+            fpsSparkCtx.restore();
+        };
+        drawThreshold(warnFps, 'rgba(250,204,21,0.55)');
+        drawThreshold(criticalFps, 'rgba(248,113,113,0.6)');
+
+        const drawSeries = (series, color) => {
+            fpsSparkCtx.strokeStyle = color;
+            fpsSparkCtx.lineWidth = 1.8;
+            fpsSparkCtx.beginPath();
+            for (let i = 0; i < series.length; i++) {
+                const x = i * xStep;
+                const y = yFromFps(series[i]);
+                if (i === 0) {
+                    fpsSparkCtx.moveTo(x, y);
+                } else {
+                    fpsSparkCtx.lineTo(x, y);
+                }
+            }
+            fpsSparkCtx.stroke();
+        };
+
+        drawSeries(displayFpsHistory, '#22c55e');
+        drawSeries(analysisFpsHistory, '#38bdf8');
+    }
+
+    function updateLatencyHealthUi() {
+        const analysisMs = avgAnalysisMs || 0;
+        const loopMs = avgLoopMs || 0;
+        const isCritical = analysisMs >= LATENCY_CRITICAL_MS || loopMs >= (LATENCY_CRITICAL_MS + 200);
+        const isWarn = !isCritical && (analysisMs >= LATENCY_ALERT_MS || loopMs >= (LATENCY_ALERT_MS + 200));
+        const criticalSecs = getCriticalDurationSeconds();
+
+        if (fpsChartWrap) {
+            fpsChartWrap.style.borderColor = isCritical ? '#ef4444' : (isWarn ? '#f59e0b' : '#334155');
+            fpsChartWrap.style.boxShadow = isCritical
+                ? '0 0 0 1px rgba(239,68,68,0.28) inset'
+                : (isWarn ? '0 0 0 1px rgba(245,158,11,0.22) inset' : 'none');
+        }
+
+        if (fpsHealthText) {
+            if (isCritical) {
+                fpsHealthText.textContent = `สถานะกราฟ: หน่วงสูง critical ต่อเนื่อง ${criticalSecs}s (analysis ~${Math.round(analysisMs)} ms)`;
+                fpsHealthText.style.color = '#fca5a5';
+            } else if (isWarn) {
+                fpsHealthText.textContent = `สถานะกราฟ: เริ่มหน่วง (analysis ~${Math.round(analysisMs)} ms)`;
+                fpsHealthText.style.color = '#fcd34d';
+            } else {
+                fpsHealthText.textContent = 'สถานะกราฟ: ปกติ';
+                fpsHealthText.style.color = '#86efac';
+            }
+        }
+    }
+
+    function updateCriticalDurationState() {
+        const criticalNow = (avgAnalysisMs >= LATENCY_CRITICAL_MS) || (avgLoopMs >= (LATENCY_CRITICAL_MS + 200));
+        if (criticalNow) {
+            if (!criticalSinceAt) {
+                criticalSinceAt = Date.now();
+            }
+            lastCriticalSeconds = Math.max(1, Math.floor((Date.now() - criticalSinceAt) / 1000));
+        } else {
+            criticalSinceAt = 0;
+            lastCriticalSeconds = 0;
+        }
+    }
+
+    function getCriticalDurationSeconds() {
+        return lastCriticalSeconds;
+    }
+
+    function shouldRunAnalysisNow() {
+        if (!LIVE_STREAM_ENABLED) {
+            return true;
+        }
+
+        const now = Date.now();
+        let minGapMs = getStreamAnalysisDelayMs();
+        const criticalNow = (avgAnalysisMs >= LATENCY_CRITICAL_MS) || (avgLoopMs >= (LATENCY_CRITICAL_MS + 200));
+        const warnNow = !criticalNow && ((avgAnalysisMs >= LATENCY_ALERT_MS) || (avgLoopMs >= (LATENCY_ALERT_MS + 200)));
+
+        if (chkPreviewPriority.checked) {
+            if (criticalNow) {
+                minGapMs += PREVIEW_PRIORITY_CRITICAL_EXTRA_DELAY_MS;
+            } else if (warnNow) {
+                minGapMs += PREVIEW_PRIORITY_WARN_EXTRA_DELAY_MS;
+            }
+        }
+
+        if ((now - lastAnalysisQueuedAt) < minGapMs) {
+            return false;
+        }
+
+        lastAnalysisQueuedAt = now;
+        return true;
+    }
+
+    function maybeAutoSwitchPresetForLatency() {
+        if (!LIVE_STREAM_ENABLED || !chkAdaptiveStream.checked || chkPresetLock.checked || chkFullConfigLock.checked) {
+            highLatencyStreak = 0;
+            lowLatencyRecoveryStreak = 0;
+            return false;
+        }
+
+        const now = Date.now();
+        const overloaded = avgAnalysisMs >= LATENCY_CRITICAL_MS || avgLoopMs >= (LATENCY_CRITICAL_MS + 120) || verifyQueue.length >= 4;
+        const recovered = avgAnalysisMs > 0 && avgAnalysisMs <= 950 && avgLoopMs > 0 && avgLoopMs <= 980 && verifyQueue.length === 0;
+
+        if (overloaded) {
+            highLatencyStreak++;
+            lowLatencyRecoveryStreak = 0;
+        } else if (recovered) {
+            lowLatencyRecoveryStreak++;
+            highLatencyStreak = 0;
+        } else {
+            highLatencyStreak = Math.max(0, highLatencyStreak - 1);
+            lowLatencyRecoveryStreak = Math.max(0, lowLatencyRecoveryStreak - 1);
+        }
+
+        if (
+            highLatencyStreak >= LATENCY_AUTO_PRESET_STREAK_REQUIRED
+            && selPreset.value !== 'lowlatency'
+            && (now - autoPresetLastChangedAt) >= LATENCY_AUTO_PRESET_SWITCH_COOLDOWN_MS
+        ) {
+            selPreset.value = 'lowlatency';
+            applyPerformancePreset('lowlatency', true);
+            autoPresetLastChangedAt = now;
+            highLatencyStreak = 0;
+            setStatus('waiting', 'หน่วงสูงต่อเนื่อง: ปรับเป็น Preset หน่วงต่ำอัตโนมัติ');
+            latencyTune.textContent = 'Adaptive Recovery: สลับ Preset เป็นหน่วงต่ำเพื่อลด latency';
+            return true;
+        }
+
+        if (
+            lowLatencyRecoveryStreak >= LATENCY_AUTO_PRESET_RECOVERY_REQUIRED
+            && selPreset.value === 'lowlatency'
+            && (now - autoPresetLastChangedAt) >= LATENCY_AUTO_PRESET_SWITCH_COOLDOWN_MS
+        ) {
+            selPreset.value = 'balanced';
+            applyPerformancePreset('balanced', true);
+            autoPresetLastChangedAt = now;
+            lowLatencyRecoveryStreak = 0;
+            setStatus('waiting', 'ระบบกลับมานิ่ง: ปรับเป็น Preset สมดุลอัตโนมัติ');
+            latencyTune.textContent = 'Adaptive Recovery: คืน Preset สมดุลหลังระบบนิ่ง';
+            return true;
+        }
+
+        return false;
+    }
+
+    function updatePerformanceMetrics() {
+        updateCriticalDurationState();
+        let displayFps = NaN;
+        if (avgPreviewFrameMs > 0) {
+            displayFps = 1000 / avgPreviewFrameMs;
+            previewFpsValue.textContent = displayFps.toFixed(1);
+        } else {
+            previewFpsValue.textContent = '-';
+        }
+
+        let analysisFps = NaN;
+        if (avgAnalysisMs > 0) {
+            analysisFps = 1000 / avgAnalysisMs;
+            analysisFpsValue.textContent = analysisFps.toFixed(1);
+        } else {
+            analysisFps = getCurrentAnalysisFps();
+            analysisFpsValue.textContent = `${analysisFps}`;
+        }
+
+        if (avgAnalysisMs > 0) {
+            analysisLatencyValue.textContent = `${Math.round(avgAnalysisMs)} ms`;
+        } else {
+            analysisLatencyValue.textContent = '- ms';
+        }
+
+        appendFpsHistory(displayFps, analysisFps);
+        drawFpsSparkline();
+        updateLatencyHealthUi();
+        updateCctvOsd();
+        void maybeCaptureCriticalDebugSnapshot();
+    }
+
+    function applyPerformancePreset(presetName, silent = false) {
+        const preset = (presetName || 'balanced').toLowerCase();
+        let label = 'สมดุล';
+        if (preset === 'smooth') {
+            label = 'ลื่นสุด';
+            selScanEngine.value = 'buffered';
+            selFacePolicy.value = 'single';
+            selProfile.value = 'fast';
+            selViewMode.value = 'contain';
+            selResolution.value = '640x360';
+            selDisplayFps.value = '20';
+            selAnalysisFps.value = '4';
+            chkAdaptiveStream.checked = true;
+        } else if (preset === 'quality') {
+            label = 'ภาพคม';
+            selScanEngine.value = 'buffered';
+            selFacePolicy.value = 'single';
+            selProfile.value = 'stable';
+            selViewMode.value = 'contain';
+            selResolution.value = '1280x720';
+            selDisplayFps.value = '12';
+            selAnalysisFps.value = '6';
+            chkAdaptiveStream.checked = false;
+        } else if (preset === 'lowlatency') {
+            label = 'หน่วงต่ำ';
+            selScanEngine.value = 'buffered';
+            selFacePolicy.value = 'single';
+            selProfile.value = 'fast';
+            selViewMode.value = 'contain';
+            selResolution.value = '640x360';
+            selDisplayFps.value = '24';
+            selAnalysisFps.value = '6';
+            chkAdaptiveStream.checked = true;
+        } else {
+            label = 'สมดุล';
+            selScanEngine.value = 'buffered';
+            selFacePolicy.value = 'single';
+            selProfile.value = 'stable';
+            selViewMode.value = 'contain';
+            selResolution.value = '960x540';
+            selDisplayFps.value = '12';
+            selAnalysisFps.value = '6';
+            chkAdaptiveStream.checked = true;
+        }
+
+        localStorage.setItem(presetStorageKey, preset);
+        localStorage.setItem(resolutionStorageKey, selResolution.value);
+        localStorage.setItem(displayFpsStorageKey, selDisplayFps.value);
+        localStorage.setItem(analysisFpsStorageKey, selAnalysisFps.value);
+        localStorage.setItem(adaptiveStreamStorageKey, chkAdaptiveStream.checked ? '1' : '0');
+        localStorage.setItem(scanEngineStorageKey, selScanEngine.value);
+        localStorage.setItem(viewModeStorageKey, selViewMode.value);
+        localStorage.setItem(`ipcam-profile:${STATION_CODE || 'default'}`, selProfile.value);
+        refreshPixelBadge();
+        applyViewMode(selViewMode.value, true);
+        refreshLiveStreamSource(true);
+
+        if (!silent) {
+            setStatus('waiting', `เปลี่ยน preset: ${label} (ล็อกพิกเซล ${getResolutionLabel(selResolution.value)})`);
+            latencyTune.textContent = `Preset: ${label}, engine=${selScanEngine.value}, res=${selResolution.value}, display=${getCurrentDisplayFps()} FPS, analysis=${getCurrentAnalysisFps()} FPS, adaptive=${chkAdaptiveStream.checked ? 'on' : 'off'}`;
+        }
+    }
+
+    function getResolutionLabel(value) {
+        return value === 'native' ? 'Native' : value;
+    }
+
+    function refreshPixelBadge() {
+        pixelBadge.textContent = getResolutionLabel(selResolution.value);
+    }
+
+    function getCurrentDisplayFps() {
+        return Number.parseInt(selDisplayFps.value || '20', 10) || 20;
+    }
+
+    function getCurrentAnalysisFps() {
+        const selected = Number.parseInt(selAnalysisFps.value || '8', 10) || 8;
+        return Math.max(2, Math.min(STREAM_ANALYSIS_MAX_FPS, selected));
+    }
+
+    function getPreviewTickDelayMs() {
+        const displayFps = Math.max(1, getCurrentDisplayFps());
+        return clamp(Math.floor(1000 / displayFps), 33, 600);
+    }
+
+    function getStreamAnalysisDelayMs() {
+        const streamAnalysisFps = getCurrentAnalysisFps();
+        return Math.max(STREAM_ANALYSIS_MIN_DELAY_MS, Math.floor(1000 / streamAnalysisFps));
+    }
+
+    function applyCameraProfile(profileName, silent = false) {
+        const profile = (profileName || 'generic').toLowerCase();
+        let label = 'Generic RTSP';
+
+        if (profile === 'hikvision') {
+            label = 'Hikvision';
+            selResolution.value = '640x360';
+            selDisplayFps.value = '20';
+            selAnalysisFps.value = '6';
+            selScanEngine.value = 'buffered';
+            chkAdaptiveStream.checked = true;
+        } else if (profile === 'dahua') {
+            label = 'Dahua';
+            selResolution.value = '640x360';
+            selDisplayFps.value = '20';
+            selAnalysisFps.value = '6';
+            selScanEngine.value = 'buffered';
+            chkAdaptiveStream.checked = true;
+        } else if (profile === 'axis') {
+            label = 'Axis';
+            selResolution.value = '960x540';
+            selDisplayFps.value = '20';
+            selAnalysisFps.value = '6';
+            selScanEngine.value = 'buffered';
+            chkAdaptiveStream.checked = true;
+        } else {
+            label = 'Generic RTSP';
+            selResolution.value = '640x360';
+            selDisplayFps.value = '20';
+            selAnalysisFps.value = '6';
+            selScanEngine.value = 'buffered';
+            chkAdaptiveStream.checked = true;
+        }
+
+        localStorage.setItem(cctvProfileStorageKey, profile);
+        localStorage.setItem(resolutionStorageKey, selResolution.value);
+        localStorage.setItem(displayFpsStorageKey, selDisplayFps.value);
+        localStorage.setItem(analysisFpsStorageKey, selAnalysisFps.value);
+        localStorage.setItem(scanEngineStorageKey, selScanEngine.value);
+        localStorage.setItem(adaptiveStreamStorageKey, chkAdaptiveStream.checked ? '1' : '0');
+        refreshPixelBadge();
+        refreshLiveStreamSource(true);
+
+        if (!silent) {
+            setStatus('waiting', `ใช้ Camera Profile: ${label}`);
+            latencyTune.textContent = `Camera Profile: ${label}, display=${getCurrentDisplayFps()} FPS, analysis=${getCurrentAnalysisFps()} FPS, res=${selResolution.value}`;
+        }
+    }
+
+    function updateCctvOsd() {
+        if (!cctvOsd || !cctvOsdText) {
+            return;
+        }
+
+        if (!LIVE_STREAM_ENABLED) {
+            cctvOsd.style.display = 'none';
+            return;
+        }
+
+        cctvOsd.style.display = 'inline-flex';
+        const criticalSecs = getCriticalDurationSeconds();
+        if (criticalSecs > 0) {
+            cctvOsd.classList.add('critical');
+            cctvOsdText.textContent = `CRITICAL ${criticalSecs}s • LIVE`; 
+        } else {
+            cctvOsd.classList.remove('critical');
+            cctvOsdText.textContent = `LIVE ${getCurrentDisplayFps()} FPS • analysis ${getCurrentAnalysisFps()} FPS`;
+        }
+    }
+
+    async function maybeCaptureCriticalDebugSnapshot() {
+        if (!chkAutoDebugSnapshot.checked) {
+            return;
+        }
+
+        const criticalSecs = getCriticalDurationSeconds();
+        if (criticalSecs < DEBUG_SNAPSHOT_CRITICAL_SECONDS) {
+            return;
+        }
+
+        const now = Date.now();
+        if ((now - lastDebugSnapshotAt) < DEBUG_SNAPSHOT_COOLDOWN_MS || debugSnapshotInFlight) {
+            return;
+        }
+
+        const naturalW = camImg.naturalWidth || 0;
+        const naturalH = camImg.naturalHeight || 0;
+        if (naturalW <= 0 || naturalH <= 0) {
+            return;
+        }
+
+        debugSnapshotInFlight = true;
+        try {
+            const canvas = document.createElement('canvas');
+            canvas.width = naturalW;
+            canvas.height = naturalH;
+            const ctx = canvas.getContext('2d', { willReadFrequently: false });
+            if (!ctx) {
+                return;
+            }
+
+            ctx.drawImage(camImg, 0, 0, naturalW, naturalH);
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.78));
+            if (!blob) {
+                return;
+            }
+
+            const form = new FormData();
+            form.append('Image', blob, `critical-${criticalSecs}s.jpg`);
+            form.append('Reason', 'critical-latency');
+            form.append('CriticalSeconds', String(criticalSecs));
+            form.append('AnalysisMs', String(Math.round(avgAnalysisMs || 0)));
+            form.append('LoopMs', String(Math.round(avgLoopMs || 0)));
+            form.append('DisplayFps', String(Math.round((1000 / Math.max(1, avgPreviewFrameMs || 1)) * 10) / 10));
+            form.append('AnalysisFps', String(Math.round((1000 / Math.max(1, avgAnalysisMs || 1)) * 10) / 10));
+
+            const response = await fetch(DEBUG_SNAPSHOT_UPLOAD_URL, {
+                method: 'POST',
+                body: form
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            lastDebugSnapshotAt = now;
+            setStatus('waiting', `Auto Debug Snapshot: บันทึกภาพวิกฤต (${criticalSecs}s)`);
+        } finally {
+            debugSnapshotInFlight = false;
+        }
+    }
+
+    function maybeAdaptiveAdjustDisplayFps() {
+        if (!LIVE_STREAM_ENABLED || !chkAdaptiveStream.checked || chkFullConfigLock.checked) {
+            return;
+        }
+
+        const now = Date.now();
+        if ((now - autoResolutionLastChangedAt) < STREAM_ADAPTIVE_COOLDOWN_MS) {
+            return;
+        }
+
+        const current = getCurrentDisplayFps();
+        const currentIndex = DISPLAY_FPS_STEPS.indexOf(current);
+        if (currentIndex < 0) {
+            return;
+        }
+
+        const overload = consecutiveSnapError >= 2 || avgLoopMs > 1450 || avgAnalysisMs > 1300;
+        const underload = consecutiveSnapError === 0 && avgLoopMs > 0 && avgLoopMs < 700 && avgAnalysisMs > 0 && avgAnalysisMs < 560;
+
+        let targetIndex = currentIndex;
+        if (overload && currentIndex > 0) {
+            targetIndex = currentIndex - 1;
+        } else if (underload && currentIndex < (DISPLAY_FPS_STEPS.length - 1)) {
+            targetIndex = currentIndex + 1;
+        }
+
+        if (targetIndex === currentIndex) {
+            return;
+        }
+
+        const nextFps = DISPLAY_FPS_STEPS[targetIndex];
+        selDisplayFps.value = String(nextFps);
+        localStorage.setItem(displayFpsStorageKey, String(nextFps));
+        autoResolutionLastChangedAt = now;
+        refreshLiveStreamSource(true);
+        latencyTune.textContent = `Adaptive Auto: ปรับ Display FPS -> ${nextFps}, analysis=${getCurrentAnalysisFps()} FPS`;
+    }
+
+    function maybeAdaptiveAdjustAnalysisFps() {
+        if (!LIVE_STREAM_ENABLED || !chkAdaptiveStream.checked || chkFullConfigLock.checked) {
+            return;
+        }
+
+        const now = Date.now();
+        if ((now - autoAnalysisLastChangedAt) < STREAM_ANALYSIS_ADAPTIVE_COOLDOWN_MS) {
+            return;
+        }
+
+        const current = getCurrentAnalysisFps();
+        const currentIndex = ANALYSIS_FPS_STEPS.indexOf(current);
+        if (currentIndex < 0) {
+            return;
+        }
+
+        const overloaded = avgAnalysisMs > 1400 || avgLoopMs > 1500 || verifyQueue.length >= 2;
+        const relaxed = avgAnalysisMs > 0 && avgAnalysisMs < 700 && avgLoopMs > 0 && avgLoopMs < 850 && verifyQueue.length === 0 && consecutiveSnapError === 0;
+
+        let targetIndex = currentIndex;
+        if (overloaded && currentIndex > 0) {
+            targetIndex = currentIndex - 1;
+        } else if (relaxed && currentIndex < (ANALYSIS_FPS_STEPS.length - 1)) {
+            targetIndex = currentIndex + 1;
+        }
+
+        if (targetIndex === currentIndex) {
+            return;
+        }
+
+        const nextFps = ANALYSIS_FPS_STEPS[targetIndex];
+        selAnalysisFps.value = String(nextFps);
+        localStorage.setItem(analysisFpsStorageKey, String(nextFps));
+        autoAnalysisLastChangedAt = now;
+        latencyTune.textContent = `Adaptive Auto: ปรับ Analysis FPS -> ${nextFps}, display=${getCurrentDisplayFps()} FPS`;
+    }
+
+    function buildLiveStreamUrl() {
+        const resolution = selResolution.value || 'native';
+        const fps = getCurrentDisplayFps();
+        return `${MJPEG_STREAM_URL}&resolution=${encodeURIComponent(resolution)}&fps=${fps}`;
+    }
+
+    function refreshLiveStreamSource(force = false) {
+        if (!LIVE_STREAM_ENABLED) {
+            return;
+        }
+
+        const baseUrl = buildLiveStreamUrl();
+        const nextUrl = force ? `${baseUrl}&nonce=${Date.now()}` : baseUrl;
+        if (!force && activeLiveStreamUrl === nextUrl) {
+            return;
+        }
+
+        activeLiveStreamUrl = nextUrl;
+        camImg.src = nextUrl;
+        camImg.style.display = '';
+    }
+
+    function parseResolution(value) {
+        if (value === 'native') {
+            return null;
+        }
+
+        const parts = String(value || '').split('x');
+        if (parts.length !== 2) {
+            return null;
+        }
+
+        const width = Number.parseInt(parts[0], 10);
+        const height = Number.parseInt(parts[1], 10);
+        if (!Number.isFinite(width) || !Number.isFinite(height) || width < 160 || height < 120) {
+            return null;
+        }
+
+        return { width, height };
+    }
+
+    function getResolutionIndex(value) {
+        const idx = RESOLUTION_STEPS.indexOf(value);
+        return idx >= 0 ? idx : RESOLUTION_STEPS.indexOf('640x360');
+    }
+
+    function setRealtimeResolution(value, reason) {
+        if (selResolution.value === value) {
+            return false;
+        }
+
+        selResolution.value = value;
+        localStorage.setItem(resolutionStorageKey, value);
+        autoResolutionLastChangedAt = Date.now();
+        refreshPixelBadge();
+        autoFitCameraImage(latestFrameWidth, latestFrameHeight);
+        drawFaceOverlay(latestFaceRect, latestOverlayConfidence);
+        latencyTune.textContent = `Pixel setting: ${reason} -> ${getResolutionLabel(value)}`;
+        setStatus('waiting', `ปรับภาพเรียลไทม์: ${getResolutionLabel(value)}`);
+        return true;
+    }
+
+    function stepCameraResolution(delta) {
+        const currentIndex = getResolutionIndex(selResolution.value);
+        const targetIndex = clamp(currentIndex + delta, 0, RESOLUTION_STEPS.length - 1);
+        const targetValue = RESOLUTION_STEPS[targetIndex];
+
+        if (targetValue === selResolution.value) {
+            return;
+        }
+
+        setRealtimeResolution(targetValue, 'ผู้ใช้กดปุ่ม Pixel');
+    }
+
+    function maybeAutoAdjustResolution(factor) {
+        if (!CAMERA_AUTO_TUNE || !AUTO_RESOLUTION_ENABLED || chkFullConfigLock.checked) {
+            return;
+        }
+
+        const now = Date.now();
+        if ((now - autoResolutionLastChangedAt) < AUTO_RESOLUTION_COOLDOWN_MS) {
+            return;
+        }
+
+        const currentIndex = getResolutionIndex(selResolution.value);
+        const overload = factor >= 1.5 || avgLoopMs > 1300 || (verifyQueue.length >= (QUEUE_MAX_ITEMS - 2));
+        const underload = factor <= 0.8 && avgLoopMs > 0 && avgLoopMs < 520 && avgSnapMs < 320 && verifyQueue.length === 0 && consecutiveSnapError === 0;
+
+        if (overload && currentIndex < (RESOLUTION_STEPS.length - 1)) {
+            setRealtimeResolution(RESOLUTION_STEPS[currentIndex + 1], 'ลดความละเอียดเพื่อความลื่น');
+            return;
+        }
+
+        if (underload && currentIndex > 0) {
+            setRealtimeResolution(RESOLUTION_STEPS[currentIndex - 1], 'เพิ่มความละเอียดเมื่อระบบนิ่ง');
+        }
+    }
+
+    async function resizeBlobForProcessing(sourceBlob, targetWidth, targetHeight) {
+        // Fast path: let browser decode+resize in one step when supported.
+        if (typeof createImageBitmap === 'function') {
+            let resizedBitmap = null;
+            try {
+                resizedBitmap = await createImageBitmap(sourceBlob, {
+                    resizeWidth: targetWidth,
+                    resizeHeight: targetHeight,
+                    resizeQuality: 'high'
+                });
+
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, resizedBitmap.width);
+                canvas.height = Math.max(1, resizedBitmap.height);
+                const ctx = canvas.getContext('2d', { willReadFrequently: false });
+                if (!ctx) {
+                    return { blob: sourceBlob, width: resizedBitmap.width, height: resizedBitmap.height };
+                }
+
+                ctx.drawImage(resizedBitmap, 0, 0);
+                const resizedBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.78));
+                return {
+                    blob: resizedBlob || sourceBlob,
+                    width: canvas.width,
+                    height: canvas.height
+                };
+            } catch {
+                // Fall through to generic canvas path below.
+            } finally {
+                if (resizedBitmap && resizedBitmap.close) {
+                    resizedBitmap.close();
+                }
+            }
+        }
+
+        let bitmap = null;
+        try {
+            bitmap = await createImageBitmap(sourceBlob);
+            const srcW = bitmap.width;
+            const srcH = bitmap.height;
+
+            if (srcW <= 0 || srcH <= 0) {
+                return { blob: sourceBlob, width: 0, height: 0 };
+            }
+
+            const scale = Math.min(targetWidth / srcW, targetHeight / srcH);
+            const drawW = Math.max(1, Math.floor(srcW * scale));
+            const drawH = Math.max(1, Math.floor(srcH * scale));
+
+            const canvas = document.createElement('canvas');
+            canvas.width = drawW;
+            canvas.height = drawH;
+            const ctx = canvas.getContext('2d', { willReadFrequently: false });
+            if (!ctx) {
+                return { blob: sourceBlob, width: srcW, height: srcH };
+            }
+
+            ctx.drawImage(bitmap, 0, 0, srcW, srcH, 0, 0, drawW, drawH);
+            const resizedBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.78));
+            return {
+                blob: resizedBlob || sourceBlob,
+                width: drawW,
+                height: drawH
+            };
+        } catch {
+            return { blob: sourceBlob, width: 0, height: 0 };
+        } finally {
+            if (bitmap && bitmap.close) {
+                bitmap.close();
+            }
+        }
+    }
+
+    async function prepareFrameBlob(sourceBlob) {
+        const resolution = parseResolution(selResolution.value);
+        if (!resolution) {
+            return {
+                blob: sourceBlob,
+                width: camImg.naturalWidth || 0,
+                height: camImg.naturalHeight || 0
+            };
+        }
+
+        return await resizeBlobForProcessing(sourceBlob, resolution.width, resolution.height);
+    }
+
+    async function captureFrameFromLiveStream() {
+        const naturalW = camImg.naturalWidth || 0;
+        const naturalH = camImg.naturalHeight || 0;
+        if (naturalW <= 0 || naturalH <= 0) {
+            return null;
+        }
+
+        const requested = parseResolution(selResolution.value);
+        const targetW = requested ? requested.width : naturalW;
+        const targetH = requested ? requested.height : naturalH;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, targetW);
+        canvas.height = Math.max(1, targetH);
+        const ctx = canvas.getContext('2d', { willReadFrequently: false });
+        if (!ctx) {
+            return null;
+        }
+
+        ctx.drawImage(camImg, 0, 0, naturalW, naturalH, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.72));
+        if (!blob) {
+            return null;
+        }
+
+        return {
+            blob,
+            width: canvas.width,
+            height: canvas.height
+        };
+    }
+
+    function showRetryBanner(retryCount) {
+        if (retryCount < 3) {
+            cameraRetryBanner.style.display = 'none';
+            return;
+        }
+
+        cameraRetryText.textContent = `กำลังเชื่อมต่อกล้องใหม่... (ครั้งที่ ${retryCount})`;
+        cameraRetryBanner.style.display = 'inline-flex';
+    }
+
+    function hideRetryBanner() {
+        cameraRetryBanner.style.display = 'none';
+    }
+
+    function resizeOverlayCanvas() {
+        const stage = document.getElementById('camStage') || camPanel;
+        overlayCanvas.width = stage.clientWidth;
+        overlayCanvas.height = stage.clientHeight;
+    }
+
+    function applyStageSize() {
+        const stage = document.getElementById('camStage');
+        if (!stage) return;
+        const requested = parseResolution(selResolution.value);
+        let w, h;
+        if (requested) {
+            w = requested.width;
+            h = requested.height;
+        } else {
+            w = camImg.naturalWidth || 1280;
+            h = camImg.naturalHeight || 720;
+        }
+        // Lock the stage to the EXACT pixel size of the selected resolution.
+        stage.style.width = w + 'px';
+        stage.style.height = h + 'px';
+        stage.style.maxWidth = 'none';
+        stage.style.maxHeight = 'none';
+        stage.style.aspectRatio = '';
+    }
+
+    function autoFitCameraImage(frameWidth, frameHeight) {
+        applyStageSize();
+        resizeOverlayCanvas();
+        const requested = parseResolution(selResolution.value);
+        const fw = Number(frameWidth) || (requested ? requested.width : 0) || camImg.naturalWidth || 0;
+        const fh = Number(frameHeight) || (requested ? requested.height : 0) || camImg.naturalHeight || 0;
+        if (fw <= 0 || fh <= 0) {
+            return;
+        }
+
+        const stage = document.getElementById('camStage') || camPanel;
+        const panelW = stage.clientWidth;
+        const panelH = stage.clientHeight;
+        if (panelW <= 0 || panelH <= 0) {
+            return;
+        }
+
+        if (selViewMode.value === 'cover' && !requested) {
+            const coverW = Math.max(1, Math.round(panelW));
+            const coverH = Math.max(1, Math.round(panelH));
+            if (coverW === lastRenderedImageWidth && coverH === lastRenderedImageHeight) {
+                return;
+            }
+
+            camImg.style.width = `${coverW}px`;
+            camImg.style.height = `${coverH}px`;
+            lastRenderedImageWidth = coverW;
+            lastRenderedImageHeight = coverH;
+            return;
+        }
+
+        let targetW = panelW;
+        let targetH = panelH;
+        if (requested) {
+            // Respect selected pixel size first, then clamp to available panel space.
+            targetW = requested.width;
+            targetH = requested.height;
+            const downScale = Math.min(1, panelW / targetW, panelH / targetH);
+            targetW *= downScale;
+            targetH *= downScale;
+        } else {
+            const aspect = fw / fh;
+            targetW = panelW;
+            targetH = targetW / aspect;
+            if (targetH > panelH) {
+                targetH = panelH;
+                targetW = targetH * aspect;
+            }
+        }
+
+        const roundedW = Math.max(1, Math.round(targetW));
+        const roundedH = Math.max(1, Math.round(targetH));
+        if (roundedW === lastRenderedImageWidth && roundedH === lastRenderedImageHeight) {
+            return;
+        }
+
+        camImg.style.width = `${roundedW}px`;
+        camImg.style.height = `${roundedH}px`;
+        lastRenderedImageWidth = roundedW;
+        lastRenderedImageHeight = roundedH;
+    }
+
+    function getDisplayGeometry(naturalWidth, naturalHeight) {
+        const stage = document.getElementById('camStage') || camPanel;
+        const panelW = stage.clientWidth;
+        const panelH = stage.clientHeight;
+        const mode = FORCE_CONTAIN_MODE ? 'contain' : (selViewMode.value === 'cover' ? 'cover' : 'contain');
+        const requested = parseResolution(selResolution.value);
+        if (requested) {
+            const displayW = Math.min(panelW, requested.width);
+            const displayH = Math.min(panelH, requested.height);
+            const scale = Math.min(displayW / naturalWidth, displayH / naturalHeight);
+            const drawnW = naturalWidth * scale;
+            const drawnH = naturalHeight * scale;
+            const offsetX = (panelW - drawnW) / 2;
+            const offsetY = (panelH - drawnH) / 2;
+            return { scale, offsetX, offsetY };
+        }
+
+        const refW = requested ? Math.min(panelW, requested.width) : panelW;
+        const refH = requested ? Math.min(panelH, requested.height) : panelH;
+        const scale = mode === 'cover'
+            ? Math.max(panelW / naturalWidth, panelH / naturalHeight)
+            : Math.min(refW / naturalWidth, refH / naturalHeight);
+
+        const drawnW = naturalWidth * scale;
+        const drawnH = naturalHeight * scale;
+        const offsetX = (panelW - drawnW) / 2;
+        const offsetY = (panelH - drawnH) / 2;
+        return { scale, offsetX, offsetY };
+    }
+
+    function clearOverlay() {
+        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    }
+
+    function getOverlayColor(confidence) {
+        if (!Number.isFinite(confidence)) return '#60a5fa';
+        if (confidence >= 0.80) return '#22c55e';
+        if (confidence >= 0.65) return '#facc15';
+        return '#f97316';
+    }
+
+    function drawFaceOverlay(rect, confidence) {
+        if (!OVERLAY_ENABLED) {
+            clearOverlay();
+            return;
+        }
+
+        clearOverlay();
+        if (!rect) return;
+
+        overlayCtx.strokeStyle = getOverlayColor(confidence);
+        overlayCtx.lineWidth = 3;
+        overlayCtx.setLineDash([8, 5]);
+        overlayCtx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+        overlayCtx.setLineDash([]);
+    }
+
+    function mapImageRectToPanel(faceRect, naturalWidth, naturalHeight) {
+        const { scale, offsetX, offsetY } = getDisplayGeometry(naturalWidth, naturalHeight);
+
+        return {
+            x: offsetX + (faceRect.x * scale),
+            y: offsetY + (faceRect.y * scale),
+            width: Math.max(1, faceRect.width * scale),
+            height: Math.max(1, faceRect.height * scale)
+        };
+    }
+
+    async function detectFacesInfo(blob, naturalWidth, naturalHeight) {
+        if (!OVERLAY_ENABLED || !supportsLiveDetection || !faceDetector) {
+            return { rect: null, count: 0, boxes: [] };
+        }
+
+        let bitmap = null;
+        try {
+            bitmap = await createImageBitmap(blob);
+            const detections = await faceDetector.detect(bitmap);
+            if (!detections || detections.length === 0) {
+                return { rect: null, count: 0, boxes: [] };
+            }
+
+            const boxes = detections
+                .map(d => d.boundingBox)
+                .map(b => ({
+                    x: Math.max(0, b.x),
+                    y: Math.max(0, b.y),
+                    width: Math.max(1, b.width),
+                    height: Math.max(1, b.height)
+                }))
+                .sort((a, b) => (b.width * b.height) - (a.width * a.height));
+
+            const largest = boxes[0];
+
+            if (!largest) {
+                return { rect: null, count: detections.length, boxes: [] };
+            }
+
+            return {
+                rect: mapImageRectToPanel(
+                    { x: largest.x, y: largest.y, width: largest.width, height: largest.height },
+                    naturalWidth,
+                    naturalHeight),
+                count: detections.length,
+                boxes
+            };
+        } catch {
+            return { rect: null, count: 0, boxes: [] };
+        } finally {
+            if (bitmap && bitmap.close) {
+                bitmap.close();
+            }
+        }
+    }
+
+    async function initFaceDetector() {
+        try {
+            if (!('FaceDetector' in window)) {
+                supportsLiveDetection = false;
+                return;
+            }
+
+            faceDetector = new FaceDetector({ fastMode: true, maxDetectedFaces: Math.max(2, Math.min(6, CAMERA_MULTI_FACE_MAX)) });
+            supportsLiveDetection = true;
+        } catch {
+            supportsLiveDetection = false;
+            faceDetector = null;
+        }
+    }
+
+    // ── Sound (Web Audio) ──
+    let audioCtx = null;
+    function playBeep(type) {
+        if (!chkSound.checked) return;
+        try {
+            audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.type = 'triangle';
+            if (type === 'success') {
+                osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1100, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.3);
+            } else if (type === 'dup') {
+                osc.frequency.value = 660;
+                gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+                osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+            }
+        } catch (_) {}
+    }
+
+    // ── Splash overlay on camera feed ──
+    let splashTimer = null;
+    function showSplash(type, name, sub) {
+        clearTimeout(splashTimer);
+        const iconMap = { success: '✅', dup: '⚠️', failed: '' };
+        const icon = iconMap[type] || '';
+        resultSplash.className = 'result-splash ' + type;
+        resultSplash.innerHTML = `
+            <div class="result-icon">${icon}</div>
+            <div class="result-name">${escHtml(name)}</div>
+            <div class="result-sub">${escHtml(sub)}</div>`;
+        resultSplash.style.display = '';
+        splashTimer = setTimeout(() => { resultSplash.style.display = 'none'; }, SPLASH_HOLD_MS);
+    }
+
+    function escHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function buildLocationLabel(gradeLevel, classroom) {
+        const parts = [];
+        if (gradeLevel) {
+            parts.push(`ชั้น ${gradeLevel}`);
+        }
+        if (classroom) {
+            parts.push(`ห้อง ${classroom}`);
+        }
+        return parts.join(' / ');
+    }
+
+    function persistFeedHistory() {
+        try {
+            localStorage.setItem(FEED_STORAGE_KEY, JSON.stringify(feedHistory.slice(0, FEED_MAX)));
+        } catch {
+            // Ignore storage issues; the feed remains visible for this session.
+        }
+    }
+
+    function loadFeedHistory() {
+        try {
+            const raw = localStorage.getItem(FEED_STORAGE_KEY);
+            const parsed = raw ? JSON.parse(raw) : [];
+            feedHistory = Array.isArray(parsed) ? parsed.slice(0, FEED_MAX) : [];
+        } catch {
+            feedHistory = [];
+        }
+
+        renderFeedHistory();
+    }
+
+    function buildFeedSubText(item) {
+        const parts = [];
+        const location = buildLocationLabel(item.gradeLevel, item.classroom);
+        if (location) {
+            parts.push(location);
+        }
+        if (item.scanType) {
+            parts.push(item.scanType);
+        }
+        if (item.message) {
+            parts.push(item.message);
+        }
+
+        return parts.length > 0 ? parts.join(' • ') : 'บันทึกรายการ';
+    }
+
+    function createFeedItemEl(item) {
+        const iconMap = { success: 'bi-person-check-fill', dup: 'bi-exclamation-circle-fill', failed: 'bi-person-x-fill' };
+        const icon = iconMap[item.type] || 'bi-question-circle';
+        const el = document.createElement('div');
+        el.className = `feed-item ${item.type}`;
+        el.innerHTML = `
+            <span class="feed-icon"><i class="bi ${icon}"></i></span>
+            <div class="feed-body">
+                <span class="feed-name" title="${escHtml(item.name)}">${escHtml(item.name)}</span>
+                <span class="feed-sub">${escHtml(buildFeedSubText(item))}</span>
+            </div>
+            <span class="feed-time">${escHtml(item.time)}</span>`;
+        return el;
+    }
+
+    // ── Feed ──
+    function renderFeedHistory() {
+        feedList.innerHTML = '';
+
+        if (feedHistory.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'feed-empty';
+            empty.textContent = 'ยังไม่มีรายการสแกนที่แสดง';
+            feedList.appendChild(empty);
+            return;
+        }
+
+        for (const item of feedHistory) {
+            feedList.appendChild(createFeedItemEl(item));
+        }
+    }
+
+    function addFeedItem(type, name, sub, time, extra = {}) {
+        feedHistory.unshift({
+            type,
+            name,
+            sub,
+            time,
+            gradeLevel: extra.gradeLevel || '',
+            classroom: extra.classroom || '',
+            message: extra.message || '',
+            scanType: extra.scanType || ''
+        });
+        feedHistory = feedHistory.slice(0, FEED_MAX);
+        persistFeedHistory();
+        renderFeedHistory();
+    }
+
+    loadFeedHistory();
+
+    function formatTime(d) {
+        return d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    async function postScan(url, blob) {
+        const form = new FormData();
+        form.append('Image', blob, 'frame.jpg');
+        form.append('StationCode', STATION_CODE);
+        form.append('StationToken', STATION_TOKEN);
+        form.append('RecognitionProfile', selProfile.value);
+        form.append('ClientCapturedAtLocal', new Date().toISOString());
+
+        const response = await fetch(url, { method: 'POST', body: form });
+        if (!response.ok) {
+            return null;
+        }
+
+        return await response.json();
+    }
+
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function postScanQueued(blob) {
+        const form = new FormData();
+        form.append('Image', blob, 'frame.jpg');
+        form.append('StationCode', STATION_CODE);
+        form.append('StationToken', STATION_TOKEN);
+        form.append('RecognitionProfile', selProfile.value);
+        form.append('ClientCapturedAtLocal', new Date().toISOString());
+
+        const enqueueResp = await fetch(VERIFY_QUEUE_URL, { method: 'POST', body: form });
+        if (enqueueResp.status === 429) {
+            let retryAfterMs = QUEUE_BACKPRESSURE_COOLDOWN_MS;
+            try {
+                const overloadBody = await enqueueResp.json();
+                const serverRetry = Number(overloadBody && overloadBody.retryAfterMs);
+                if (Number.isFinite(serverRetry) && serverRetry > 0) {
+                    retryAfterMs = Math.round(serverRetry);
+                }
+            } catch {
+                // Ignore parse errors and use local fallback.
+            }
+
+            queueBackpressureLevel = Math.min(6, queueBackpressureLevel + 1);
+            const localBackoffMs = Math.min(8000, retryAfterMs + (queueBackpressureLevel * 500));
+            queueBackpressureUntil = Date.now() + Math.max(QUEUE_BACKPRESSURE_COOLDOWN_MS, localBackoffMs);
+            return { __queueRejected: true };
+        }
+
+        if (enqueueResp.status === 409) {
+            let retryAfterMs = Math.max(180, Math.floor(dynamicVerifyGapMs * 0.75));
+            try {
+                const duplicateBody = await enqueueResp.json();
+                const serverRetry = Number(duplicateBody && duplicateBody.retryAfterMs);
+                if (Number.isFinite(serverRetry) && serverRetry > 0) {
+                    retryAfterMs = Math.round(serverRetry);
+                }
+            } catch {
+                // Ignore parse errors and use local fallback.
+            }
+
+            queueBackpressureUntil = Math.max(queueBackpressureUntil, Date.now() + Math.min(2500, retryAfterMs));
+            return { __queueRejected: true, __queueRejectedKind: 'duplicate' };
+        }
+
+        if (enqueueResp.status === 400) {
+            queueBackpressureUntil = Math.max(queueBackpressureUntil, Date.now() + Math.min(1600, Math.max(300, dynamicVerifyGapMs)));
+            return { __queueRejected: true, __queueRejectedKind: 'low-quality' };
+        }
+
+        if (!enqueueResp.ok) {
+            return null;
+        }
+
+        const enqueueJson = await enqueueResp.json();
+        queueBackpressureLevel = Math.max(0, queueBackpressureLevel - 1);
+        const jobId = enqueueJson && enqueueJson.jobId ? String(enqueueJson.jobId) : '';
+        if (!jobId) {
+            return null;
+        }
+
+        for (let i = 0; i < 24; i++) {
+            const resultResp = await fetch(`${VERIFY_QUEUE_RESULT_URL}?jobId=${encodeURIComponent(jobId)}`, { cache: 'no-store' });
+            if (resultResp.ok) {
+                const resultJson = await resultResp.json();
+                if (resultJson && resultJson.status === 'completed' && resultJson.result) {
+                    return resultJson.result;
+                }
+
+                if (resultJson && resultJson.status === 'failed') {
+                    return null;
+                }
+            }
+
+            await sleep(200);
+        }
+
+        return null;
+    }
+
+    function renderDebugSnapshotItems(items) {
+        if (!debugSnapshotList) {
+            return;
+        }
+
+        debugSnapshotList.innerHTML = '';
+        if (!Array.isArray(items) || items.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'debug-empty';
+            empty.textContent = 'ยังไม่มีภาพ debug ล่าสุด';
+            debugSnapshotList.appendChild(empty);
+            if (debugSnapshotHint) {
+                debugSnapshotHint.textContent = 'ไม่มีข้อมูล';
+            }
+            return;
+        }
+
+        for (const item of items) {
+            const a = document.createElement('a');
+            a.className = 'debug-item';
+            a.href = item.url;
+            a.target = '_blank';
+            a.rel = 'noopener noreferrer';
+            const captured = item.capturedAtUtc ? new Date(item.capturedAtUtc).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '-';
+            a.textContent = `${captured} • critical=${item.criticalSeconds || '-'}s • a=${item.analysisMs || '-'}ms`;
+            debugSnapshotList.appendChild(a);
+        }
+
+        if (debugSnapshotHint) {
+            debugSnapshotHint.textContent = `ล่าสุด ${items.length} รายการ`;
+        }
+    }
+
+    async function refreshDebugSnapshots() {
+        if (debugSnapshotRefreshInFlight) {
+            return;
+        }
+
+        debugSnapshotRefreshInFlight = true;
+        try {
+            const resp = await fetch(DEBUG_SNAPSHOT_LIST_URL, { cache: 'no-store' });
+            if (!resp.ok) {
+                return;
+            }
+
+            const data = await resp.json();
+            renderDebugSnapshotItems((data && data.items) || []);
+        } catch {
+            // Ignore one-off fetch errors for debug list.
+        } finally {
+            debugSnapshotRefreshInFlight = false;
+        }
+    }
+
+    async function refreshQueueMetrics() {
+        if (!queueMetricsText || queueMetricsRefreshInFlight) {
+            return;
+        }
+
+        queueMetricsRefreshInFlight = true;
+        try {
+            const resp = await fetch(VERIFY_QUEUE_METRICS_URL, { cache: 'no-store' });
+            if (!resp.ok) {
+                queueMetricsText.textContent = 'Queue metrics: unavailable';
+                queueMetricsText.style.color = '#fca5a5';
+                return;
+            }
+
+            const data = await resp.json();
+            const metrics = data && data.metrics ? data.metrics : null;
+            if (!metrics) {
+                queueMetricsText.textContent = 'Queue metrics: unavailable';
+                queueMetricsText.style.color = '#fca5a5';
+                return;
+            }
+
+            const pending = Number(metrics.pendingCount || 0);
+            const rejected = Number(metrics.totalRejected || 0);
+            const rejectedDuplicate = Number(metrics.totalRejectedDuplicate || 0);
+            const rejectedLowQuality = Number(metrics.totalRejectedLowQuality || 0);
+            const timeout = Number(metrics.totalTimeout || 0);
+            const avgMs = Number(metrics.averageProcessMs || 0);
+            const avgQueueWaitMs = Number(metrics.averageQueueWaitMs || 0);
+            const effectiveThreshold = Number(metrics.effectiveRejectThreshold || 0);
+            const effectiveDuplicateWindowMs = Number(metrics.effectiveDuplicateWindowMs || 0);
+            const completed = Number(metrics.totalCompleted || 0);
+
+            queueRejectedDelta = Math.max(0, rejected - latestQueueRejectedTotal);
+            queueTimeoutDelta = Math.max(0, timeout - latestQueueTimeoutTotal);
+            latestQueuePending = pending;
+            latestQueueRejectedTotal = rejected;
+            latestQueueTimeoutTotal = timeout;
+            latestQueueAvgMs = Number.isFinite(avgMs) ? avgMs : 0;
+            latestQueueCompleted = completed;
+            lastQueueMetricsAt = Date.now();
+
+            updateMatchPipelineHealth();
+
+            queueMetricsText.textContent = `Queue metrics: pending=${pending}/${effectiveThreshold}, completed=${completed}, rejected=${rejected} (dup=${rejectedDuplicate}, low=${rejectedLowQuality}), timeout=${timeout}, avg=${avgMs.toFixed(1)}ms, wait=${avgQueueWaitMs.toFixed(1)}ms, dupWin=${effectiveDuplicateWindowMs}ms`;
+            if (pending >= 8 || timeout > 0) {
+                queueMetricsText.style.color = '#fca5a5';
+            } else if (pending >= 3 || rejected > 0) {
+                queueMetricsText.style.color = '#fcd34d';
+            } else {
+                queueMetricsText.style.color = '#93c5fd';
+            }
+        } catch {
+            queueMetricsText.textContent = 'Queue metrics: unavailable';
+            queueMetricsText.style.color = '#fca5a5';
+        } finally {
+            queueMetricsRefreshInFlight = false;
+        }
+    }
+
+    async function cropFaceBlob(frameBlob, faceBox, paddingRatio = 0.16) {
+        let bitmap = null;
+        try {
+            bitmap = await createImageBitmap(frameBlob);
+            const srcW = bitmap.width;
+            const srcH = bitmap.height;
+
+            const padX = faceBox.width * paddingRatio;
+            const padY = faceBox.height * paddingRatio;
+            const sx = Math.max(0, Math.floor(faceBox.x - padX));
+            const sy = Math.max(0, Math.floor(faceBox.y - padY));
+            const ex = Math.min(srcW, Math.ceil(faceBox.x + faceBox.width + padX));
+            const ey = Math.min(srcH, Math.ceil(faceBox.y + faceBox.height + padY));
+            const sw = Math.max(1, ex - sx);
+            const sh = Math.max(1, ey - sy);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = sw;
+            canvas.height = sh;
+            const ctx = canvas.getContext('2d', { willReadFrequently: false });
+            if (!ctx) {
+                return frameBlob;
+            }
+
+            ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, sw, sh);
+            const faceBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+            return faceBlob || frameBlob;
+        } catch {
+            return frameBlob;
+        } finally {
+            if (bitmap && bitmap.close) {
+                bitmap.close();
+            }
+        }
+    }
+
+    async function cropFacesBlobs(frameBlob, faceBoxes, paddingRatio = 0.16) {
+        if (!Array.isArray(faceBoxes) || faceBoxes.length === 0) {
+            return [];
+        }
+
+        let bitmap = null;
+        try {
+            bitmap = await createImageBitmap(frameBlob);
+            const srcW = bitmap.width;
+            const srcH = bitmap.height;
+            const blobs = [];
+
+            for (const faceBox of faceBoxes) {
+                const padX = faceBox.width * paddingRatio;
+                const padY = faceBox.height * paddingRatio;
+                const sx = Math.max(0, Math.floor(faceBox.x - padX));
+                const sy = Math.max(0, Math.floor(faceBox.y - padY));
+                const ex = Math.min(srcW, Math.ceil(faceBox.x + faceBox.width + padX));
+                const ey = Math.min(srcH, Math.ceil(faceBox.y + faceBox.height + padY));
+                const sw = Math.max(1, ex - sx);
+                const sh = Math.max(1, ey - sy);
+
+                const canvas = document.createElement('canvas');
+                canvas.width = sw;
+                canvas.height = sh;
+                const ctx = canvas.getContext('2d', { willReadFrequently: false });
+                if (!ctx) {
+                    blobs.push(frameBlob);
+                    continue;
+                }
+
+                ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, sw, sh);
+                const faceBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+                blobs.push(faceBlob || frameBlob);
+            }
+
+            return blobs;
+        } catch {
+            return faceBoxes.map(() => frameBlob);
+        } finally {
+            if (bitmap && bitmap.close) {
+                bitmap.close();
+            }
+        }
+    }
+
+    function enqueueVerifyTask(task) {
+        if (Date.now() < queueBackpressureUntil) {
+            return;
+        }
+
+        if (latestQueuePending >= SERVER_PENDING_HARD_LIMIT) {
+            queueBackpressureUntil = Math.max(queueBackpressureUntil, Date.now() + 1200);
+            return;
+        }
+
+        if (latestQueuePending >= SERVER_PENDING_WARN_LIMIT) {
+            const pressureBackoffMs = 450 + Math.min(900, (latestQueuePending - SERVER_PENDING_WARN_LIMIT) * 20);
+            queueBackpressureUntil = Math.max(queueBackpressureUntil, Date.now() + pressureBackoffMs);
+        }
+
+        if (verifyQueue.length >= QUEUE_MAX_ITEMS) {
+            verifyQueue.shift();
+        }
+
+        verifyQueue.push(task);
+        updateMatchPipelineHealth();
+        processVerifyQueue();
+    }
+
+    function processVerifyQueue() {
+        updateMatchPipelineHealth();
+        while (activeWorkers < dynamicWorkers && verifyQueue.length > 0) {
+            const task = verifyQueue.shift();
+            activeWorkers++;
+            updateMatchPipelineHealth();
+            runVerifyTask(task)
+                .catch(() => {})
+                .finally(() => {
+                    activeWorkers = Math.max(0, activeWorkers - 1);
+                    updateMatchPipelineHealth();
+                    processVerifyQueue();
+                });
+        }
+    }
+
+    function queueFrameAnalysis(job) {
+        latestAnalysisJob = job;
+
+        if (analysisScheduled || analysisInFlight) {
+            return;
+        }
+
+        analysisScheduled = true;
+        setTimeout(() => {
+            analysisScheduled = false;
+            void processLatestFrameAnalysis();
+        }, 0);
+    }
+
+    async function processLatestFrameAnalysis() {
+        if (analysisInFlight) {
+            return;
+        }
+
+        analysisInFlight = true;
+        try {
+            while (latestAnalysisJob) {
+                const job = latestAnalysisJob;
+                latestAnalysisJob = null;
+                try {
+                    await analyzeFrame(job);
+                } catch {
+                    // Ignore one-off analysis errors and keep the preview loop flowing.
+                }
+            }
+        } finally {
+            analysisInFlight = false;
+        }
+    }
+
+    async function analyzeFrame(job) {
+        const { frameBlob, preparedFrame, now } = job;
+        const analysisStartedAt = performance.now();
+        try {
+            const faceInfo = await detectFacesInfo(frameBlob, preparedFrame.width || camImg.naturalWidth || 1280, preparedFrame.height || camImg.naturalHeight || 720);
+            latestFaceRect = faceInfo.rect;
+            drawFaceOverlay(latestFaceRect, latestOverlayConfidence);
+
+            if (dynamicFrameSkip > 1 && (job.frameCounter % dynamicFrameSkip) !== 0) {
+                return;
+            }
+
+            setStatus('scanning', 'กำลังตรวจจับใบหน้า...');
+
+            if (supportsLiveDetection) {
+                if (faceInfo.count === 0) {
+                    faceStableCount = 0;
+                    noFaceStreak++;
+                    setStatus('scanning', 'ยังไม่พบใบหน้า – รอสแกน...');
+                    return;
+                }
+
+                if (faceInfo.count > 1) {
+                    if (selFacePolicy.value === 'single') {
+                        faceStableCount = 0;
+                        setStatus('waiting', `พบหลายใบหน้า (${faceInfo.count}) กรุณาให้เข้าเฟรมทีละคน`);
+                        return;
+                    }
+
+                    setStatus('scanning', `พบหลายใบหน้า (${faceInfo.count}) เลือกหน้าเด่นสุด`);
+                }
+
+                noFaceStreak = 0;
+                faceStableCount++;
+                if (faceStableCount < dynamicFaceStableHits) {
+                    setStatus('scanning', 'พบใบหน้า กำลังยืนยันตำแหน่ง...');
+                    return;
+                }
+            } else {
+                if (Date.now() < previewNoFaceCooldownUntil) {
+                    setStatus('scanning', 'ยังไม่พบใบหน้า – รอสแกน...');
+                    return;
+                }
+
+                const previewGapMs = Math.max(
+                    PREVIEW_API_MIN_GAP_MS,
+                    Math.min(1400, Math.round((avgAnalysisMs || 0) * 0.6)),
+                    verifyQueue.length > 0 ? 950 : 0
+                );
+                const previewNowMs = Date.now();
+                if ((previewNowMs - lastPreviewApiAt) < previewGapMs) {
+                    setStatus('scanning', 'โหมดประหยัด: หน่วงงาน preview ชั่วคราว');
+                    return;
+                }
+
+                lastPreviewApiAt = previewNowMs;
+
+                const preview = await postScan(PREVIEW_URL, frameBlob);
+                if (!preview) {
+                    setStatus('waiting', 'ตรวจจับไม่ได้ ชั่วคราว');
+                    return;
+                }
+
+                const previewConfidence = Number(preview.confidence ?? 0);
+                latestOverlayConfidence = Number.isFinite(previewConfidence) ? previewConfidence : null;
+                drawFaceOverlay(latestFaceRect, latestOverlayConfidence);
+
+                if (!preview.success) {
+                    const message = String(preview.message || '');
+                    const noFace = message.includes('ไม่พบใบหน้า') || message.includes('ไม่สามารถประมวลผลข้อมูลใบหน้า') || message.includes('ไม่พบข้อมูล');
+                    noFaceStreak++;
+
+                    if (noFace) {
+                        previewNoFaceCooldownUntil = Date.now() + 1200;
+                        setStatus('scanning', 'ยังไม่พบใบหน้า – รอสแกน...');
+                        return;
+                    }
+
+                    cntFail++;
+                    document.getElementById('cntFail').textContent = cntFail;
+                    addFeedItem('failed', 'ตรวจไม่ผ่านเกณฑ์', message || 'ความมั่นใจไม่พอ', formatTime(now), {
+                        message: message || 'ความมั่นใจไม่พอ',
+                        scanType: 'preview'
+                    });
+                    setStatus('scanning', 'ตรวจพบไม่ผ่านเกณฑ์ – รอสแกน...');
+                    return;
+                }
+
+                noFaceStreak = 0;
+                previewNoFaceCooldownUntil = 0;
+                if (Number.isFinite(previewConfidence) && previewConfidence < MIN_CONFIDENCE) {
+                    cntFail++;
+                    document.getElementById('cntFail').textContent = cntFail;
+                    addFeedItem('failed', 'ความมั่นใจต่ำ', `ต่ำกว่าเกณฑ์ (${previewConfidence.toFixed(2)})`, formatTime(now), {
+                        message: `ต่ำกว่าเกณฑ์ ${previewConfidence.toFixed(2)}`,
+                        scanType: 'preview'
+                    });
+                    setStatus('scanning', `พบใบหน้าแต่ความมั่นใจต่ำ (${previewConfidence.toFixed(2)})`);
+                    return;
+                }
+            }
+
+            const modeMulti = selFacePolicy.value === 'multi';
+            const candidateBoxes = supportsLiveDetection
+                ? (faceInfo.boxes || []).slice(0, modeMulti ? MULTI_FRAME_FACE_LIMIT : 1)
+                : [null];
+
+            if (candidateBoxes.length === 0) {
+                setStatus('waiting', 'ไม่พบใบหน้าที่พร้อมสแกน');
+                return;
+            }
+
+            if (selScanEngine.value === 'buffered') {
+                if (latestQueuePending >= SERVER_PENDING_HARD_LIMIT) {
+                    setStatus('waiting', 'คิวเซิร์ฟเวอร์แน่น: หน่วงการส่งงานชั่วคราว');
+                    return;
+                }
+
+                const queueSlack = Math.max(0, QUEUE_MAX_ITEMS - verifyQueue.length);
+                const serverQueueBudget = latestQueuePending >= SERVER_PENDING_WARN_LIMIT
+                    ? 1
+                    : 2;
+                const maxToQueue = Math.max(1, Math.min(candidateBoxes.length, Math.min(queueSlack, Math.min(MULTI_FRAME_FACE_LIMIT, serverQueueBudget))));
+                const selectedBoxes = candidateBoxes.slice(0, maxToQueue);
+                const croppedBlobs = selectedBoxes.some(Boolean)
+                    ? await cropFacesBlobs(frameBlob, selectedBoxes.filter(Boolean))
+                    : [frameBlob];
+
+                let blobCursor = 0;
+                for (const box of selectedBoxes) {
+                    const cropped = box ? (croppedBlobs[blobCursor++] || frameBlob) : frameBlob;
+                    enqueueVerifyTask({ blob: cropped, createdAt: Date.now() });
+                }
+
+                faceStableCount = 0;
+                setStatus('scanning', `โหมด${getScanEngineLabel()}: เข้าคิว ${selectedBoxes.length} ใบหน้า (คิว ${verifyQueue.length})`);
+                return;
+            }
+
+            const firstFace = candidateBoxes[0] || null;
+            const classicBlob = firstFace ? await cropFaceBlob(frameBlob, firstFace) : frameBlob;
+            await runVerifyTask({ blob: classicBlob, createdAt: Date.now() });
+            faceStableCount = 0;
+            setStatus('scanning', `โหมด${getScanEngineLabel()}: ตรวจสอบหน้าเด่นสุด`);
+        } finally {
+            const analysisDurationMs = performance.now() - analysisStartedAt;
+            if (analysisDurationMs > 0) {
+                avgAnalysisMs = ema(avgAnalysisMs, analysisDurationMs, 0.2);
+                updatePerformanceMetrics();
+            }
+        }
+    }
+
+    async function runVerifyTask(task) {
+        const now = new Date();
+        if (Date.now() < queueBackpressureUntil) {
+            return;
+        }
+
+        if ((now.getTime() - lastVerifyAt) < dynamicVerifyGapMs) {
+            return;
+        }
+
+        lastVerifyAt = now.getTime();
+        const verifyStartAt = performance.now();
+        let result = await postScanQueued(task.blob);
+        if (result && result.__queueRejected) {
+            if (result.__queueRejectedKind === 'duplicate') {
+                setStatus('waiting', 'ภาพซ้ำต่อเนื่อง ลดความถี่ส่งเฟรมอัตโนมัติ');
+            } else if (result.__queueRejectedKind === 'low-quality') {
+                setStatus('waiting', 'ภาพไม่ชัดหรือเล็กเกินไป ข้ามเฟรมนี้อัตโนมัติ');
+            } else {
+                setStatus('waiting', 'คิวสแกนแน่นชั่วคราว ลดความถี่ตรวจจับอัตโนมัติ');
+            }
+            return;
+        }
+
+        if (!result) {
+            result = await postScan(VERIFY_URL, task.blob);
+        }
+        const verifyDurationMs = performance.now() - verifyStartAt;
+        if (verifyDurationMs > 0) {
+            avgVerifyMs = ema(avgVerifyMs, verifyDurationMs, 0.2);
+        }
+
+        if (!result) {
+            return;
+        }
+
+        if (!result.success && !result.isDuplicate) {
+            return;
+        }
+
+        const key = result.studentCode || result.studentId || '__unknown';
+        const lastScan = cooldownMap.get(key);
+        if (lastScan && (now.getTime() - lastScan) < COOLDOWN_MS) {
+            return;
+        }
+
+        cooldownMap.set(key, now.getTime());
+        const name = result.studentName || 'ไม่ทราบชื่อ';
+        const location = buildLocationLabel(result.gradeLevel, result.classroom);
+        const timeStr = formatTime(now);
+
+        if (result.isDuplicate) {
+            cntDup++;
+            document.getElementById('cntDup').textContent = cntDup;
+            const sub = location ? `${location} • ข้อมูลซ้ำ – บันทึกแล้ว` : 'ข้อมูลซ้ำ – บันทึกแล้ว';
+            showSplash('dup', name, sub);
+            addFeedItem('dup', name, sub, timeStr, {
+                gradeLevel: result.gradeLevel,
+                classroom: result.classroom,
+                message: result.message || 'ข้อมูลซ้ำ',
+                scanType: result.scanType || ''
+            });
+            playBeep('dup');
+            setStatus('scanning', 'บันทึกซ้ำ – รอสแกน...');
+        } else {
+            cntSuccess++;
+            document.getElementById('cntSuccess').textContent = cntSuccess;
+            const sub = location ? `${location} • ${result.message || 'บันทึกเรียบร้อย'}` : (result.message || 'บันทึกเรียบร้อย');
+            showSplash('success', name, sub);
+            addFeedItem('success', name, sub, timeStr, {
+                gradeLevel: result.gradeLevel,
+                classroom: result.classroom,
+                message: result.message || 'บันทึกเรียบร้อย',
+                scanType: result.scanType || ''
+            });
+            playBeep('success');
+            setStatus('scanning', 'สแกนสำเร็จ – รอคนถัดไป...');
+        }
+    }
+
+    function ema(prev, value, alpha) {
+        if (!Number.isFinite(prev) || prev <= 0) {
+            return value;
+        }
+
+        return (prev * (1 - alpha)) + (value * alpha);
+    }
+
+    function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    function runAutoTuning() {
+        if (LIVE_STREAM_ENABLED) {
+            const streamDelay = getStreamAnalysisDelayMs();
+            dynamicFaceStableHits = FACE_STABLE_HITS;
+            dynamicVerifyGapMs = VERIFY_MIN_GAP_MS;
+            dynamicFastIntervalMs = streamDelay;
+            dynamicNormalIntervalMs = streamDelay;
+            dynamicIdleIntervalMs = Math.max(streamDelay, PREVIEW_IDLE_INTERVAL_MS);
+            const freshServerMetrics = (Date.now() - lastQueueMetricsAt) <= 3500;
+            const serverOverloaded = freshServerMetrics
+                && (latestQueuePending >= 8 || queueRejectedDelta > 0 || queueTimeoutDelta > 0 || latestQueueAvgMs >= 1300);
+            const overloaded = avgAnalysisMs >= LATENCY_CRITICAL_MS
+                || avgLoopMs >= (LATENCY_CRITICAL_MS + 120)
+                || verifyQueue.length >= 4
+                || Date.now() < queueBackpressureUntil
+                || serverOverloaded;
+
+            if (serverOverloaded) {
+                queueBackpressureUntil = Math.max(queueBackpressureUntil, Date.now() + 1200);
+            }
+
+            dynamicFrameSkip = overloaded ? Math.max(2, ANALYSIS_FRAME_SKIP_BASE + 1) : ANALYSIS_FRAME_SKIP_BASE;
+            dynamicWorkers = (selScanEngine.value === 'buffered' && selFacePolicy.value === 'multi' && !overloaded) ? 2 : 1;
+
+            const barPct = clamp((avgLoopMs / 1800) * 100, 5, 100);
+            latencyFill.style.width = `${barPct.toFixed(1)}%`;
+            latencyValue.textContent = `${Math.round(avgLoopMs || 0)} ms`;
+            maybeAdaptiveAdjustAnalysisFps();
+            maybeAdaptiveAdjustDisplayFps();
+            if (maybeAutoSwitchPresetForLatency()) {
+                return;
+            }
+            latencyTune.textContent = `Stream buffer: display=${getCurrentDisplayFps()} FPS, analysis=${getCurrentAnalysisFps()} FPS, frameSkip=${dynamicFrameSkip}, adaptive=${chkAdaptiveStream.checked ? 'on' : 'off'}, lockPreset=${chkPresetLock.checked ? 'on' : 'off'}, critical=${getCriticalDurationSeconds()}s, queue=${latestQueuePending}/${latestQueueCompleted}, engine=${selScanEngine.value}, res=${selResolution.value}`;
+            return;
+        }
+
+        if (!CAMERA_AUTO_TUNE) {
+            dynamicFaceStableHits = FACE_STABLE_HITS;
+            dynamicVerifyGapMs = VERIFY_MIN_GAP_MS;
+            dynamicFastIntervalMs = FAST_INTERVAL_MS;
+            dynamicNormalIntervalMs = NORMAL_INTERVAL_MS;
+            dynamicIdleIntervalMs = IDLE_INTERVAL_MS;
+            dynamicWorkers = (selScanEngine.value === 'buffered' && selFacePolicy.value === 'multi') ? 2 : 1;
+            const barPct = clamp((avgLoopMs / 1800) * 100, 5, 100);
+            latencyFill.style.width = `${barPct.toFixed(1)}%`;
+            latencyValue.textContent = `${Math.round(avgLoopMs || 0)} ms`;
+            latencyTune.textContent = `Auto tuning: ปิด (ใช้ stream buffer) engine=${selScanEngine.value}, res=${selResolution.value}, stable=${dynamicFaceStableHits}, workers=${dynamicWorkers}, q=${verifyQueue.length}`;
+            return;
+        }
+
+        let factor = 1;
+        if (avgSnapMs > 850 || avgVerifyMs > 1050 || consecutiveSnapError >= 2) {
+            factor = 1.6;
+        } else if (avgSnapMs > 520 || avgVerifyMs > 760 || consecutiveSnapError === 1) {
+            factor = 1.25;
+        } else if (avgSnapMs > 0 && avgVerifyMs > 0 && avgSnapMs < 280 && avgVerifyMs < 420) {
+            factor = 0.75;
+        }
+
+        dynamicNormalIntervalMs = clamp(Math.round(INTERVAL_MS * factor), 220, 2600);
+        dynamicFastIntervalMs = clamp(Math.round(dynamicNormalIntervalMs * 0.55), 140, dynamicNormalIntervalMs);
+        dynamicIdleIntervalMs = clamp(Math.round(dynamicNormalIntervalMs * 1.7), dynamicNormalIntervalMs, 3200);
+
+        dynamicFaceStableHits = factor >= 1.5 ? 3 : (factor >= 1.15 ? 2 : 1);
+        dynamicVerifyGapMs = factor >= 1.5 ? 1200 : (factor >= 1.15 ? 950 : 700);
+        dynamicFrameSkip = factor >= 1.5 ? Math.max(3, ANALYSIS_FRAME_SKIP_BASE + 1) : (factor >= 1.15 ? Math.max(2, ANALYSIS_FRAME_SKIP_BASE) : ANALYSIS_FRAME_SKIP_BASE);
+        if (selScanEngine.value !== 'buffered') {
+            dynamicWorkers = 1;
+        } else if (selFacePolicy.value === 'multi') {
+            dynamicWorkers = factor >= 1.5 ? 1 : (factor >= 1.15 ? 2 : 3);
+        } else {
+            dynamicWorkers = 1;
+        }
+
+        maybeAutoAdjustResolution(factor);
+
+        const barPct = clamp((avgLoopMs / 1800) * 100, 5, 100);
+        latencyFill.style.width = `${barPct.toFixed(1)}%`;
+        latencyValue.textContent = `${Math.round(avgLoopMs || 0)} ms`;
+        latencyTune.textContent = `Auto tuning: engine=${selScanEngine.value}, res=${selResolution.value}, stable=${dynamicFaceStableHits}, workers=${dynamicWorkers}, frameSkip=${dynamicFrameSkip}, q=${verifyQueue.length}, interval=${dynamicNormalIntervalMs}ms`;
+    }
+
+    // Legacy single-loop runtime removed. Split preview/detect pipelines are now the primary runtime.
+
+    function stopSplitPipelines() {
+        if (previewLoopTimer) {
+            clearTimeout(previewLoopTimer);
+            previewLoopTimer = null;
+        }
+        if (analysisLoopTimer) {
+            clearTimeout(analysisLoopTimer);
+            analysisLoopTimer = null;
+        }
+        splitPipelinesRunning = false;
+    }
+
+    async function runPreviewLoop() {
+        if (!splitPipelinesRunning) {
+            return;
+        }
+
+        const loopStartedAt = performance.now();
+        try {
+            if (LIVE_STREAM_ENABLED) {
+                refreshLiveStreamSource();
+                const naturalW = camImg.naturalWidth || latestFrameWidth || 0;
+                const naturalH = camImg.naturalHeight || latestFrameHeight || 0;
+                if (naturalW > 0 && naturalH > 0) {
+                    latestFrameWidth = naturalW;
+                    latestFrameHeight = naturalH;
+                    autoFitCameraImage(latestFrameWidth, latestFrameHeight);
+                    camOffline.style.display = 'none';
+                    hideRetryBanner();
+                } else {
+                    setPipelineHealth('video', 'warn', 'buffering');
+                }
+            } else {
+                const resp = await fetch(SNAP_URL + Date.now(), { cache: 'no-store' });
+                if (!resp.ok) {
+                    consecutiveSnapError++;
+                    showRetryBanner(consecutiveSnapError);
+                    setPipelineHealth('video', consecutiveSnapError >= 3 ? 'bad' : 'warn', `HTTP ${resp.status}`);
+                    if (consecutiveSnapError >= 3) {
+                        camImg.style.display = 'none';
+                        camOffline.style.display = '';
+                    }
+                } else {
+                    consecutiveSnapError = 0;
+                    hideRetryBanner();
+                    camOffline.style.display = 'none';
+                    const blob = await resp.blob();
+                    const objUrl = URL.createObjectURL(blob);
+                    const prevUrl = camImg.src;
+                    camImg.src = objUrl;
+                    camImg.style.display = '';
+                    if (prevUrl && prevUrl.startsWith('blob:')) {
+                        URL.revokeObjectURL(prevUrl);
+                    }
+
+                    const prepared = await prepareFrameBlob(blob);
+                    latestFrameWidth = prepared.width || camImg.naturalWidth || latestFrameWidth;
+                    latestFrameHeight = prepared.height || camImg.naturalHeight || latestFrameHeight;
+                    autoFitCameraImage(latestFrameWidth, latestFrameHeight);
+                }
+            }
+
+            const previewNow = performance.now();
+            if (lastPreviewPaintAt > 0) {
+                const previewDelta = previewNow - lastPreviewPaintAt;
+                if (previewDelta > 0) {
+                    avgPreviewFrameMs = ema(avgPreviewFrameMs, previewDelta, 0.22);
+                }
+            }
+            lastPreviewPaintAt = previewNow;
+            setPipelineHealth('video', 'ok', `${(1000 / Math.max(1, avgPreviewFrameMs || 1)).toFixed(1)}fps`);
+            updatePerformanceMetrics();
+        } catch {
+            setPipelineHealth('video', 'bad', 'error');
+        } finally {
+            const loopMs = performance.now() - loopStartedAt;
+            if (loopMs > 0) {
+                avgLoopMs = ema(avgLoopMs, loopMs, 0.1);
+            }
+
+            const nextDelay = getPreviewTickDelayMs();
+            previewLoopTimer = setTimeout(() => {
+                void runPreviewLoop();
+            }, nextDelay);
+        }
+    }
+
+    async function runAnalysisLoop() {
+        if (!splitPipelinesRunning) {
+            return;
+        }
+
+        const startedAt = performance.now();
+        let snapMs = 0;
+        try {
+            let preparedFrame = null;
+            const snapStart = performance.now();
+            if (LIVE_STREAM_ENABLED) {
+                preparedFrame = await captureFrameFromLiveStream();
+            } else {
+                const snapResp = await fetch(SNAP_URL + Date.now(), { cache: 'no-store' });
+                if (snapResp.ok) {
+                    const sourceBlob = await snapResp.blob();
+                    preparedFrame = await prepareFrameBlob(sourceBlob);
+                }
+            }
+            snapMs = performance.now() - snapStart;
+
+            if (!preparedFrame || !preparedFrame.blob) {
+                consecutiveSnapError++;
+                setPipelineHealth('detect', consecutiveSnapError >= 3 ? 'bad' : 'warn', 'no-frame');
+                if (consecutiveSnapError >= 3) {
+                    setStatus('waiting', 'กำลังรอบัฟเฟอร์สตรีมภาพ...');
+                }
+                return;
+            }
+
+            consecutiveSnapError = 0;
+            frameCounter++;
+            latestOverlayConfidence = null;
+
+            if (!shouldRunAnalysisNow()) {
+                setPipelineHealth('detect', 'warn', 'throttled');
+                return;
+            }
+
+            setPipelineHealth('detect', 'ok', `${getCurrentAnalysisFps()}fps`);
+            queueFrameAnalysis({
+                frameBlob: preparedFrame.blob,
+                preparedFrame,
+                now: new Date(),
+                frameCounter
+            });
+
+            if (analysisInFlight) {
+                setPipelineHealth('detect', 'warn', 'busy');
+            }
+            setStatus('scanning', 'กำลังประมวลผลภาพ...');
+        } catch {
+            setPipelineHealth('detect', 'bad', 'error');
+        } finally {
+            const loopMs = performance.now() - startedAt;
+            if (loopMs > 0) {
+                avgLoopMs = ema(avgLoopMs, loopMs, 0.16);
+            }
+            if (snapMs > 0) {
+                avgSnapMs = ema(avgSnapMs, snapMs, 0.2);
+            }
+
+            tuningSampleCount++;
+            if (tuningSampleCount % 3 === 0) {
+                runAutoTuning();
+            }
+
+            updateMatchPipelineHealth();
+            const nextDelay = getStreamAnalysisDelayMs();
+            analysisLoopTimer = setTimeout(() => {
+                void runAnalysisLoop();
+            }, nextDelay);
+        }
+    }
+
+    function startRealtimeRuntime() {
+        stopSplitPipelines();
+        splitPipelinesRunning = true;
+        setPipelineHealth('video', 'warn', 'starting');
+        setPipelineHealth('detect', 'warn', 'starting');
+        setPipelineHealth('match', 'warn', 'starting');
+        void runPreviewLoop();
+        void runAnalysisLoop();
+    }
+
+    async function checkCameraConnection(quiet = false) {
+        try {
+            const response = await fetch(TEST_CONNECTION_URL, { cache: 'no-store' });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const data = await response.json();
+            if (data && data.success) {
+                camOffline.style.display = 'none';
+                hideRetryBanner();
+                setPipelineHealth('video', 'ok', 'connected');
+                if (!quiet) {
+                    const source = data.source ? ` (${String(data.source).toUpperCase()})` : '';
+                    setStatus('waiting', `เชื่อมต่อกล้องสำเร็จ${source}`);
+                }
+                return true;
+            }
+
+            const message = (data && data.message) ? String(data.message) : 'ทดสอบการเชื่อมต่อกล้องไม่ผ่าน';
+            if (camOfflineText) {
+                camOfflineText.textContent = message;
+            }
+            camImg.style.display = 'none';
+            camOffline.style.display = '';
+            setPipelineHealth('video', 'bad', 'offline');
+            setStatus('error', message);
+            return false;
+        } catch {
+            if (!quiet) {
+                setStatus('error', 'ตรวจสอบการเชื่อมต่อกล้องไม่สำเร็จ');
+            }
+            setPipelineHealth('video', 'bad', 'check-failed');
+            return false;
+        }
+    }
+
+    resizeOverlayCanvas();
+    window.addEventListener('resize', () => {
+        resizeOverlayCanvas();
+        autoFitCameraImage(latestFrameWidth, latestFrameHeight);
+        drawFaceOverlay(latestFaceRect, latestOverlayConfidence);
+    });
+    initFaceDetector();
+    runAutoTuning();
+
+    // Low-latency startup defaults for first-time users while preserving saved preferences.
+    if (!persistedEngine) {
+        selScanEngine.value = cameraDefaultEngine;
+        localStorage.setItem(scanEngineStorageKey, selScanEngine.value);
+    }
+
+    if (!persistedResolution) {
+        selResolution.value = '640x360';
+        localStorage.setItem(resolutionStorageKey, selResolution.value);
+    }
+
+    selViewMode.value = 'contain';
+    localStorage.setItem(viewModeStorageKey, 'contain');
+    applyViewMode('contain', true);
+    refreshPixelBadge();
+    void refreshQueueMetrics();
+
+    setStatus('waiting', 'กำลังตรวจสอบการเชื่อมต่อกล้อง...');
+    checkCameraConnection(false).finally(() => {
+        startRealtimeRuntime();
+    });
+
+    window.addEventListener('beforeunload', () => {
+        stopSplitPipelines();
+    });
+
+    setInterval(() => {
+        checkCameraConnection(true);
+    }, CAMERA_CONNECTION_CHECK_INTERVAL_MS);
+
+    setInterval(() => {
+        void refreshDebugSnapshots();
+    }, 10000);
+
+    setInterval(() => {
+        void refreshQueueMetrics();
+    }, 1000);
+})();
+</script>
+</body>
+</html>

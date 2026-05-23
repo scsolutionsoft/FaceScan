@@ -1,0 +1,49 @@
+# Build output
+bin/
+obj/
+out/
+publish/
+publish-*/
+
+# Deployment/package artifacts
+*.zip
+*.7z
+*.nupkg
+*.snupkg
+
+# Local Android SDK/tooling bundles
+tools/edge-agent-android/android-sdk/
+tools/edge-agent-android/.gradle/
+tools/edge-agent-android/**/build/
+
+# Web publish artifacts
+FaceScan.Web/publish/
+FaceScan.Web/publish-*/
+
+# User and IDE files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Logs and temp
+*.log
+Logs/
+tmp-load/
+run.stdout.log
+run.stderr.log
+
+# Local tool/runtime folders
+.dotnet/
+.dotnet-*/
+.nuget/
+.templateengine/
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Python cache (FaceEngine)
+__pycache__/
+*.py[cod]

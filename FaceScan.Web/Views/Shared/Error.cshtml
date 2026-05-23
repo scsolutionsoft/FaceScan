@@ -1,0 +1,25 @@
+@model ErrorViewModel
+@{
+    ViewData["Title"] = "ข้อผิดพลาด";
+}
+
+<h1 class="text-danger">เกิดข้อผิดพลาด</h1>
+<h2 class="text-danger">ระบบพบปัญหาระหว่างประมวลผลคำขอของคุณ</h2>
+
+@if (Model.ShowRequestId)
+{
+    <p>
+        <strong>รหัสคำขอ:</strong> <code>@Model.RequestId</code>
+    </p>
+}
+
+<h3>โหมดพัฒนา</h3>
+<p>
+    หากเปิดสภาพแวดล้อมแบบ <strong>โหมดพัฒนา</strong> ระบบจะแสดงรายละเอียดข้อผิดพลาดได้มากขึ้น
+</p>
+<p>
+    <strong>ไม่ควรเปิดโหมดพัฒนาบนระบบที่ใช้งานจริง</strong>
+    เพราะอาจทำให้ข้อมูลสำคัญจากข้อผิดพลาดถูกแสดงต่อผู้ใช้งานปลายทาง
+    หากต้องการดีบักในเครื่อง ให้ตั้งค่า <strong>ASPNETCORE_ENVIRONMENT</strong> เป็น <strong>Development</strong> (โหมดพัฒนา)
+    แล้วรีสตาร์ตแอปพลิเคชัน
+</p>

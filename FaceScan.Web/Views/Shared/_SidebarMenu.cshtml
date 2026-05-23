@@ -1,0 +1,191 @@
+@{
+    var controller = (ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty).ToLowerInvariant();
+    var action = (ViewContext.RouteData.Values["action"]?.ToString() ?? string.Empty).ToLowerInvariant();
+
+    string Active(string targetController, string? targetAction = null)
+    {
+        var isControllerMatch = string.Equals(controller, targetController.ToLowerInvariant(), StringComparison.OrdinalIgnoreCase);
+        if (!isControllerMatch)
+        {
+            return string.Empty;
+        }
+
+        if (string.IsNullOrWhiteSpace(targetAction))
+        {
+            return "active";
+        }
+
+        return string.Equals(action, targetAction.ToLowerInvariant(), StringComparison.OrdinalIgnoreCase) ? "active" : string.Empty;
+    }
+}
+
+<nav class="sidebar-nav">
+    @if (User.Identity?.IsAuthenticated ?? false)
+    {
+        @if (User.IsInRole("Student"))
+        {
+            <div class="sidebar-section-label">นักเรียน</div>
+            <a class="sidebar-link @Active("StudentPortal", "Index")" asp-area="" asp-controller="StudentPortal" asp-action="Index">
+                <span class="sidebar-icon"><i class="bi bi-house-door"></i></span>
+                <span>หน้าหลักนักเรียน</span>
+            </a>
+            <a class="sidebar-link @Active("StudentPortal", "FaceEnrollment")" asp-area="" asp-controller="StudentPortal" asp-action="FaceEnrollment">
+                <span class="sidebar-icon"><i class="bi bi-person-bounding-box"></i></span>
+                <span>ลงทะเบียนใบหน้า</span>
+            </a>
+            <a class="sidebar-link @Active("StudentPortal", "Attendance")" asp-area="" asp-controller="StudentPortal" asp-action="Attendance">
+                <span class="sidebar-icon"><i class="bi bi-clock-history"></i></span>
+                <span>ตรวจสอบเวลาเข้า-กลับ</span>
+            </a>
+        }
+        else
+        {
+            <a class="sidebar-link @Active("Dashboard")" asp-area="" asp-controller="Dashboard" asp-action="Index">
+                <span class="sidebar-icon"><i class="bi bi-speedometer2"></i></span>
+                <span>แดชบอร์ด</span>
+            </a>
+
+            @if (User.IsInRole("Teacher") || User.IsInRole("HomeroomHead") || User.IsInRole("SuperAdmin") || User.IsInRole("Admin") || User.IsInRole("Staff"))
+            {
+                <div class="sidebar-section-label">เมนูครู</div>
+            }
+
+            @if (User.IsInRole("Teacher") || User.IsInRole("HomeroomHead") || User.IsInRole("SuperAdmin") || User.IsInRole("Admin"))
+            {
+                <a class="sidebar-link @Active("Home")" asp-area="Teacher" asp-controller="Home" asp-action="Index">
+                    <span class="sidebar-icon"><i class="bi bi-grid-1x2"></i></span>
+                    <span>พื้นที่งานครู</span>
+                </a>
+                <a class="sidebar-link @Active("PeriodAttendance", "Index")" asp-area="Teacher" asp-controller="PeriodAttendance" asp-action="Index">
+                    <span class="sidebar-icon"><i class="bi bi-journal-check"></i></span>
+                    <span>เช็คเวลาเรียนรายคาบ</span>
+                </a>
+            }
+
+            @if (User.IsInRole("Teacher") || User.IsInRole("HomeroomHead") || User.IsInRole("SuperAdmin") || User.IsInRole("Admin") || User.IsInRole("Staff"))
+            {
+                <a class="sidebar-link @Active("TeacherScan")" asp-area="" asp-controller="TeacherScan" asp-action="Index">
+                    <span class="sidebar-icon"><i class="bi bi-person-workspace"></i></span>
+                    <span>สแกนเวลาครู</span>
+                </a>
+            }
+
+            @if (User.IsInRole("SuperAdmin") || User.IsInRole("Admin") || User.IsInRole("Executive"))
+            {
+                <a class="sidebar-link @Active("TeacherAttendance", "Daily")" asp-area="" asp-controller="TeacherAttendance" asp-action="Daily">
+                    <span class="sidebar-icon"><i class="bi bi-calendar-check"></i></span>
+                    <span>สรุปเวลาปฏิบัติราชการครู</span>
+                </a>
+                <a class="sidebar-link @Active("TeacherAttendance", "Index")" asp-area="" asp-controller="TeacherAttendance" asp-action="Index">
+                    <span class="sidebar-icon"><i class="bi bi-list-task"></i></span>
+                    <span>รายการสแกนครู</span>
+                </a>
+                <a class="sidebar-link @Active("TeacherAttendance", "Late")" asp-area="" asp-controller="TeacherAttendance" asp-action="Late">
+                    <span class="sidebar-icon"><i class="bi bi-alarm"></i></span>
+                    <span>รายงานครูมาสาย</span>
+                </a>
+            }
+
+            @if (User.IsInRole("Teacher") || User.IsInRole("HomeroomHead") || User.IsInRole("SuperAdmin") || User.IsInRole("Admin"))
+            {
+                <a class="sidebar-link @Active("TeacherFaceEnrollment")" asp-area="" asp-controller="TeacherFaceEnrollment" asp-action="Index">
+                    <span class="sidebar-icon"><i class="bi bi-person-badge"></i></span>
+                    <span>ลงทะเบียนใบหน้าครู</span>
+                </a>
+            }
+
+            @if (User.IsInRole("Executive") || User.IsInRole("SuperAdmin") || User.IsInRole("Admin"))
+            {
+                <div class="sidebar-section-label">ผู้บริหาร</div>
+                <a class="sidebar-link @Active("Reports", "Index")" asp-area="Executive" asp-controller="Reports" asp-action="Index">
+                    <span class="sidebar-icon"><i class="bi bi-graph-up-arrow"></i></span>
+                    <span>รายงานผู้บริหาร</span>
+                </a>
+            }
+
+            <div class="sidebar-section-label">นักเรียน</div>
+
+            @if (User.IsInRole("SuperAdmin") || User.IsInRole("Admin"))
+            {
+                <a class="sidebar-link @Active("Students")" asp-area="" asp-controller="Students" asp-action="Index">
+                    <span class="sidebar-icon"><i class="bi bi-mortarboard"></i></span>
+                    <span>นักเรียน</span>
+                </a>
+                <a class="sidebar-link @Active("FaceEnrollment")" asp-area="" asp-controller="FaceEnrollment" asp-action="Index">
+                    <span class="sidebar-icon"><i class="bi bi-person-vcard"></i></span>
+                    <span>ลงทะเบียนใบหน้านักเรียน</span>
+                </a>
+                <a class="sidebar-link @Active("StudentImport")" asp-area="" asp-controller="StudentImport" asp-action="Index">
+                    <span class="sidebar-icon"><i class="bi bi-file-earmark-arrow-up"></i></span>
+                    <span>นำเข้าข้อมูลนักเรียน</span>
+                </a>
+            }
+
+            @if (User.IsInRole("SuperAdmin") || User.IsInRole("Admin") || User.IsInRole("Staff"))
+            {
+                <a class="sidebar-link @Active("Scan")" asp-area="" asp-controller="Scan" asp-action="Index">
+                    <span class="sidebar-icon"><i class="bi bi-phone"></i></span>
+                    <span>สแกนนักเรียนผ่านมือถือ</span>
+                </a>
+                <a class="sidebar-link @Active("Devices")" asp-area="" asp-controller="Devices" asp-action="Index">
+                    <span class="sidebar-icon"><i class="bi bi-camera-video"></i></span>
+                    <span>สถานีสแกน IP Camera</span>
+                </a>
+            }
+
+            <a class="sidebar-link @Active("Attendance", "Daily")" asp-area="" asp-controller="Attendance" asp-action="Daily">
+                <span class="sidebar-icon"><i class="bi bi-calendar-day"></i></span>
+                <span>สรุปรายวันนักเรียน</span>
+            </a>
+            <a class="sidebar-link @Active("Attendance", "Index")" asp-area="" asp-controller="Attendance" asp-action="Index">
+                <span class="sidebar-icon"><i class="bi bi-list-check"></i></span>
+                <span>รายการสแกนนักเรียน</span>
+            </a>
+            <a class="sidebar-link @Active("Attendance", "Late")" asp-area="" asp-controller="Attendance" asp-action="Late">
+                <span class="sidebar-icon"><i class="bi bi-alarm"></i></span>
+                <span>รายงานนักเรียนมาสาย</span>
+            </a>
+            <a class="sidebar-link @Active("Attendance", "ByClass")" asp-area="" asp-controller="Attendance" asp-action="ByClass">
+                <span class="sidebar-icon"><i class="bi bi-building"></i></span>
+                <span>สรุปตามชั้น/ห้อง</span>
+            </a>
+
+            @if (User.IsInRole("SuperAdmin") || User.IsInRole("Admin"))
+            {
+                <div class="sidebar-section-label">ระบบ</div>
+                <a class="sidebar-link @Active("Settings")" asp-area="" asp-controller="Settings" asp-action="Index">
+                    <span class="sidebar-icon"><i class="bi bi-sliders2"></i></span>
+                    <span>ตั้งค่าระบบและแบรนด์</span>
+                </a>
+                <a class="sidebar-link @Active("Logs")" asp-area="" asp-controller="Logs" asp-action="Index">
+                    <span class="sidebar-icon"><i class="bi bi-journal-text"></i></span>
+                    <span>บันทึกระบบ</span>
+                </a>
+                <a class="sidebar-link @Active("Users")" asp-area="" asp-controller="Users" asp-action="Index">
+                    <span class="sidebar-icon"><i class="bi bi-people"></i></span>
+                    <span>ผู้ใช้และสิทธิ์</span>
+                </a>
+            }
+        }
+    }
+    else
+    {
+        <div class="sidebar-section-label">ทางลัด</div>
+        <a class="sidebar-link @Active("Account", "Login")" asp-area="" asp-controller="Account" asp-action="Login">
+            <span class="sidebar-icon"><i class="bi bi-box-arrow-in-right"></i></span>
+            <span>เข้าสู่ระบบ</span>
+        </a>
+        <a class="sidebar-link @Active("Account", "TeacherRegister")" asp-area="" asp-controller="Account" asp-action="TeacherRegister">
+            <span class="sidebar-icon"><i class="bi bi-person-plus"></i></span>
+            <span>ลงทะเบียนสำหรับครู</span>
+        </a>
+        <a class="sidebar-link @Active("Scan", "Public")" asp-area="" asp-controller="Scan" asp-action="Public">
+            <span class="sidebar-icon"><i class="bi bi-camera"></i></span>
+            <span>สแกนนักเรียน (สาธารณะ)</span>
+        </a>
+        <a class="sidebar-link @Active("TeacherScan", "Public")" asp-area="" asp-controller="TeacherScan" asp-action="Public">
+            <span class="sidebar-icon"><i class="bi bi-person-workspace"></i></span>
+            <span>สแกนครู (สาธารณะ)</span>
+        </a>
+    }
+</nav>

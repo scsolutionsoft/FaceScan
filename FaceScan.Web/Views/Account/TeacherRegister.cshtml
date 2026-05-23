@@ -1,0 +1,95 @@
+@model TeacherRegisterViewModel
+@{
+    ViewData["Title"] = "ลงทะเบียนสำหรับครู";
+}
+
+<div class="auth-shell">
+    <div class="card auth-card shadow-sm mt-3 mt-lg-4">
+        <div class="auth-head">
+            <div class="d-flex align-items-center justify-content-between gap-3">
+                <div>
+                    <h3 class="mb-1">ลงทะเบียนสำหรับครู</h3>
+                    <p class="mb-0 text-white-50">สร้างบัญชีครูเพื่อใช้งานเมนูเช็คคาบเรียน สแกนเวลา และรายงานที่เกี่ยวข้องจากมือถือได้สะดวก</p>
+                </div>
+                <i class="bi bi-person-workspace fs-1"></i>
+            </div>
+        </div>
+
+        <div class="auth-body">
+            <form asp-action="TeacherRegister" method="post">
+                @Html.AntiForgeryToken()
+                <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
+
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <label asp-for="FullName" class="form-label"></label>
+                        <input asp-for="FullName" class="form-control form-control-lg" autocomplete="name" />
+                        <span asp-validation-for="FullName" class="text-danger"></span>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label asp-for="Username" class="form-label"></label>
+                        <input asp-for="Username" class="form-control form-control-lg" autocomplete="username" />
+                        <span asp-validation-for="Username" class="text-danger"></span>
+                    </div>
+                    <div class="col-12">
+                        <label asp-for="Email" class="form-label"></label>
+                        <input asp-for="Email" class="form-control form-control-lg" autocomplete="email" />
+                        <span asp-validation-for="Email" class="text-danger"></span>
+                    </div>
+                    <div class="col-12">
+                        <label asp-for="AssignedClassroomId" class="form-label"></label>
+                        <select asp-for="AssignedClassroomId" class="form-select form-select-lg">
+                            <option value="">ยังไม่ระบุห้องประจำ/ให้ผู้ดูแลกำหนดภายหลัง</option>
+                            @foreach (var classroom in Model.ClassroomOptions)
+                            {
+                                <option value="@classroom.Value">@classroom.Text</option>
+                            }
+                        </select>
+                        <span asp-validation-for="AssignedClassroomId" class="text-danger"></span>
+                        <div class="form-text">ถ้ามีห้องที่รับผิดชอบประจำ สามารถเลือกไว้เพื่อใช้เมนูเช็คคาบเรียนได้ทันที</div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label asp-for="Password" class="form-label"></label>
+                        <input asp-for="Password" class="form-control form-control-lg" autocomplete="new-password" />
+                        <span asp-validation-for="Password" class="text-danger"></span>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label asp-for="ConfirmPassword" class="form-label"></label>
+                        <input asp-for="ConfirmPassword" class="form-control form-control-lg" autocomplete="new-password" />
+                        <span asp-validation-for="ConfirmPassword" class="text-danger"></span>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 btn-lg rounded-pill mt-3">สมัครสมาชิกครู</button>
+            </form>
+
+            <div class="row g-3 mt-3">
+                <div class="col-12 col-md-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="fw-semibold mb-2"><i class="bi bi-phone me-1"></i> พร้อมใช้งานบนมือถือ</div>
+                            <p class="text-muted small mb-0">หน้าเมนูครูและหน้าสแกนออกแบบให้ใช้งานบนมือถือจอเล็กได้ง่าย ทั้งปุ่มใหญ่และการจัดวางแบบการ์ด</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="fw-semibold mb-2"><i class="bi bi-person-bounding-box me-1"></i> ขั้นถัดไปหลังสมัคร</div>
+                            <p class="text-muted small mb-0">เข้าสู่ระบบแล้วไปที่เมนูลงทะเบียนใบหน้าครู หรือหน้าแสกนครู เพื่อเริ่มใช้งานการเช็คเวลาปฏิบัติราชการ</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex flex-column flex-sm-row gap-2 justify-content-between align-items-sm-center mt-3">
+                <a asp-action="Login">กลับไปหน้าเข้าสู่ระบบ</a>
+                <a asp-action="StudentRegister" class="btn btn-outline-primary btn-sm rounded-pill px-3">สมัครนักเรียนแทน</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

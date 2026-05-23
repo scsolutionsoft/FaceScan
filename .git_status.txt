@@ -1,0 +1,10 @@
+﻿## No commits yet on main
+?? .git_log1.txt
+?? .git_staged_sample.txt
+?? .git_status.txt
+?? .gitignore
+?? FaceScan.Web/
+?? FaceScan.slnx
+?? README.md
+?? docs/
+?? tools/

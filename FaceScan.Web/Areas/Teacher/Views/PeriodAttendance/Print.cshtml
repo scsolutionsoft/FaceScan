@@ -1,0 +1,220 @@
+@model PeriodAttendancePageViewModel
+@{
+    Layout = null;
+    var classroomName = Model.ClassroomOptions.FirstOrDefault(x => x.Value == Model.ReportFilter.ClassroomId)?.Text ?? "-";
+    var currentPeriod = Model.ReportFilter.ClassPeriodId.GetValueOrDefault() > 0
+        ? Model.PeriodOptions.FirstOrDefault(x => x.Value == Model.ReportFilter.ClassPeriodId)?.Text ?? "-"
+        : "ทุกคาบ";
+    var reportCells = Model.ReportRows
+        .SelectMany(row => row.Periods)
+        .ToList();
+    var presentCount = reportCells.Count(x => x.HasRecordedStatus && x.Status == PeriodAttendanceStatus.Present);
+    var lateCount = reportCells.Count(x => x.HasRecordedStatus && x.Status == PeriodAttendanceStatus.Late);
+    var absentCount = reportCells.Count(x => x.HasRecordedStatus && x.Status == PeriodAttendanceStatus.Absent);
+    var leaveCount = reportCells.Count(x => x.HasRecordedStatus && x.Status == PeriodAttendanceStatus.Leave);
+    var truancyCount = reportCells.Count(x => x.HasRecordedStatus && x.Status == PeriodAttendanceStatus.Truancy);
+    var otherCount = reportCells.Count(x => x.HasRecordedStatus && x.Status == PeriodAttendanceStatus.Other);
+    var emptyCount = reportCells.Count(x => !x.HasRecordedStatus);
+}
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>พิมพ์รายงานสถานะการมาเรียนรายคาบ</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <style>
+        body {
+            padding: 24px;
+            color: #14213d;
+            font-size: 13px;
+        }
+
+        .report-header {
+            margin-bottom: 18px;
+        }
+
+        .report-title {
+            margin-bottom: 6px;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .report-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 18px;
+            margin-bottom: 12px;
+        }
+
+        .report-stat-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .report-stat {
+            padding: 8px 12px;
+            border: 1px solid #d7e0ec;
+            border-radius: 999px;
+            background: #f8fbff;
+        }
+
+        .report-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .legend-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid #d7e0ec;
+            background: #fff;
+        }
+
+        .status-dot {
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            display: inline-block;
+            border: 2px solid rgba(255, 255, 255, 0.9);
+            box-shadow: 0 0 0 1px rgba(20, 33, 61, 0.15);
+            background: #cbd5e1;
+        }
+
+        .is-present { background: #2b9348; }
+        .is-leave { background: #f4c430; }
+        .is-absent { background: #f8961e; }
+        .is-truancy { background: #d62828; }
+        .is-late { background: #7b2cbf; }
+        .is-other { background: #4ea8de; }
+        .is-empty { background: #cbd5e1; }
+
+        .report-table th,
+        .report-table td {
+            white-space: nowrap;
+            vertical-align: middle;
+            text-align: center;
+        }
+
+        .report-table .student-col {
+            text-align: left;
+            min-width: 220px;
+        }
+
+        .report-table .is-current {
+            background: #eef7ff;
+        }
+
+        .student-name {
+            font-weight: 600;
+        }
+
+        .student-code {
+            color: #5c677d;
+            font-size: 12px;
+        }
+
+        @@media print {
+            .no-print {
+                display: none !important;
+            }
+
+            body {
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print mb-3">
+        <button class="btn btn-primary" onclick="window.print()">พิมพ์</button>
+    </div>
+
+    <div class="report-header">
+        <div class="report-title">รายงานสถานะการมาเรียนรายคาบ</div>
+        <div class="report-meta">
+            <div><strong>วันที่:</strong> @Model.ReportFilter.Date.ToThaiDate("dd MMMM yyyy")</div>
+            <div><strong>ห้องเรียน:</strong> @classroomName</div>
+            <div><strong>คาบที่เน้น:</strong> @currentPeriod</div>
+        </div>
+        <div class="report-stat-row">
+            <div class="report-stat"><strong>มาเรียน:</strong> @presentCount</div>
+            <div class="report-stat"><strong>ลา:</strong> @leaveCount</div>
+            <div class="report-stat"><strong>ขาด:</strong> @absentCount</div>
+            <div class="report-stat"><strong>หนีเรียน:</strong> @truancyCount</div>
+            <div class="report-stat"><strong>มาสาย:</strong> @lateCount</div>
+            <div class="report-stat"><strong>อื่นๆ:</strong> @otherCount</div>
+            <div class="report-stat"><strong>ยังไม่มีข้อมูล:</strong> @emptyCount</div>
+        </div>
+    </div>
+
+    <div class="report-legend">
+        @foreach (var status in PeriodAttendanceStatusPalette.OrderedStatuses)
+        {
+            <span class="legend-pill">
+                <span class="status-dot @PeriodAttendanceStatusPalette.GetCssClass(status)"></span>
+                <span>@status.GetDisplayName()</span>
+            </span>
+        }
+        <span class="legend-pill">
+            <span class="status-dot is-empty"></span>
+            <span>ยังไม่มีข้อมูล</span>
+        </span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-bordered report-table">
+            <thead>
+                <tr>
+                    <th class="student-col">นักเรียน</th>
+                    @foreach (var period in Model.PeriodOptions)
+                    {
+                        var isCurrent = Model.ReportFilter.ClassPeriodId.GetValueOrDefault() > 0 && Model.ReportFilter.ClassPeriodId == period.Value;
+                        <th class="@(isCurrent ? "is-current" : null)">@period.Text</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.ReportRows.Count == 0)
+                {
+                    <tr>
+                        <td colspan="@(Model.PeriodOptions.Count + 1)" class="text-center text-muted py-4">ยังไม่มีข้อมูลสำหรับพิมพ์</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var row in Model.ReportRows)
+                    {
+                        <tr>
+                            <td class="student-col">
+                                <div class="student-name">@row.StudentName</div>
+                                <div class="student-code">@row.StudentCode</div>
+                            </td>
+                            @foreach (var cell in row.Periods)
+                            {
+                                var displayStatus = cell.Status ?? PeriodAttendanceStatus.Present;
+                                var statusClass = cell.HasRecordedStatus
+                                    ? PeriodAttendanceStatusPalette.GetCssClass(displayStatus)
+                                    : "is-empty";
+                                var title = cell.HasRecordedStatus
+                                    ? $"{cell.ClassPeriodName}: {displayStatus.GetDisplayName()}"
+                                    : $"{cell.ClassPeriodName}: ยังไม่มีข้อมูล";
+                                <td class="@(cell.IsCurrentPeriod ? "is-current" : null)">
+                                    <span class="status-dot @statusClass" title="@title" aria-label="@title"></span>
+                                </td>
+                            }
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

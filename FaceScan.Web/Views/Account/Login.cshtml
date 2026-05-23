@@ -1,0 +1,111 @@
+@using FaceScan.Web.Services.Interfaces
+@inject ISystemSettingService SystemSettingService
+@model LoginViewModel
+@{
+    ViewData["Title"] = "เข้าสู่ระบบ";
+    var returnUrl = ViewData["ReturnUrl"] as string;
+    var appSettings = await SystemSettingService.GetSettingsAsync();
+    var displayName = string.IsNullOrWhiteSpace(appSettings.ApplicationDisplayName) ? "FaceScan" : appSettings.ApplicationDisplayName;
+    var tagline = string.IsNullOrWhiteSpace(appSettings.ApplicationTagline) ? "ระบบสแกนใบหน้าเพื่อเช็คเวลาเข้าเรียนและลงเวลาปฏิบัติราชการของครู" : appSettings.ApplicationTagline;
+    var logoUrl = string.IsNullOrWhiteSpace(appSettings.BrandLogoPath)
+        ? Url.Content("~/img/facescan-mark.svg")
+        : Url.Content($"~/{appSettings.BrandLogoPath.TrimStart('/')}");
+}
+
+<div class="auth-shell">
+    <div class="card auth-card shadow-sm mt-3 mt-lg-4">
+        <div class="auth-head">
+            <div class="d-flex align-items-center justify-content-between gap-3">
+                <div>
+                    <h3 class="mb-1">เข้าสู่ระบบ @displayName</h3>
+                    <p class="mb-0 text-white-50">@tagline</p>
+                </div>
+                <img src="@logoUrl" alt="@displayName" width="56" height="56" style="object-fit: contain;" />
+            </div>
+        </div>
+
+        <div class="auth-body">
+            <div class="alert border-0 mb-3" style="background: linear-gradient(120deg, rgba(88,42,180,.12), rgba(41,140,227,.12));">
+                <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
+                    <div>
+                        <div class="fw-semibold"><i class="bi bi-camera-video me-1"></i>โหมดสแกนผ่าน IP Camera (ไม่ต้องล็อกอิน)</div>
+                        <div class="small text-muted">ใช้สำหรับเครื่องสแกนหน้างาน: เลือกสถานีกล้อง แล้วเริ่มสแกนอัตโนมัติได้ทันที</div>
+                    </div>
+                    <a class="btn btn-dark rounded-pill px-4" asp-controller="IpCamera" asp-action="Menu">
+                        <i class="bi bi-grid me-1"></i>เปิดเมนู IP Camera
+                    </a>
+                </div>
+            </div>
+
+            <form asp-action="Login" method="post">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="returnUrl" value="@returnUrl" />
+                <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
+
+                <div class="mb-3">
+                    <label asp-for="Username" class="form-label"></label>
+                    <input asp-for="Username" class="form-control form-control-lg" autocomplete="username" />
+                    <span asp-validation-for="Username" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="Password" class="form-label"></label>
+                    <input asp-for="Password" class="form-control form-control-lg" autocomplete="current-password" />
+                    <div class="form-text">บัญชี admin สามารถปล่อยว่างรหัสผ่านได้</div>
+                    <span asp-validation-for="Password" class="text-danger"></span>
+                </div>
+
+                <div class="form-check mb-3">
+                    <input asp-for="RememberMe" class="form-check-input" />
+                    <label asp-for="RememberMe" class="form-check-label"></label>
+                </div>
+
+                <button type="submit" class="btn btn-primary w-100 btn-lg rounded-pill">
+                    <i class="bi bi-box-arrow-in-right me-1"></i> เข้าสู่ระบบ
+                </button>
+            </form>
+
+            <div class="row g-3 mt-3">
+                <div class="col-12 col-md-6 col-lg-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="fw-semibold mb-2"><i class="bi bi-mortarboard me-1"></i> สมัครนักเรียน</div>
+                            <p class="text-muted mb-3 small">ใช้รหัสนักเรียนและวันเกิดในการยืนยันตัวตนก่อนสร้างบัญชีเข้าใช้งาน</p>
+                            <a class="btn btn-outline-primary w-100" asp-action="StudentRegister">สมัครสมาชิกนักเรียน</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-6 col-lg-4">
+                    <div class="card h-100 border-primary-subtle">
+                        <div class="card-body">
+                            <div class="fw-semibold mb-2"><i class="bi bi-person-workspace me-1"></i> สมัครครู</div>
+                            <p class="text-muted mb-3 small">สร้างบัญชีครูเพื่อใช้งานเมนูเช็คคาบเรียน สแกนเวลา และฟังก์ชันครูบนมือถือ</p>
+                            <a class="btn btn-primary w-100" asp-action="TeacherRegister">ลงทะเบียนสำหรับครู</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-lg-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="fw-semibold mb-2"><i class="bi bi-camera me-1"></i> สแกนสาธารณะ</div>
+                            <p class="text-muted mb-3 small">เปิดหน้าแสกนนักเรียนหรือครูได้ทันทีโดยไม่ต้องล็อกอินจากเครื่องสแกน พร้อมเมนูเลือก IP Camera</p>
+                            <div class="d-grid gap-2">
+                                <a class="btn btn-success" asp-controller="Scan" asp-action="Public">สแกนนักเรียน</a>
+                                <a class="btn btn-outline-success" asp-controller="TeacherScan" asp-action="Public">สแกนครู</a>
+                                <a class="btn btn-dark" asp-controller="IpCamera" asp-action="Menu">
+                                    <i class="bi bi-camera-video me-1"></i>เมนูสแกน IP Camera
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+          
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
