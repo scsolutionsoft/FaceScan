@@ -29,6 +29,7 @@ FaceScan.Web/publish-*/
 
 # Logs and temp
 *.log
+.git_*.txt
 Logs/
 tmp-load/
 run.stdout.log
