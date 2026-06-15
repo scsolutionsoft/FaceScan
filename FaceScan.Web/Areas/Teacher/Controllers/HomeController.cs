@@ -1,5 +1,6 @@
 using FaceScan.Web.Data;
 using FaceScan.Web.Models.Entities;
+using FaceScan.Web.Services.Interfaces;
 using FaceScan.Web.ViewModels.Teacher;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -9,16 +10,21 @@ using Microsoft.EntityFrameworkCore;
 namespace FaceScan.Web.Areas.Teacher.Controllers;
 
 [Area("Teacher")]
-[Authorize(Roles = "SuperAdmin,Admin,Teacher,HomeroomHead")]
+[Authorize(Roles = "SuperAdmin,Admin,Teacher,HomeroomHead,StudentCareAdmin,WasteBankStaff")]
 public class HomeController : Controller
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ISystemSettingService _systemSettingService;
 
-    public HomeController(ApplicationDbContext dbContext, UserManager<ApplicationUser> userManager)
+    public HomeController(
+        ApplicationDbContext dbContext,
+        UserManager<ApplicationUser> userManager,
+        ISystemSettingService systemSettingService)
     {
         _dbContext = dbContext;
         _userManager = userManager;
+        _systemSettingService = systemSettingService;
     }
 
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
@@ -30,7 +36,8 @@ public class HomeController : Controller
         }
 
         var roles = await _userManager.GetRolesAsync(user);
-        var roleName = roles.FirstOrDefault(x => x is "Teacher" or "HomeroomHead")
+        var settings = await _systemSettingService.GetSettingsAsync(cancellationToken);
+        var roleName = roles.FirstOrDefault(x => x is "Teacher" or "HomeroomHead" or "StudentCareAdmin" or "WasteBankStaff")
             ?? roles.FirstOrDefault()
             ?? "Teacher";
 
@@ -61,7 +68,9 @@ public class HomeController : Controller
             CanManageTeacherFaces = User.IsInRole("SuperAdmin") || User.IsInRole("Admin"),
             CanViewTeacherReports = User.IsInRole("SuperAdmin") || User.IsInRole("Admin"),
             CanUseTeacherScan = User.IsInRole("SuperAdmin") || User.IsInRole("Admin") || User.IsInRole("Teacher") || User.IsInRole("HomeroomHead") || User.IsInRole("Staff"),
-            CanUsePeriodAttendance = User.IsInRole("SuperAdmin") || User.IsInRole("Admin") || User.IsInRole("Teacher") || User.IsInRole("HomeroomHead")
+            CanUsePeriodAttendance = User.IsInRole("SuperAdmin") || User.IsInRole("Admin") || User.IsInRole("Teacher") || User.IsInRole("HomeroomHead"),
+            CanUseStudentCare = settings.EnableStudentCareModule && (User.IsInRole("SuperAdmin") || User.IsInRole("Admin") || User.IsInRole("Teacher") || User.IsInRole("HomeroomHead") || User.IsInRole("StudentCareAdmin")),
+            CanUseWasteBank = settings.EnableWasteBankModule && (User.IsInRole("SuperAdmin") || User.IsInRole("Admin") || User.IsInRole("WasteBankStaff"))
         };
 
         return View(model);

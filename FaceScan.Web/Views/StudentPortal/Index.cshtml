@@ -11,10 +11,25 @@
 <div class="row g-3 mb-3">
     <div class="col-md-6 col-lg-3">
         <div class="card h-100">
-            <div class="card-body">
-                <div class="text-muted small">รหัสนักเรียน</div>
-                <div class="fs-5 fw-semibold">@Model.StudentCode</div>
-                <div>@Model.StudentName</div>
+            <div class="card-body student-home-profile-card">
+                <div class="student-home-profile-photo">
+                    @if (!string.IsNullOrWhiteSpace(Model.ProfilePhotoPath))
+                    {
+                        <img src="~/@Model.ProfilePhotoPath" alt="รูปหน้าตนเอง" />
+                    }
+                    else
+                    {
+                        <i class="bi bi-person"></i>
+                    }
+                </div>
+                <div class="student-home-profile-info">
+                    <div class="text-muted small">รหัสนักเรียน</div>
+                    <div class="fs-5 fw-semibold">@Model.StudentCode</div>
+                    <div>@Model.StudentName</div>
+                    <button type="button" class="btn btn-sm btn-outline-primary mt-2" data-bs-toggle="modal" data-bs-target="#profilePhotoModal">
+                        <i class="bi bi-image me-1"></i>เปลี่ยนรูป
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -61,6 +76,324 @@
     </div>
 </div>
 
+<div class="modal fade" id="profilePhotoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">เลือกรูปหน้าตนเอง</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="ปิด"></button>
+            </div>
+            <div class="modal-body">
+                @if (Model.ProfilePhotoOptions.Count == 0)
+                {
+                    <div class="text-muted">ยังไม่มีรูปใบหน้าให้เลือก</div>
+                }
+                else
+                {
+                    <div class="student-home-photo-choice-grid">
+                        @foreach (var photo in Model.ProfilePhotoOptions)
+                        {
+                            <form asp-action="SetProfilePhoto" method="post" class="student-home-photo-choice">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="photoId" value="@photo.PhotoId" />
+                                <button type="submit" class="student-home-photo-choice-button @(photo.IsPrimary ? "is-selected" : "")">
+                                    <img src="~/@photo.FilePath" alt="รูปหน้าตนเอง @photo.PhotoId" />
+                                    <span>
+                                        @(photo.IsPrimary ? "กำลังใช้งาน" : "ใช้รูปนี้")
+                                    </span>
+                                </button>
+                            </form>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <a asp-action="FaceEnrollment" class="btn btn-outline-primary">เพิ่มรูปใบหน้า</a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ปิด</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@if (Model.IsStudentCareEnabled && Model.IsHomeVisitEnabled)
+{
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>พิกัดบ้านสำหรับระบบเยี่ยมบ้าน</span>
+            @if (Model.HasHomeLocation)
+            {
+                <span class="badge bg-success">แชร์แล้ว</span>
+            }
+            else
+            {
+                <span class="badge bg-secondary">ยังไม่ได้แชร์</span>
+            }
+        </div>
+        <div class="card-body">
+            <p class="mb-2">
+                นักเรียนสามารถแชร์พิกัดบ้านจากมือถือหรืออุปกรณ์ที่อยู่บ้าน เพื่อช่วยให้ครูที่ปรึกษาวางแผนเยี่ยมบ้านได้ถูกต้อง
+            </p>
+            @if (Model.HomeLocationSharedAt.HasValue)
+            {
+                <div class="text-muted small mb-3">อัปเดตล่าสุด: @Model.HomeLocationSharedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</div>
+            }
+            <div class="table-responsive mb-3">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>ละติจูด</th>
+                            <th>ลองจิจูด</th>
+                            <th>อัปเดตล่าสุด</th>
+                            <th class="text-end">ตรวจสอบ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>@(Model.HomeLatitude.HasValue ? Model.HomeLatitude.Value.ToString("0.000000") : "-")</td>
+                            <td>@(Model.HomeLongitude.HasValue ? Model.HomeLongitude.Value.ToString("0.000000") : "-")</td>
+                            <td>@(Model.HomeLocationSharedAt.HasValue ? Model.HomeLocationSharedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm") : "-")</td>
+                            <td class="text-end">
+                                @if (Model.HasHomeLocation)
+                                {
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-primary"
+                                            id="viewSavedHomeLocationButton"
+                                            data-lat="@Model.HomeLatitude?.ToString("0.000000", System.Globalization.CultureInfo.InvariantCulture)"
+                                            data-lng="@Model.HomeLongitude?.ToString("0.000000", System.Globalization.CultureInfo.InvariantCulture)">
+                                        <i class="bi bi-map me-1"></i>ดูแผนที่
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <form asp-action="ShareHomeLocation" method="post" id="homeLocationForm" class="d-flex flex-wrap gap-2 align-items-center">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="Latitude" id="homeLatitude" />
+                <input type="hidden" name="Longitude" id="homeLongitude" />
+                <button type="button" class="btn btn-primary" id="shareHomeLocationButton">
+                    <i class="bi bi-geo-alt me-1"></i> แชร์พิกัดบ้าน
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="manualHomeLocationButton">
+                    <i class="bi bi-pencil-square me-1"></i>กรอกพิกัดเอง
+                </button>
+                <span class="text-muted small" id="homeLocationStatus">ระบบจะขอสิทธิ์ตำแหน่งจากเบราว์เซอร์</span>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal fade home-location-modal-shell" id="homeLocationConfirmModal" tabindex="-1" aria-labelledby="homeLocationConfirmTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <div class="text-muted small text-uppercase">Google Maps</div>
+                        <h2 class="modal-title fs-5" id="homeLocationConfirmTitle">ตรวจสอบพิกัดบ้านก่อนบันทึก</h2>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="ratio ratio-16x9 rounded border overflow-hidden mb-3">
+                        <iframe id="homeLocationMapFrame" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
+                    </div>
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-4">
+                            <label class="form-label" for="homeLocationModalLatitude">ละติจูด</label>
+                            <input class="form-control" id="homeLocationModalLatitude" inputmode="decimal" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="homeLocationModalLongitude">ลองจิจูด</label>
+                            <input class="form-control" id="homeLocationModalLongitude" inputmode="decimal" />
+                        </div>
+                        <div class="col-md-4 d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-outline-primary" id="refreshHomeLocationMapButton">
+                                <i class="bi bi-arrow-clockwise me-1"></i>อัปเดตแผนที่
+                            </button>
+                            <a class="btn btn-outline-secondary" id="openHomeLocationGoogleMapsLink" href="#" target="_blank" rel="noopener">
+                                <i class="bi bi-box-arrow-up-right me-1"></i>เปิด Google Maps
+                            </a>
+                        </div>
+                    </div>
+                    <div class="small text-muted mt-2" id="homeLocationModalStatus">ตรวจสอบหมุดบนแผนที่ หากถูกต้องให้กดยืนยันบันทึก</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                    <button type="submit" form="homeLocationForm" class="btn btn-primary" id="confirmSaveHomeLocationButton">
+                        <i class="bi bi-check2-circle me-1"></i>ยืนยันบันทึกพิกัด
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (Model.IsStudentCareEnabled && (Model.IsBehaviorScoreEnabled || Model.IsGoodnessBankEnabled))
+{
+    <div class="row g-3 mb-3">
+        @if (Model.IsBehaviorScoreEnabled)
+        {
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>คะแนนพฤติกรรม</span>
+                        <span class="badge @(Model.BehaviorScore < 60 ? "bg-danger" : "bg-success")">@Model.BehaviorScore คะแนน</span>
+                    </div>
+                    <div class="card-body">
+                        @if (Model.RecentBehaviorTransactions.Count == 0)
+                        {
+                            <div class="text-muted">ยังไม่มีรายการคะแนนพฤติกรรม</div>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>วันที่</th>
+                                            <th>ประเภท</th>
+                                            <th>คะแนน</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in Model.RecentBehaviorTransactions)
+                                        {
+                                            <tr>
+                                                <td>@item.RecordedAt.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                                                <td>
+                                                    <div class="fw-semibold">@item.Category</div>
+                                                    @if (!string.IsNullOrWhiteSpace(item.Description))
+                                                    {
+                                                        <div class="text-muted small">@item.Description</div>
+                                                    }
+                                                </td>
+                                                <td class="fw-semibold @(item.Value < 0 ? "text-danger" : "text-success")">@item.Value</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (Model.IsGoodnessBankEnabled)
+        {
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>ธนาคารความดี</span>
+                        <span class="badge bg-success">@Model.GoodnessPoint คะแนน</span>
+                    </div>
+                    <div class="card-body">
+                        @if (Model.RecentGoodnessTransactions.Count == 0)
+                        {
+                            <div class="text-muted">ยังไม่มีรายการธนาคารความดี</div>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>วันที่</th>
+                                            <th>ประเภท</th>
+                                            <th>คะแนน</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var item in Model.RecentGoodnessTransactions)
+                                        {
+                                            <tr>
+                                                <td>@item.RecordedAt.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                                                <td>
+                                                    <div class="fw-semibold">@item.Category</div>
+                                                    @if (!string.IsNullOrWhiteSpace(item.Description))
+                                                    {
+                                                        <div class="text-muted small">@item.Description</div>
+                                                    }
+                                                </td>
+                                                <td class="fw-semibold text-success">+@item.Value</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@if (Model.IsStudentCareEnabled && Model.IsWasteBankEnabled)
+{
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <span>ธนาคารขยะ</span>
+            <span class="badge bg-success">@Model.WasteBankTotalAmount.ToString("N2") บาท</span>
+        </div>
+        <div class="card-body">
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <div class="border rounded-3 p-3 h-100">
+                        <div class="text-muted small">น้ำหนักสะสม</div>
+                        <div class="fs-5 fw-semibold">@Model.WasteBankTotalWeightKg.ToString("N3") กก.</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="border rounded-3 p-3 h-100">
+                        <div class="text-muted small">ยอดเงินสะสม</div>
+                        <div class="fs-5 fw-semibold">@Model.WasteBankTotalAmount.ToString("N2") บาท</div>
+                    </div>
+                </div>
+            </div>
+
+            @if (Model.RecentWasteBankTransactions.Count == 0)
+            {
+                <div class="text-muted">ยังไม่มีรายการธนาคารขยะ</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>วันที่</th>
+                                <th>ชนิดขยะ</th>
+                                <th>น้ำหนัก</th>
+                                <th>ราคา</th>
+                                <th>ยอดเงิน</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Model.RecentWasteBankTransactions)
+                            {
+                                <tr>
+                                    <td>@item.RecordedAt.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                                    <td>
+                                        <div class="fw-semibold">@item.WasteType</div>
+                                        @if (!string.IsNullOrWhiteSpace(item.Note))
+                                        {
+                                            <div class="text-muted small">@item.Note</div>
+                                        }
+                                    </td>
+                                    <td>@item.WeightKg.ToString("N3") กก.</td>
+                                    <td>@item.PricePerKg.ToString("N2") บาท/กก.</td>
+                                    <td class="fw-semibold text-success">@item.Amount.ToString("N2") บาท</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+}
+
 <div class="row g-3">
     <div class="col-lg-6">
         <div class="card h-100">
@@ -82,4 +415,149 @@
         </div>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        (() => {
+            const button = document.getElementById('shareHomeLocationButton');
+            const form = document.getElementById('homeLocationForm');
+            const latitude = document.getElementById('homeLatitude');
+            const longitude = document.getElementById('homeLongitude');
+            const status = document.getElementById('homeLocationStatus');
+            const manualButton = document.getElementById('manualHomeLocationButton');
+            const viewSavedButton = document.getElementById('viewSavedHomeLocationButton');
+            const modalElement = document.getElementById('homeLocationConfirmModal');
+            if (modalElement && modalElement.parentElement !== document.body) {
+                document.body.appendChild(modalElement);
+            }
+            const modal = modalElement ? new bootstrap.Modal(modalElement) : null;
+            const modalLatitude = document.getElementById('homeLocationModalLatitude');
+            const modalLongitude = document.getElementById('homeLocationModalLongitude');
+            const mapFrame = document.getElementById('homeLocationMapFrame');
+            const mapLink = document.getElementById('openHomeLocationGoogleMapsLink');
+            const refreshMapButton = document.getElementById('refreshHomeLocationMapButton');
+            const confirmButton = document.getElementById('confirmSaveHomeLocationButton');
+            const modalStatus = document.getElementById('homeLocationModalStatus');
+
+            if (!button || !form || !latitude || !longitude || !status) {
+                return;
+            }
+
+            const parseCoordinate = (value) => {
+                const number = Number((value || '').toString().trim().replace(',', '.'));
+                return Number.isFinite(number) ? number : null;
+            };
+
+            const setModalStatus = (message) => {
+                if (modalStatus) {
+                    modalStatus.textContent = message;
+                }
+            };
+
+            const updateMap = () => {
+                const lat = parseCoordinate(modalLatitude?.value);
+                const lng = parseCoordinate(modalLongitude?.value);
+                if (lat === null || lng === null || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                    setModalStatus('พิกัดไม่ถูกต้อง กรุณาตรวจสอบละติจูดและลองจิจูด');
+                    return false;
+                }
+
+                const latText = lat.toFixed(6);
+                const lngText = lng.toFixed(6);
+                const query = `${latText},${lngText}`;
+                if (mapFrame) {
+                    mapFrame.src = `https://maps.google.com/maps?q=${query}&z=18&output=embed`;
+                }
+                if (mapLink) {
+                    mapLink.href = `https://www.google.com/maps?q=${query}`;
+                }
+                setModalStatus(`GPS: ${query} ตรวจสอบหมุดบนแผนที่ หากถูกต้องให้กดยืนยันบันทึก`);
+                return true;
+            };
+
+            const openLocationModal = (lat, lng, message) => {
+                if (modalLatitude) {
+                    modalLatitude.value = Number(lat).toFixed(6);
+                }
+                if (modalLongitude) {
+                    modalLongitude.value = Number(lng).toFixed(6);
+                }
+                setModalStatus(message || 'ตรวจสอบหมุดบนแผนที่ หากถูกต้องให้กดยืนยันบันทึก');
+                updateMap();
+                modal?.show();
+            };
+
+            button.addEventListener('click', () => {
+                if (!navigator.geolocation) {
+                    status.textContent = 'อุปกรณ์นี้ไม่รองรับการแชร์พิกัด';
+                    return;
+                }
+
+                button.disabled = true;
+                status.textContent = 'กำลังอ่านพิกัดจากอุปกรณ์...';
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        status.textContent = `พบพิกัดแล้ว ความคลาดเคลื่อนประมาณ ${Math.round(position.coords.accuracy)} เมตร กรุณาตรวจสอบบนแผนที่`;
+                        openLocationModal(
+                            position.coords.latitude,
+                            position.coords.longitude,
+                            `ดึงพิกัดสำเร็จ ความคลาดเคลื่อนประมาณ ${Math.round(position.coords.accuracy)} เมตร`);
+                        button.disabled = false;
+                    },
+                    () => {
+                        button.disabled = false;
+                        status.textContent = 'ไม่สามารถอ่านพิกัดได้ กรุณาอนุญาตตำแหน่งและลองอีกครั้ง';
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 15000,
+                        maximumAge: 0
+                    });
+            });
+
+            manualButton?.addEventListener('click', () => {
+                const currentLat = parseCoordinate(viewSavedButton?.dataset.lat) ?? 13.756331;
+                const currentLng = parseCoordinate(viewSavedButton?.dataset.lng) ?? 100.501762;
+                status.textContent = 'กรอกหรือแก้ไขพิกัด แล้วตรวจสอบบนแผนที่ก่อนบันทึก';
+                openLocationModal(currentLat, currentLng, 'กรอกหรือแก้ไขพิกัด แล้วตรวจสอบบนแผนที่ก่อนบันทึก');
+            });
+
+            viewSavedButton?.addEventListener('click', () => {
+                const lat = parseCoordinate(viewSavedButton.dataset.lat);
+                const lng = parseCoordinate(viewSavedButton.dataset.lng);
+                if (lat === null || lng === null) {
+                    return;
+                }
+
+                openLocationModal(lat, lng, 'พิกัดที่บันทึกไว้ในระบบ');
+            });
+
+            refreshMapButton?.addEventListener('click', updateMap);
+            modalLatitude?.addEventListener('change', updateMap);
+            modalLongitude?.addEventListener('change', updateMap);
+
+            form.addEventListener('submit', (event) => {
+                if (!updateMap()) {
+                    event.preventDefault();
+                    return;
+                }
+
+                const lat = parseCoordinate(modalLatitude?.value);
+                const lng = parseCoordinate(modalLongitude?.value);
+                if (lat === null || lng === null) {
+                    event.preventDefault();
+                    return;
+                }
+
+                latitude.value = lat.toFixed(6);
+                longitude.value = lng.toFixed(6);
+                status.textContent = 'กำลังบันทึกพิกัดลงฐานข้อมูล...';
+                if (confirmButton) {
+                    confirmButton.disabled = true;
+                }
+            });
+        })();
+    </script>
+}
 

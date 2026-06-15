@@ -1,0 +1,368 @@
+@model StudentCareProfileDetailViewModel
+@{
+    string RiskLabel(StudentCareRiskLevel riskLevel) => riskLevel switch
+    {
+        StudentCareRiskLevel.Watch => "เฝ้าระวัง",
+        StudentCareRiskLevel.Risk => "เสี่ยง",
+        StudentCareRiskLevel.Urgent => "เร่งด่วน",
+        _ => "ปกติ"
+    };
+
+    string RiskClass(StudentCareRiskLevel riskLevel) => riskLevel switch
+    {
+        StudentCareRiskLevel.Watch => "text-bg-warning",
+        StudentCareRiskLevel.Risk => "text-bg-danger",
+        StudentCareRiskLevel.Urgent => "text-bg-dark",
+        _ => "text-bg-success"
+    };
+
+    string StatusLabel(StudentCareRecordStatus status) => status switch
+    {
+        StudentCareRecordStatus.Submitted => "รออนุมัติ",
+        StudentCareRecordStatus.Rejected => "ปฏิเสธ",
+        _ => "อนุมัติแล้ว"
+    };
+
+    string FollowUpStatusLabel(StudentCareFollowUpStatus status) => status switch
+    {
+        StudentCareFollowUpStatus.InProgress => "กำลังติดตาม",
+        StudentCareFollowUpStatus.Completed => "เสร็จแล้ว",
+        StudentCareFollowUpStatus.Canceled => "ยกเลิก",
+        _ => "เปิดเคส"
+    };
+
+    string PriorityLabel(StudentCareFollowUpPriority priority) => priority switch
+    {
+        StudentCareFollowUpPriority.Low => "ต่ำ",
+        StudentCareFollowUpPriority.High => "สูง",
+        StudentCareFollowUpPriority.Urgent => "เร่งด่วน",
+        _ => "ปกติ"
+    };
+
+    string PriorityClass(StudentCareFollowUpPriority priority) => priority switch
+    {
+        StudentCareFollowUpPriority.High => "text-bg-warning",
+        StudentCareFollowUpPriority.Urgent => "text-bg-danger",
+        StudentCareFollowUpPriority.Low => "text-bg-secondary",
+        _ => "text-bg-primary"
+    };
+
+    string PhotoUrl(string path) => Url.Content(path.StartsWith('/') ? path : $"~/{path}");
+}
+
+<div class="student-care-file">
+    @if (!Model.IsPrintMode)
+    {
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <a class="btn btn-outline-secondary" asp-area="@Model.BackArea" asp-controller="@Model.BackController" asp-action="@Model.BackAction">กลับ</a>
+            <a class="btn btn-primary" asp-area="@Model.BackArea" asp-controller="@Model.BackController" asp-action="Print" asp-route-studentId="@Model.StudentId" target="_blank">พิมพ์แฟ้มรายบุคคล</a>
+        </div>
+    }
+
+    <section class="card mb-3">
+        <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between gap-3">
+                <div>
+                    <div class="text-muted small">แฟ้มดูแลนักเรียนรายบุคคล</div>
+                    <h1 class="h3 mb-1">@Model.StudentName</h1>
+                    <div class="text-muted">@Model.StudentCode | @Model.GradeLevel / @Model.Classroom | เลขที่ @(string.IsNullOrWhiteSpace(Model.StudentNo) ? "-" : Model.StudentNo)</div>
+                </div>
+                <div class="text-end">
+                    <span class="badge @RiskClass(Model.RiskLevel) fs-6">@RiskLabel(Model.RiskLevel)</span>
+                    <div class="small text-muted mt-2">เยี่ยมบ้านล่าสุด @(Model.LastHomeVisitAt.HasValue ? Model.LastHomeVisitAt.Value.ToThaiDate("dd MMM yyyy") : "-")</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="row g-3 mb-3">
+        <div class="col-md-4"><div class="card h-100"><div class="card-body"><div class="text-muted small">คะแนนพฤติกรรม</div><div class="fs-3 fw-bold">@Model.BehaviorScore</div><div class="small text-muted">@Model.BehaviorTransactionCount รายการอนุมัติแล้ว</div></div></div></div>
+        <div class="col-md-4"><div class="card h-100"><div class="card-body"><div class="text-muted small">ธนาคารความดี</div><div class="fs-3 fw-bold">@Model.GoodnessPoint</div><div class="small text-muted">@Model.GoodnessTransactionCount รายการอนุมัติแล้ว</div></div></div></div>
+        <div class="col-md-4"><div class="card h-100"><div class="card-body"><div class="text-muted small">ธนาคารขยะ</div><div class="fs-3 fw-bold">@Model.WasteBankAmount.ToString("N2")</div><div class="small text-muted">@Model.WasteBankWeightKg.ToString("N3") กก. | @Model.WasteBankTransactionCount รายการ</div></div></div></div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-lg-6">
+            <section class="card h-100">
+                <div class="card-header">ข้อมูลครอบครัวและที่อยู่</div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">อาศัยอยู่กับ</dt><dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.LivesWith) ? "-" : Model.LivesWith)</dd>
+                        <dt class="col-sm-4">ผู้ปกครองหลัก</dt><dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.GuardianName) ? "-" : Model.GuardianName)</dd>
+                        <dt class="col-sm-4">เลขบัตรประชาชนผู้ปกครอง</dt><dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.GuardianNationalId) ? "-" : Model.GuardianNationalId)</dd>
+                        <dt class="col-sm-4">ความสัมพันธ์</dt><dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.GuardianRelationship) ? "-" : Model.GuardianRelationship)</dd>
+                        <dt class="col-sm-4">โทรศัพท์</dt><dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.GuardianPhone) ? "-" : Model.GuardianPhone)</dd>
+                        <dt class="col-sm-4">รายได้ครัวเรือน</dt><dd class="col-sm-8">@(Model.HouseholdIncome.HasValue ? $"{Model.HouseholdIncome.Value:N2} บาท/เดือน" : "-")</dd>
+                        <dt class="col-sm-4">ที่อยู่</dt><dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.Address) ? "-" : Model.Address)</dd>
+                        <dt class="col-sm-4">พิกัดบ้าน</dt>
+                        <dd class="col-sm-8">
+                            @if (!string.IsNullOrWhiteSpace(Model.MapUrl))
+                            {
+                                <a href="@Model.MapUrl" target="_blank" rel="noopener">เปิดแผนที่</a>
+                                <span class="text-muted small">(@Model.HomeLatitude, @Model.HomeLongitude)</span>
+                            }
+                            else
+                            {
+                                <span>-</span>
+                            }
+                        </dd>
+                    </dl>
+                </div>
+            </section>
+        </div>
+        <div class="col-lg-6">
+            <section class="card h-100">
+                <div class="card-header">ข้อมูลความเสี่ยงและแผนช่วยเหลือ</div>
+                <div class="card-body">
+                    <div class="mb-3"><div class="fw-semibold">พฤติกรรมเสี่ยง</div><div>@(string.IsNullOrWhiteSpace(Model.RiskBehaviors) ? "-" : Model.RiskBehaviors)</div></div>
+                    <div class="mb-3"><div class="fw-semibold">ปัญหาที่พบ</div><div>@(string.IsNullOrWhiteSpace(Model.ProblemsFound) ? "-" : Model.ProblemsFound)</div></div>
+                    <div><div class="fw-semibold">แผนช่วยเหลือ/ข้อเสนอแนะ</div><div>@(string.IsNullOrWhiteSpace(Model.SupportRecommendation) ? "-" : Model.SupportRecommendation)</div></div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <section class="card mb-3">
+        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <span>เคสติดตามช่วยเหลือ</span>
+            <span class="badge text-bg-secondary">@Model.FollowUpCases.Count รายการ</span>
+        </div>
+        <div class="card-body">
+            @if (!Model.IsPrintMode && Model.BackArea == "Teacher")
+            {
+                <form asp-area="Teacher" asp-controller="StudentCare" asp-action="CreateFollowUpCase" method="post" class="border rounded p-3 mb-3">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" asp-for="FollowUpInput.StudentId" />
+                    <div class="row g-2">
+                        <div class="col-md-5">
+                            <label asp-for="FollowUpInput.Title" class="form-label">หัวข้อเคส</label>
+                            <input asp-for="FollowUpInput.Title" class="form-control" placeholder="เช่น ติดตามการมาเรียนและพฤติกรรมเสี่ยง" />
+                        </div>
+                        <div class="col-md-3">
+                            <label asp-for="FollowUpInput.Priority" class="form-label">ความเร่งด่วน</label>
+                            <select asp-for="FollowUpInput.Priority" class="form-select">
+                                <option value="@StudentCareFollowUpPriority.Normal">ปกติ</option>
+                                <option value="@StudentCareFollowUpPriority.High">สูง</option>
+                                <option value="@StudentCareFollowUpPriority.Urgent">เร่งด่วน</option>
+                                <option value="@StudentCareFollowUpPriority.Low">ต่ำ</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label asp-for="FollowUpInput.DueDate" class="form-label">วันนัดติดตาม</label>
+                            <input asp-for="FollowUpInput.DueDate" type="date" class="form-control" />
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="FollowUpInput.Concern" class="form-label">ประเด็นที่ต้องติดตาม</label>
+                            <textarea asp-for="FollowUpInput.Concern" class="form-control" rows="3"></textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="FollowUpInput.SupportPlan" class="form-label">แผนช่วยเหลือ</label>
+                            <textarea asp-for="FollowUpInput.SupportPlan" class="form-control" rows="3"></textarea>
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-end mt-3">
+                        <button type="submit" class="btn btn-primary">สร้างเคสติดตาม</button>
+                    </div>
+                </form>
+            }
+
+            @if (Model.FollowUpCases.Count == 0)
+            {
+                <div class="text-center text-muted py-4">ยังไม่มีเคสติดตามช่วยเหลือ</div>
+            }
+            else
+            {
+                <div class="d-flex flex-column gap-2">
+                    @foreach (var item in Model.FollowUpCases)
+                    {
+                        <div class="border rounded p-3 @(item.IsOverdue ? "border-danger" : "")">
+                            <div class="d-flex flex-wrap justify-content-between gap-2">
+                                <div>
+                                    <div class="fw-semibold">@item.Title</div>
+                                    <div class="small text-muted">เปิดเคส @item.OpenedAt.ToLocalTime().ToString("dd/MM/yyyy") | นัดติดตาม @(item.DueDate.HasValue ? item.DueDate.Value.ToThaiDate("dd MMM yyyy") : "-")</div>
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge @PriorityClass(item.Priority)">@PriorityLabel(item.Priority)</span>
+                                    <span class="badge text-bg-light">@FollowUpStatusLabel(item.Status)</span>
+                                    @if (item.IsOverdue)
+                                    {
+                                        <span class="badge text-bg-danger">เกินกำหนด</span>
+                                    }
+                                </div>
+                            </div>
+                            <div class="row g-2 mt-2">
+                                <div class="col-md-6"><span class="fw-semibold">ประเด็น:</span> @item.Concern</div>
+                                <div class="col-md-6"><span class="fw-semibold">แผนช่วยเหลือ:</span> @item.SupportPlan</div>
+                                <div class="col-12"><span class="fw-semibold">ผลติดตาม:</span> @(string.IsNullOrWhiteSpace(item.Outcome) ? "-" : item.Outcome)</div>
+                            </div>
+                            @if (!Model.IsPrintMode && Model.BackArea == "Teacher" && item.Status is not StudentCareFollowUpStatus.Completed and not StudentCareFollowUpStatus.Canceled)
+                            {
+                                <form asp-area="Teacher" asp-controller="StudentCare" asp-action="UpdateFollowUpCase" method="post" class="row g-2 mt-2">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="Id" value="@item.Id" />
+                                    <input type="hidden" name="StudentId" value="@Model.StudentId" />
+                                    <div class="col-md-3">
+                                        <select name="Status" class="form-select">
+                                            <option value="@StudentCareFollowUpStatus.InProgress">กำลังติดตาม</option>
+                                            <option value="@StudentCareFollowUpStatus.Completed">เสร็จแล้ว</option>
+                                            <option value="@StudentCareFollowUpStatus.Canceled">ยกเลิก</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-7">
+                                        <input type="text" name="Outcome" class="form-control" placeholder="บันทึกผลติดตามล่าสุด" value="@item.Outcome" />
+                                    </div>
+                                    <div class="col-md-2 d-grid">
+                                        <button type="submit" class="btn btn-outline-primary">อัปเดต</button>
+                                    </div>
+                                </form>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="card mb-3">
+        <div class="card-header">ข้อมูลผู้ปกครอง</div>
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead><tr><th>ชื่อ</th><th>เกี่ยวข้อง</th><th>โทร</th><th>อาชีพ</th><th>รายได้</th><th>ภาพ</th></tr></thead>
+                <tbody>
+                    @if (Model.Guardians.Count == 0)
+                    {
+                        <tr><td colspan="6" class="text-center text-muted py-4">ยังไม่มีข้อมูลผู้ปกครอง</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var item in Model.Guardians)
+                        {
+                            <tr>
+                                <td>@item.FullName @(item.IsPrimaryContact ? "(หลัก)" : "")</td>
+                                <td>@(string.IsNullOrWhiteSpace(item.Relationship) ? "-" : item.Relationship)</td>
+                                <td>@(string.IsNullOrWhiteSpace(item.PhoneNumber) ? "-" : item.PhoneNumber)</td>
+                                <td>@(string.IsNullOrWhiteSpace(item.Occupation) ? "-" : item.Occupation)</td>
+                                <td>@(item.MonthlyIncome.HasValue ? $"{item.MonthlyIncome.Value:N2}" : "-")</td>
+                                <td>
+                                    @if (!string.IsNullOrWhiteSpace(item.PhotoPath))
+                                    {
+                                        <img src="@PhotoUrl(item.PhotoPath)" alt="Parent photo" style="width:72px;height:72px;object-fit:cover" />
+                                    }
+                                    else
+                                    {
+                                        <span>-</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="card mb-3">
+        <div class="card-header">ประวัติเยี่ยมบ้าน</div>
+        <div class="card-body">
+            @if (Model.HomeVisits.Count == 0)
+            {
+                <div class="text-center text-muted py-4">ยังไม่มีประวัติเยี่ยมบ้าน</div>
+            }
+            else
+            {
+                @foreach (var visit in Model.HomeVisits)
+                {
+                    <div class="border rounded p-3 mb-2">
+                        <div class="d-flex flex-wrap justify-content-between gap-2">
+                            <strong>@visit.VisitDate.ToThaiDate("dd MMM yyyy")</strong>
+                            <span class="badge text-bg-secondary">@visit.VisitStatus</span>
+                        </div>
+                        <div class="row g-2 mt-1">
+                            <div class="col-md-6"><span class="fw-semibold">สภาพบ้าน:</span> @(string.IsNullOrWhiteSpace(visit.HouseCondition) ? "-" : visit.HouseCondition)</div>
+                            <div class="col-md-6"><span class="fw-semibold">ความสัมพันธ์ในครอบครัว:</span> @(string.IsNullOrWhiteSpace(visit.FamilyRelationship) ? "-" : visit.FamilyRelationship)</div>
+                            <div class="col-md-6"><span class="fw-semibold">การสนับสนุนการเรียน:</span> @(string.IsNullOrWhiteSpace(visit.LearningSupportAtHome) ? "-" : visit.LearningSupportAtHome)</div>
+                            <div class="col-md-6"><span class="fw-semibold">รายได้:</span> @(visit.HouseholdIncome.HasValue ? $"{visit.HouseholdIncome.Value:N2} บาท/เดือน" : "-")</div>
+                            <div class="col-12"><span class="fw-semibold">ข้อสังเกตครู:</span> @(string.IsNullOrWhiteSpace(visit.TeacherObservation) ? "-" : visit.TeacherObservation)</div>
+                            <div class="col-12"><span class="fw-semibold">แผนช่วยเหลือ:</span> @(string.IsNullOrWhiteSpace(visit.SupportPlan) ? "-" : visit.SupportPlan)</div>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(visit.ParentPhotoPath) || !string.IsNullOrWhiteSpace(visit.HousePhotoPath))
+                        {
+                            <div class="d-flex flex-wrap gap-2 mt-3">
+                                @if (!string.IsNullOrWhiteSpace(visit.ParentPhotoPath))
+                                {
+                                    <img src="@PhotoUrl(visit.ParentPhotoPath)" alt="Parent photo" style="width:140px;height:100px;object-fit:cover" />
+                                }
+                                @if (!string.IsNullOrWhiteSpace(visit.HousePhotoPath))
+                                {
+                                    <img src="@PhotoUrl(visit.HousePhotoPath)" alt="House photo" style="width:140px;height:100px;object-fit:cover" />
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            }
+        </div>
+    </section>
+
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <section class="card h-100">
+                <div class="card-header">ประวัติคะแนนพฤติกรรม</div>
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead><tr><th>วันที่</th><th>ประเภท</th><th>คะแนน</th><th>สถานะ</th></tr></thead>
+                        <tbody>
+                            @foreach (var item in Model.BehaviorTransactions)
+                            {
+                                <tr><td>@item.RecordedAt.ToLocalTime().ToString("dd/MM/yyyy")</td><td>@item.Category<div class="small text-muted">@item.Reason</div></td><td>@item.ScoreChange</td><td>@StatusLabel(item.Status)</td></tr>
+                            }
+                            @if (Model.BehaviorTransactions.Count == 0)
+                            {
+                                <tr><td colspan="4" class="text-center text-muted py-4">ยังไม่มีรายการ</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+        <div class="col-lg-6">
+            <section class="card h-100">
+                <div class="card-header">ธนาคารความดี</div>
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead><tr><th>วันที่</th><th>ประเภท</th><th>คะแนน</th><th>สถานะ</th></tr></thead>
+                        <tbody>
+                            @foreach (var item in Model.GoodnessTransactions)
+                            {
+                                <tr><td>@item.RecordedAt.ToLocalTime().ToString("dd/MM/yyyy")</td><td>@item.GoodnessType<div class="small text-muted">@item.Description</div></td><td>+@item.Point</td><td>@StatusLabel(item.Status)</td></tr>
+                            }
+                            @if (Model.GoodnessTransactions.Count == 0)
+                            {
+                                <tr><td colspan="4" class="text-center text-muted py-4">ยังไม่มีรายการ</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <section class="card mt-3">
+        <div class="card-header">ธนาคารขยะ</div>
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead><tr><th>วันที่</th><th>ชนิดขยะ</th><th>น้ำหนัก</th><th>ราคา/กก.</th><th>เงิน</th><th>หมายเหตุ</th></tr></thead>
+                <tbody>
+                    @foreach (var item in Model.WasteBankTransactions)
+                    {
+                        <tr><td>@item.RecordedAt.ToLocalTime().ToString("dd/MM/yyyy")</td><td>@item.WasteType</td><td>@item.WeightKg.ToString("N3") กก.</td><td>@item.PricePerKg.ToString("N2")</td><td>@item.Amount.ToString("N2")</td><td>@(string.IsNullOrWhiteSpace(item.Note) ? "-" : item.Note)</td></tr>
+                    }
+                    @if (Model.WasteBankTransactions.Count == 0)
+                    {
+                        <tr><td colspan="6" class="text-center text-muted py-4">ยังไม่มีรายการ</td></tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>

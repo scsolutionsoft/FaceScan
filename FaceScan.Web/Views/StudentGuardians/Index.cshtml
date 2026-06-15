@@ -1,0 +1,90 @@
+@model StudentGuardianIndexViewModel
+@{
+    ViewData["Title"] = "ข้อมูลครอบครัวนักเรียน";
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div>
+        <h2 class="mb-1">ข้อมูลครอบครัวนักเรียน</h2>
+        <div class="text-muted">@Model.StudentCode - @Model.StudentName | ห้อง @Model.Classroom</div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a asp-action="Create" asp-route-studentId="@Model.StudentId" class="btn btn-primary">
+            <i class="bi bi-person-plus me-1"></i>เพิ่มบิดา/มารดา/ผู้ปกครอง
+        </a>
+        <a asp-controller="Students" asp-action="Details" asp-route-id="@Model.StudentId" class="btn btn-outline-secondary">กลับแฟ้มนักเรียน</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>รายการข้อมูลครอบครัว</span>
+        <span class="badge bg-primary">@Model.Guardians.Count รายการ</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead>
+                <tr>
+                    <th style="width: 80px;">รูป</th>
+                    <th>ชื่อ-สกุล</th>
+                    <th>ความสัมพันธ์</th>
+                    <th>เลขบัตรประชาชน</th>
+                    <th>เบอร์โทร</th>
+                    <th>ที่อยู่</th>
+                    <th>สถานะ</th>
+                    <th class="text-end">จัดการ</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Guardians.Count == 0)
+                {
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">ยังไม่มีข้อมูลบิดา มารดา หรือผู้ปกครอง</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var item in Model.Guardians)
+                    {
+                        <tr>
+                            <td>
+                                @if (!string.IsNullOrWhiteSpace(item.PhotoPath))
+                                {
+                                    <img src="~/@item.PhotoPath" class="rounded border" style="width:56px;height:56px;object-fit:cover" alt="@item.FullName" />
+                                }
+                                else
+                                {
+                                    <div class="rounded border bg-light d-flex align-items-center justify-content-center text-muted" style="width:56px;height:56px;">
+                                        <i class="bi bi-person"></i>
+                                    </div>
+                                }
+                            </td>
+                            <td class="fw-semibold">@item.FullName</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.Relationship) ? "-" : item.Relationship)</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.NationalId) ? "-" : item.NationalId)</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.PhoneNumber) ? "-" : item.PhoneNumber)</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.Address) ? "-" : item.Address)</td>
+                            <td>
+                                @if (item.IsPrimaryContact)
+                                {
+                                    <span class="badge bg-success">ผู้ปกครองหลัก</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">ข้อมูลอ้างอิง</span>
+                                }
+                            </td>
+                            <td class="text-end">
+                                <a asp-action="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary">แก้ไข</a>
+                                <form asp-action="Delete" asp-route-id="@item.Id" method="post" class="d-inline" onsubmit="return confirm('ยืนยันลบข้อมูลครอบครัวรายการนี้?');">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">ลบ</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

@@ -5,7 +5,7 @@ namespace FaceScan.Web.Services.Interfaces;
 
 public interface IStudentImportService
 {
-    Task<StudentImportIndexViewModel> PreviewAsync(IFormFile file, CancellationToken cancellationToken = default);
+    Task<StudentImportIndexViewModel> PreviewAsync(ImportDataType importType, IFormFile file, CancellationToken cancellationToken = default);
     Task<StudentImportResultViewModel> ImportAsync(string previewToken, string? importedByUserId, string? ipAddress, CancellationToken cancellationToken = default);
-    byte[] GenerateTemplateCsv();
+    byte[] GenerateTemplateWorkbook(ImportDataType importType);
 }

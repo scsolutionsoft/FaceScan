@@ -23,17 +23,20 @@ public class TeacherFaceEnrollmentController : Controller
     };
 
     private readonly ApplicationDbContext _dbContext;
+    private readonly IWebHostEnvironment _environment;
     private readonly IFileStorageService _fileStorageService;
     private readonly IFaceRecognitionService _faceRecognitionService;
     private readonly IAuditLogService _auditLogService;
 
     public TeacherFaceEnrollmentController(
         ApplicationDbContext dbContext,
+        IWebHostEnvironment environment,
         IFileStorageService fileStorageService,
         IFaceRecognitionService faceRecognitionService,
         IAuditLogService auditLogService)
     {
         _dbContext = dbContext;
+        _environment = environment;
         _fileStorageService = fileStorageService;
         _faceRecognitionService = faceRecognitionService;
         _auditLogService = auditLogService;
@@ -359,11 +362,25 @@ public class TeacherFaceEnrollmentController : Controller
                 {
                     PhotoId = x.Id,
                     FilePath = x.FilePath,
+                    ContentType = x.ContentType,
+                    FileSizeBytes = ResolvePhotoFileSize(x.FilePath),
                     IsPrimary = x.IsPrimary,
                     CapturedAt = x.CapturedAt
                 })
                 .ToList()
         };
+    }
+
+    private long? ResolvePhotoFileSize(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(_environment.WebRootPath) || string.IsNullOrWhiteSpace(filePath))
+        {
+            return null;
+        }
+
+        var relativePath = filePath.TrimStart('/', '\\').Replace('/', Path.DirectorySeparatorChar);
+        var fullPath = Path.Combine(_environment.WebRootPath, relativePath);
+        return System.IO.File.Exists(fullPath) ? new FileInfo(fullPath).Length : null;
     }
 
     private async Task<string?> LoadTeacherRoleNameAsync(string teacherId, CancellationToken cancellationToken)

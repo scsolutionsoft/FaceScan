@@ -56,6 +56,9 @@ public class StudentUpsertViewModel
     public string? GuardianName { get; set; }
 
     [MaxLength(20)]
+    public string? GuardianNationalId { get; set; }
+
+    [MaxLength(20)]
     public string? GuardianPhone { get; set; }
 
     [MaxLength(500)]

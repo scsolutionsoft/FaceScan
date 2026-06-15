@@ -36,6 +36,7 @@ public static class StudentMappingExtensions
             ClassroomName = student.Classroom?.Name ?? string.Empty,
             StudentNo = student.StudentNo,
             GuardianName = student.GuardianName,
+            GuardianNationalId = student.GuardianNationalId,
             GuardianPhone = student.GuardianPhone,
             Address = student.Address,
             Notes = student.Notes,

@@ -35,6 +35,33 @@ public class FileStorageService : IFileStorageService
         return $"uploads/students/{studentId}/{fileName}".Replace("\\", "/");
     }
 
+    public async Task<string> SaveStudentCarePhotoAsync(IFormFile file, int studentId, string category, CancellationToken cancellationToken = default)
+    {
+        if (!FileValidator.IsValidImage(file, _uploadSettings))
+        {
+            throw new InvalidOperationException("ไฟล์อัปโหลดไม่ถูกต้องหรือขนาดเกินกำหนด");
+        }
+
+        var safeCategory = string.IsNullOrWhiteSpace(category)
+            ? "general"
+            : new string(category.Trim().Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+
+        if (string.IsNullOrWhiteSpace(safeCategory))
+        {
+            safeCategory = "general";
+        }
+
+        var fileName = FileNameHelper.CreateStoredFileName(file.FileName);
+        var folderPath = FileNameHelper.BuildSafePath(_environment.WebRootPath, "uploads", "student-care", studentId.ToString(), safeCategory);
+        Directory.CreateDirectory(folderPath);
+        var fullPath = FileNameHelper.BuildSafePath(folderPath, fileName);
+
+        await using var stream = File.Create(fullPath);
+        await file.CopyToAsync(stream, cancellationToken);
+
+        return $"uploads/student-care/{studentId}/{safeCategory}/{fileName}".Replace("\\", "/");
+    }
+
     public async Task<string> SaveTeacherPhotoAsync(IFormFile file, string userId, CancellationToken cancellationToken = default)
     {
         if (!FileValidator.IsValidImage(file, _uploadSettings))
@@ -95,9 +122,10 @@ public class FileStorageService : IFileStorageService
     public async Task<string> SaveImportFileAsync(IFormFile file, CancellationToken cancellationToken = default)
     {
         var extension = Path.GetExtension(file.FileName);
-        if (!string.Equals(extension, ".csv", StringComparison.OrdinalIgnoreCase))
+        var allowedExtensions = new[] { ".csv", ".xlsx" };
+        if (!allowedExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException("รองรับเฉพาะไฟล์ซีเอสวี");
+            throw new InvalidOperationException("รองรับเฉพาะไฟล์ .xlsx หรือ .csv");
         }
 
         var fileName = FileNameHelper.CreateStoredFileName(file.FileName);

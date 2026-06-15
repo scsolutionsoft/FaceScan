@@ -1,85 +1,163 @@
 @model StudentImportIndexViewModel
 @{
-    ViewData["Title"] = "นำเข้าข้อมูลนักเรียน";
+    ViewData["Title"] = "นำเข้าข้อมูลด้วย Excel";
+    var isTeacherPreview = Model.ImportType == ImportDataType.Teachers;
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2 class="mb-0">นำเข้าข้อมูลนักเรียน</h2>
-    <a asp-action="DownloadTemplate" class="btn btn-outline-secondary">ดาวน์โหลดเทมเพลตไฟล์ซีเอสวี</a>
+    <div>
+        <h2 class="mb-1">นำเข้าข้อมูลด้วย Excel</h2>
+        <div class="text-muted">อัปโหลดไฟล์ .xlsx เพื่อตรวจสอบข้อมูลก่อนบันทึกเข้าระบบ</div>
+    </div>
 </div>
 
-<form asp-action="Preview" method="post" enctype="multipart/form-data" class="card mb-3">
-    @Html.AntiForgeryToken()
-    <div class="card-body row g-3 align-items-end">
-        <div class="col-md-8">
-            <label class="form-label">เลือกไฟล์ซีเอสวี</label>
-            <input type="file" name="File" class="form-control" accept=".csv" required />
-        </div>
-        <div class="col-md-4">
-            <button type="submit" class="btn btn-primary w-100">ตรวจสอบก่อนนำเข้า</button>
-        </div>
+<div class="row g-3 mb-3">
+    <div class="col-lg-6">
+        <form asp-action="Preview" method="post" enctype="multipart/form-data" class="card h-100">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="ImportType" value="@ImportDataType.Students" />
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">ข้อมูลนักเรียน</span>
+                <a asp-action="DownloadTemplate" asp-route-importType="@ImportDataType.Students" class="btn btn-sm btn-outline-secondary">
+                    ดาวน์โหลด template
+                </a>
+            </div>
+            <div class="card-body">
+                <label class="form-label">ไฟล์ Excel นักเรียน</label>
+                <input type="file" name="File" class="form-control" accept=".xlsx,.csv" required />
+            </div>
+            <div class="card-footer bg-transparent">
+                <button type="submit" class="btn btn-primary w-100">ตรวจสอบข้อมูลนักเรียน</button>
+            </div>
+        </form>
     </div>
-</form>
+    <div class="col-lg-6">
+        <form asp-action="Preview" method="post" enctype="multipart/form-data" class="card h-100">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="ImportType" value="@ImportDataType.Teachers" />
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">ข้อมูลครู</span>
+                <a asp-action="DownloadTemplate" asp-route-importType="@ImportDataType.Teachers" class="btn btn-sm btn-outline-secondary">
+                    ดาวน์โหลด template
+                </a>
+            </div>
+            <div class="card-body">
+                <label class="form-label">ไฟล์ Excel ครู</label>
+                <input type="file" name="File" class="form-control" accept=".xlsx,.csv" required />
+            </div>
+            <div class="card-footer bg-transparent">
+                <button type="submit" class="btn btn-primary w-100">ตรวจสอบข้อมูลครู</button>
+            </div>
+        </form>
+    </div>
+</div>
 
 @if (!string.IsNullOrWhiteSpace(Model.PreviewToken))
 {
     <div class="card mb-3">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <span>ตัวอย่างข้อมูล: @Model.FileName</span>
+        <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
+            <span>ตัวอย่างข้อมูล@(isTeacherPreview ? "ครู" : "นักเรียน"): @Model.FileName</span>
             <span class="badge bg-info text-dark">จำนวนแถว: @Model.TotalRows</span>
         </div>
         <div class="card-body">
-            <div class="mb-2">แถวที่ผิดพลาด: <span class="badge bg-danger">@Model.ErrorRows</span></div>
-            @if (Model.CanImport)
+            <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+                <span>แถวที่ผิดพลาด: <span class="badge bg-danger">@Model.ErrorRows</span></span>
+                @if (Model.CanImport)
+                {
+                    <form asp-action="Import" method="post" class="ms-auto">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="previewToken" value="@Model.PreviewToken" />
+                        <button type="submit" class="btn btn-success" onclick="return confirm('ยืนยันนำเข้าข้อมูล?');">นำเข้าข้อมูล</button>
+                    </form>
+                }
+            </div>
+
+            @if (!Model.CanImport)
             {
-                <form asp-action="Import" method="post" class="mb-3">
-                    @Html.AntiForgeryToken()
-                    <input type="hidden" name="previewToken" value="@Model.PreviewToken" />
-                    <button type="submit" class="btn btn-success" onclick="return confirm('ยืนยันนำเข้าข้อมูล?');">นำเข้าข้อมูล</button>
-                </form>
-            }
-            else
-            {
-                <div class="alert alert-warning">ไม่สามารถนำเข้าข้อมูลได้ เนื่องจากยังมีแถวที่ผิดพลาด</div>
+                <div class="alert alert-warning">ยังไม่สามารถนำเข้าข้อมูลได้ กรุณาแก้ไขแถวที่ผิดพลาดแล้วอัปโหลดใหม่</div>
             }
 
             <div class="table-responsive" style="max-height: 420px;">
-                <table class="table table-sm table-striped align-middle">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>รหัสนักเรียน</th>
-                            <th>ชื่อ-นามสกุล</th>
-                            <th>เพศ</th>
-                            <th>ชั้น/ห้อง</th>
-                            <th>ผลตรวจสอบ</th>
-                            <th>ข้อความผิดพลาด</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var row in Model.Rows)
-                        {
+                @if (isTeacherPreview)
+                {
+                    <table class="table table-sm table-striped align-middle">
+                        <thead>
                             <tr>
-                                <td>@row.RowNumber</td>
-                                <td>@row.StudentCode</td>
-                                <td>@row.Prefix @row.FirstName @row.LastName</td>
-                                <td>@row.Gender</td>
-                                <td>@row.GradeLevel / @row.Classroom</td>
-                                <td>
-                                    @if (row.IsValid)
-                                    {
-                                        <span class="badge bg-success">ถูกต้อง</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge bg-danger">ไม่ถูกต้อง</span>
-                                    }
-                                </td>
-                                <td class="text-danger small">@row.ErrorMessage</td>
+                                <th>#</th>
+                                <th>Username</th>
+                                <th>ชื่อ-นามสกุล</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>ห้องประจำชั้น</th>
+                                <th>ผลตรวจสอบ</th>
+                                <th>ข้อความผิดพลาด</th>
                             </tr>
-                        }
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in Model.TeacherRows)
+                            {
+                                <tr>
+                                    <td>@row.RowNumber</td>
+                                    <td>@row.Username</td>
+                                    <td>@row.FullName</td>
+                                    <td>@row.Email</td>
+                                    <td>@row.Role</td>
+                                    <td>@row.Classroom</td>
+                                    <td>
+                                        @if (row.IsValid)
+                                        {
+                                            <span class="badge bg-success">ถูกต้อง</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger">ไม่ถูกต้อง</span>
+                                        }
+                                    </td>
+                                    <td class="text-danger small">@row.ErrorMessage</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <table class="table table-sm table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>รหัสนักเรียน</th>
+                                <th>ชื่อ-นามสกุล</th>
+                                <th>เพศ</th>
+                                <th>ชั้น/ห้อง</th>
+                                <th>ผลตรวจสอบ</th>
+                                <th>ข้อความผิดพลาด</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in Model.Rows)
+                            {
+                                <tr>
+                                    <td>@row.RowNumber</td>
+                                    <td>@row.StudentCode</td>
+                                    <td>@row.Prefix @row.FirstName @row.LastName</td>
+                                    <td>@row.Gender</td>
+                                    <td>@row.GradeLevel / @row.Classroom</td>
+                                    <td>
+                                        @if (row.IsValid)
+                                        {
+                                            <span class="badge bg-success">ถูกต้อง</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger">ไม่ถูกต้อง</span>
+                                        }
+                                    </td>
+                                    <td class="text-danger small">@row.ErrorMessage</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
             </div>
         </div>
     </div>

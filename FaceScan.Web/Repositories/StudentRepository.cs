@@ -41,7 +41,8 @@ public class StudentRepository : Repository<Student>, IStudentRepository
                 x.StudentCode.Contains(keyword) ||
                 x.FirstName.Contains(keyword) ||
                 x.LastName.Contains(keyword) ||
-                (x.NationalId != null && x.NationalId.Contains(keyword)));
+                (x.NationalId != null && x.NationalId.Contains(keyword)) ||
+                (x.GuardianNationalId != null && x.GuardianNationalId.Contains(keyword)));
         }
 
         if (filter.AcademicYearId.HasValue)

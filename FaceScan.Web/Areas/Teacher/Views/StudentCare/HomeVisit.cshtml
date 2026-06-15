@@ -1,0 +1,304 @@
+@model HomeVisitFormViewModel
+@{
+    ViewData["Title"] = "แบบฟอร์มเยี่ยมบ้าน";
+}
+
+<div class="teacher-shell">
+    <section class="teacher-section-card mb-3">
+        <div class="teacher-section-head">
+            <div>
+                <div class="teacher-section-kicker">Home Visit</div>
+                <h1 class="teacher-section-title">แบบฟอร์มเยี่ยมบ้าน</h1>
+                <div class="teacher-section-note">@Model.StudentCode - @Model.StudentName | ห้อง @Model.Classroom</div>
+            </div>
+            <a asp-action="Index" class="btn btn-outline-secondary">กลับหน้าดูแลนักเรียน</a>
+        </div>
+    </section>
+
+    <form asp-action="HomeVisit" method="post" enctype="multipart/form-data" class="teacher-section-card">
+        @Html.AntiForgeryToken()
+        <input asp-for="StudentId" type="hidden" />
+        <input asp-for="StudentCode" type="hidden" />
+        <input asp-for="StudentName" type="hidden" />
+        <input asp-for="Classroom" type="hidden" />
+        <input asp-for="CurrentParentPhotoPath" type="hidden" />
+        <input asp-for="CurrentHousePhotoPath" type="hidden" />
+
+        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label asp-for="VisitDate" class="form-label">วันที่เยี่ยมบ้าน</label>
+                <input asp-for="VisitDate" type="date" class="form-control" />
+                <span asp-validation-for="VisitDate" class="text-danger"></span>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="VisitStatus" class="form-label">สถานะ</label>
+                <select asp-for="VisitStatus" class="form-select" asp-items="Html.GetEnumSelectList<HomeVisitStatus>()"></select>
+            </div>
+            <div class="col-md-4">
+                <label asp-for="RiskLevel" class="form-label">ระดับความเสี่ยง</label>
+                <select asp-for="RiskLevel" class="form-select" asp-items="Html.GetEnumSelectList<StudentCareRiskLevel>()"></select>
+            </div>
+
+            <div class="col-md-4">
+                <label asp-for="LivesWith" class="form-label">นักเรียนอาศัยอยู่กับ</label>
+                <input asp-for="LivesWith" class="form-control" placeholder="เช่น บิดามารดา มารดา ญาติ" />
+            </div>
+            <div class="col-md-4">
+                <label asp-for="HouseholdIncome" class="form-label">รายได้ครัวเรือนต่อเดือน</label>
+                <input asp-for="HouseholdIncome" type="number" step="0.01" class="form-control" />
+            </div>
+            <div class="col-md-4">
+                <label asp-for="GuardianRelationship" class="form-label">ความสัมพันธ์ผู้ปกครอง</label>
+                <input asp-for="GuardianRelationship" class="form-control" placeholder="เช่น บิดา มารดา ย่า" />
+            </div>
+
+            <div class="col-md-4">
+                <label asp-for="GuardianName" class="form-label">ชื่อผู้ปกครอง</label>
+                <input asp-for="GuardianName" class="form-control" />
+            </div>
+            <div class="col-md-4">
+                <label asp-for="GuardianNationalId" class="form-label">เลขบัตรประชาชนผู้ปกครอง</label>
+                <input asp-for="GuardianNationalId" class="form-control" inputmode="numeric" maxlength="20" />
+            </div>
+            <div class="col-md-4">
+                <label asp-for="GuardianPhone" class="form-label">เบอร์โทรผู้ปกครอง</label>
+                <input asp-for="GuardianPhone" class="form-control" />
+            </div>
+            <div class="col-md-4">
+                <label asp-for="GuardianOccupation" class="form-label">อาชีพผู้ปกครอง</label>
+                <input asp-for="GuardianOccupation" class="form-control" />
+            </div>
+
+            <div class="col-12">
+                <div class="home-location-panel">
+                    <div class="home-location-copy">
+                        <div class="teacher-section-kicker">GPS Location</div>
+                        <h2 class="home-location-title">พิกัดบ้านนักเรียน</h2>
+                        <p class="home-location-text">กดดึงพิกัดจากมือถือ ตรวจสอบตำแหน่งบน Google Maps แล้วใช้พิกัดเพื่อบันทึกลงแฟ้มเยี่ยมบ้าน</p>
+                    </div>
+                    <div class="home-location-actions">
+                        <button type="button" class="btn btn-primary" id="captureGpsButton">
+                            <i class="bi bi-crosshair me-1"></i> ใช้พิกัดปัจจุบัน
+                        </button>
+                        <button type="button" class="btn btn-outline-primary" id="openMapButton">
+                            <i class="bi bi-geo-alt me-1"></i> เปิดแผนที่
+                        </button>
+                    </div>
+                    <div class="home-location-grid">
+                        <div>
+                            <label asp-for="Latitude" class="form-label">ละติจูด</label>
+                            <input asp-for="Latitude" class="form-control" inputmode="decimal" autocomplete="off" />
+                        </div>
+                        <div>
+                            <label asp-for="Longitude" class="form-label">ลองจิจูด</label>
+                            <input asp-for="Longitude" class="form-control" inputmode="decimal" autocomplete="off" />
+                        </div>
+                    </div>
+                    <div class="home-location-status" id="locationStatus">ยังไม่ได้ดึงพิกัดจากอุปกรณ์</div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <label asp-for="ParentPhoto" class="form-label">ภาพถ่ายผู้ปกครอง</label>
+                <input asp-for="ParentPhoto" type="file" accept=".jpg,.jpeg,.png,.webp,image/*" class="form-control" />
+                @if (!string.IsNullOrWhiteSpace(Model.CurrentParentPhotoPath))
+                {
+                    <div class="mt-2"><img src="~/@Model.CurrentParentPhotoPath" class="img-fluid rounded border" style="max-height: 180px;" alt="parent" /></div>
+                }
+            </div>
+            <div class="col-md-6">
+                <label asp-for="HousePhoto" class="form-label">ภาพถ่ายบ้านนักเรียน</label>
+                <input asp-for="HousePhoto" type="file" accept=".jpg,.jpeg,.png,.webp,image/*" class="form-control" />
+                @if (!string.IsNullOrWhiteSpace(Model.CurrentHousePhotoPath))
+                {
+                    <div class="mt-2"><img src="~/@Model.CurrentHousePhotoPath" class="img-fluid rounded border" style="max-height: 180px;" alt="house" /></div>
+                }
+            </div>
+
+            <div class="col-md-6">
+                <label asp-for="HouseCondition" class="form-label">สภาพบ้านและสภาพแวดล้อม</label>
+                <textarea asp-for="HouseCondition" rows="3" class="form-control"></textarea>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="FamilyRelationship" class="form-label">ความสัมพันธ์ในครอบครัว</label>
+                <textarea asp-for="FamilyRelationship" rows="3" class="form-control"></textarea>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="LearningSupportAtHome" class="form-label">การสนับสนุนการเรียนที่บ้าน</label>
+                <textarea asp-for="LearningSupportAtHome" rows="3" class="form-control"></textarea>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="RiskBehaviors" class="form-label">พฤติกรรมเสี่ยงที่พบ</label>
+                <textarea asp-for="RiskBehaviors" rows="3" class="form-control"></textarea>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="ProblemsFound" class="form-label">ปัญหาที่พบ</label>
+                <textarea asp-for="ProblemsFound" rows="3" class="form-control"></textarea>
+            </div>
+            <div class="col-md-6">
+                <label asp-for="SupportPlan" class="form-label">แผนช่วยเหลือ/ติดตามผล</label>
+                <textarea asp-for="SupportPlan" rows="3" class="form-control"></textarea>
+            </div>
+            <div class="col-12">
+                <label asp-for="TeacherObservation" class="form-label">ข้อสังเกตของครูที่ปรึกษา</label>
+                <textarea asp-for="TeacherObservation" rows="3" class="form-control"></textarea>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 mt-4">
+            <a asp-action="Index" class="btn btn-outline-secondary">ยกเลิก</a>
+            <button type="submit" class="btn btn-primary">บันทึกเยี่ยมบ้าน</button>
+        </div>
+    </form>
+
+    <div class="modal fade home-location-modal-shell" id="homeLocationModal" tabindex="-1" aria-labelledby="homeLocationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-xl">
+            <div class="modal-content home-location-modal">
+                <div class="modal-header">
+                    <div>
+                        <div class="teacher-section-kicker">Google Maps</div>
+                        <h2 class="modal-title fs-5" id="homeLocationModalLabel">ตรวจสอบพิกัดบ้านนักเรียน</h2>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="home-map-shell">
+                        <iframe id="homeLocationMap" class="home-location-map" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
+                        <div class="home-map-pin">
+                            <i class="bi bi-geo-alt-fill"></i>
+                        </div>
+                    </div>
+                    <div class="home-map-toolbar">
+                        <div class="home-map-coordinates">
+                            <span>ละติจูด <strong id="modalLatitude">-</strong></span>
+                            <span>ลองจิจูด <strong id="modalLongitude">-</strong></span>
+                        </div>
+                        <a id="openGoogleMapsLink" class="btn btn-outline-secondary" href="#" target="_blank" rel="noopener">
+                            <i class="bi bi-box-arrow-up-right me-1"></i> เปิดใน Google Maps
+                        </a>
+                    </div>
+                    <div class="alert alert-light border mb-0">
+                        หากตำแหน่งยังไม่ตรง ให้กดใช้พิกัดปัจจุบันอีกครั้งเมื่อยืนอยู่บริเวณบ้านนักเรียน หรือแก้ค่าละติจูด/ลองจิจูดในฟอร์มแล้วเปิดแผนที่เพื่อตรวจสอบ
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">กลับไปแก้ไข</button>
+                    <button type="button" class="btn btn-primary" id="confirmLocationButton">
+                        <i class="bi bi-check2-circle me-1"></i> ใช้พิกัดนี้
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (() => {
+            const latitudeInput = document.getElementById('Latitude');
+            const longitudeInput = document.getElementById('Longitude');
+            const captureButton = document.getElementById('captureGpsButton');
+            const openMapButton = document.getElementById('openMapButton');
+            const confirmButton = document.getElementById('confirmLocationButton');
+            const statusElement = document.getElementById('locationStatus');
+            const mapFrame = document.getElementById('homeLocationMap');
+            const modalLatitude = document.getElementById('modalLatitude');
+            const modalLongitude = document.getElementById('modalLongitude');
+            const googleMapsLink = document.getElementById('openGoogleMapsLink');
+            const modalElement = document.getElementById('homeLocationModal');
+            if (modalElement && modalElement.parentElement !== document.body) {
+                document.body.appendChild(modalElement);
+            }
+            const locationModal = modalElement ? new bootstrap.Modal(modalElement) : null;
+            let pendingLocation = null;
+
+            const setStatus = (message, tone = 'muted') => {
+                if (!statusElement) return;
+                statusElement.textContent = message;
+                statusElement.className = `home-location-status home-location-status-${tone}`;
+            };
+
+            const parseCoordinate = (input) => {
+                const value = input?.value?.trim();
+                if (!value) return null;
+                const number = Number(value.replace(',', '.'));
+                return Number.isFinite(number) ? number : null;
+            };
+
+            const updateMap = (lat, lng) => {
+                pendingLocation = { lat, lng };
+                const latText = lat.toFixed(7);
+                const lngText = lng.toFixed(7);
+                const query = `${latText},${lngText}`;
+                if (mapFrame) {
+                    mapFrame.src = `https://maps.google.com/maps?q=${query}&z=18&output=embed`;
+                }
+                if (modalLatitude) modalLatitude.textContent = latText;
+                if (modalLongitude) modalLongitude.textContent = lngText;
+                if (googleMapsLink) googleMapsLink.href = `https://www.google.com/maps?q=${query}`;
+            };
+
+            const openMapFromInputs = () => {
+                const lat = parseCoordinate(latitudeInput);
+                const lng = parseCoordinate(longitudeInput);
+                if (lat === null || lng === null) {
+                    setStatus('กรุณาดึงพิกัดจากมือถือ หรือกรอกละติจูด/ลองจิจูดก่อนเปิดแผนที่', 'danger');
+                    return;
+                }
+                updateMap(lat, lng);
+                locationModal?.show();
+            };
+
+            captureButton?.addEventListener('click', () => {
+                if (!navigator.geolocation) {
+                    setStatus('อุปกรณ์นี้ไม่รองรับการดึง GPS location', 'danger');
+                    return;
+                }
+
+                captureButton.disabled = true;
+                captureButton.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> กำลังดึงพิกัด';
+                setStatus('กำลังขออนุญาตและอ่านพิกัดจากอุปกรณ์...', 'info');
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        latitudeInput.value = lat.toFixed(7);
+                        longitudeInput.value = lng.toFixed(7);
+                        updateMap(lat, lng);
+                        setStatus(`ดึงพิกัดสำเร็จ ความคลาดเคลื่อนประมาณ ${Math.round(position.coords.accuracy)} เมตร`, 'success');
+                        captureButton.disabled = false;
+                        captureButton.innerHTML = '<i class="bi bi-crosshair me-1"></i> ใช้พิกัดปัจจุบัน';
+                        locationModal?.show();
+                    },
+                    (error) => {
+                        const messages = {
+                            1: 'ไม่สามารถดึงพิกัดได้ เพราะยังไม่ได้อนุญาตการเข้าถึงตำแหน่ง',
+                            2: 'ไม่พบสัญญาณตำแหน่งจากอุปกรณ์',
+                            3: 'ดึงพิกัดไม่สำเร็จภายในเวลาที่กำหนด'
+                        };
+                        setStatus(messages[error.code] || 'ดึงพิกัดไม่สำเร็จ กรุณาลองใหม่', 'danger');
+                        captureButton.disabled = false;
+                        captureButton.innerHTML = '<i class="bi bi-crosshair me-1"></i> ใช้พิกัดปัจจุบัน';
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 15000,
+                        maximumAge: 0
+                    });
+            });
+
+            openMapButton?.addEventListener('click', openMapFromInputs);
+            confirmButton?.addEventListener('click', () => {
+                if (!pendingLocation) return;
+                latitudeInput.value = pendingLocation.lat.toFixed(7);
+                longitudeInput.value = pendingLocation.lng.toFixed(7);
+                setStatus('เลือกพิกัดนี้แล้ว พร้อมบันทึกเยี่ยมบ้าน', 'success');
+                locationModal?.hide();
+            });
+        })();
+    </script>
+}

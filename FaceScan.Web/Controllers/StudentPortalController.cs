@@ -24,6 +24,7 @@ public class StudentPortalController : Controller
     };
 
     private readonly ApplicationDbContext _dbContext;
+    private readonly IWebHostEnvironment _environment;
     private readonly IAttendanceService _attendanceService;
     private readonly IFileStorageService _fileStorageService;
     private readonly IFaceRecognitionService _faceRecognitionService;
@@ -32,6 +33,7 @@ public class StudentPortalController : Controller
 
     public StudentPortalController(
         ApplicationDbContext dbContext,
+        IWebHostEnvironment environment,
         IAttendanceService attendanceService,
         IFileStorageService fileStorageService,
         IFaceRecognitionService faceRecognitionService,
@@ -39,6 +41,7 @@ public class StudentPortalController : Controller
         ISystemSettingService systemSettingService)
     {
         _dbContext = dbContext;
+        _environment = environment;
         _attendanceService = attendanceService;
         _fileStorageService = fileStorageService;
         _faceRecognitionService = faceRecognitionService;
@@ -69,15 +72,209 @@ public class StudentPortalController : Controller
             StudentName = student.FullName,
             GradeLevel = student.GradeLevel?.Name ?? "-",
             Classroom = student.Classroom?.Name ?? "-",
+            ProfilePhotoPath = student.StudentPhotos
+                .OrderByDescending(x => x.IsPrimary)
+                .ThenByDescending(x => x.CapturedAt)
+                .Select(x => x.FilePath)
+                .FirstOrDefault(),
             EnrollmentStatus = student.FaceProfile?.EnrollmentStatus ?? EnrollmentStatus.NotRegistered,
             PhotoCount = student.StudentPhotos.Count,
+            ProfilePhotoOptions = student.StudentPhotos
+                .OrderByDescending(x => x.IsPrimary)
+                .ThenByDescending(x => x.CapturedAt)
+                .Select(x => new StudentPortalProfilePhotoViewModel
+                {
+                    PhotoId = x.Id,
+                    FilePath = x.FilePath,
+                    IsPrimary = x.IsPrimary,
+                    CapturedAt = x.CapturedAt
+                })
+                .ToList(),
             TodayCheckIn = todaySummary?.FirstCheckInTime,
             TodayCheckOut = todaySummary?.LastCheckOutTime,
             IsLateToday = todaySummary?.FirstCheckInTime is DateTime t && t.TimeOfDay > settings.LateAfterTime,
-            LateAfterTime = settings.LateAfterTime
+            LateAfterTime = settings.LateAfterTime,
+            IsStudentCareEnabled = settings.EnableStudentCareModule,
+            IsBehaviorScoreEnabled = settings.EnableBehaviorScoreModule,
+            IsGoodnessBankEnabled = settings.EnableGoodnessBankModule,
+            IsHomeVisitEnabled = settings.EnableHomeVisitModule,
+            IsWasteBankEnabled = settings.EnableWasteBankModule
         };
 
+        if (settings.EnableStudentCareModule)
+        {
+            var profile = await _dbContext.StudentCareProfiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.StudentId == student.Id, cancellationToken);
+            model.HasHomeLocation = profile?.HomeLatitude.HasValue == true && profile.HomeLongitude.HasValue;
+            model.HomeLatitude = profile?.HomeLatitude;
+            model.HomeLongitude = profile?.HomeLongitude;
+            model.HomeLocationSharedAt = profile?.HomeLocationSharedAt;
+
+            var academicYearId = settings.AcademicYearCurrentId ?? student.AcademicYearId;
+
+            if (settings.EnableBehaviorScoreModule)
+            {
+                var behaviorTransactions = await _dbContext.BehaviorScoreTransactions
+                    .AsNoTracking()
+                    .Where(x => x.StudentId == student.Id &&
+                                x.AcademicYearId == academicYearId &&
+                                x.Status == StudentCareRecordStatus.Approved)
+                    .OrderByDescending(x => x.RecordedAt)
+                    .ToListAsync(cancellationToken);
+
+                model.BehaviorScore = settings.StudentCareInitialBehaviorScore + behaviorTransactions.Sum(x => x.ScoreChange);
+                model.RecentBehaviorTransactions = behaviorTransactions
+                    .Take(5)
+                    .Select(x => new StudentPortalCareTransactionViewModel
+                    {
+                        RecordedAt = x.RecordedAt,
+                        Category = x.Category,
+                        Value = x.ScoreChange,
+                        Description = x.Reason
+                    })
+                    .ToList();
+            }
+
+            if (settings.EnableGoodnessBankModule)
+            {
+                var goodnessTransactions = await _dbContext.GoodnessBankTransactions
+                    .AsNoTracking()
+                    .Where(x => x.StudentId == student.Id &&
+                                x.AcademicYearId == academicYearId &&
+                                x.Status == StudentCareRecordStatus.Approved)
+                    .OrderByDescending(x => x.RecordedAt)
+                    .ToListAsync(cancellationToken);
+
+                model.GoodnessPoint = goodnessTransactions.Sum(x => x.Point);
+                model.RecentGoodnessTransactions = goodnessTransactions
+                    .Take(5)
+                    .Select(x => new StudentPortalCareTransactionViewModel
+                    {
+                        RecordedAt = x.RecordedAt,
+                        Category = x.GoodnessType,
+                        Value = x.Point,
+                        Description = x.Description
+                    })
+                    .ToList();
+            }
+
+            if (settings.EnableWasteBankModule)
+            {
+                var wasteTransactions = await _dbContext.WasteBankTransactions
+                    .AsNoTracking()
+                    .Where(x => x.StudentId == student.Id && x.AcademicYearId == academicYearId)
+                    .OrderByDescending(x => x.RecordedAt)
+                    .ToListAsync(cancellationToken);
+
+                model.WasteBankTotalWeightKg = wasteTransactions.Sum(x => x.WeightKg);
+                model.WasteBankTotalAmount = wasteTransactions.Sum(x => x.Amount);
+                model.RecentWasteBankTransactions = wasteTransactions
+                    .Take(5)
+                    .Select(x => new StudentPortalWasteBankTransactionViewModel
+                    {
+                        RecordedAt = x.RecordedAt,
+                        WasteType = x.WasteType,
+                        WeightKg = x.WeightKg,
+                        PricePerKg = x.PricePerKg,
+                        Amount = x.Amount,
+                        Note = x.Note
+                    })
+                    .ToList();
+            }
+        }
+
         return View(model);
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SetProfilePhoto(int photoId, CancellationToken cancellationToken)
+    {
+        var student = await GetCurrentStudentWithRelatedDataAsync(cancellationToken);
+        if (student is null)
+        {
+            return Forbid();
+        }
+
+        var target = student.StudentPhotos.FirstOrDefault(x => x.Id == photoId);
+        if (target is null)
+        {
+            TempData["Error"] = "ไม่พบรูปที่ต้องการใช้เป็นรูปหน้าตนเอง";
+            return RedirectToAction(nameof(Index));
+        }
+
+        foreach (var photo in student.StudentPhotos)
+        {
+            photo.IsPrimary = photo.Id == photoId;
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var ipAddress = HttpContextHelper.GetIpAddress(HttpContext);
+        await _auditLogService.LogAsync(
+            userId,
+            "StudentSetProfilePhoto",
+            "Student",
+            student.Id.ToString(),
+            $"เปลี่ยนรูปหน้าตนเองเป็นรหัสรูป {photoId}",
+            ipAddress,
+            cancellationToken);
+
+        TempData["Success"] = "เปลี่ยนรูปหน้าตนเองเรียบร้อย";
+        return RedirectToAction(nameof(Index));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ShareHomeLocation(StudentHomeLocationViewModel model, CancellationToken cancellationToken)
+    {
+        var settings = await _systemSettingService.GetSettingsAsync(cancellationToken);
+        if (!settings.EnableStudentCareModule || !settings.EnableHomeVisitModule)
+        {
+            return NotFound();
+        }
+
+        var student = await GetCurrentStudentWithRelatedDataAsync(cancellationToken);
+        if (student is null)
+        {
+            return Forbid();
+        }
+
+        if (!ModelState.IsValid ||
+            model.Latitude < -90 || model.Latitude > 90 ||
+            model.Longitude < -180 || model.Longitude > 180)
+        {
+            TempData["Error"] = "พิกัดบ้านไม่ถูกต้อง";
+            return RedirectToAction(nameof(Index));
+        }
+
+        var profile = await _dbContext.StudentCareProfiles
+            .FirstOrDefaultAsync(x => x.StudentId == student.Id, cancellationToken);
+        if (profile is null)
+        {
+            profile = new StudentCareProfile { StudentId = student.Id };
+            _dbContext.StudentCareProfiles.Add(profile);
+        }
+
+        profile.HomeLatitude = model.Latitude;
+        profile.HomeLongitude = model.Longitude;
+        profile.HomeLocationSharedAt = DateTime.UtcNow;
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+
+        await _auditLogService.LogAsync(
+            User.FindFirstValue(ClaimTypes.NameIdentifier),
+            "StudentShareHomeLocation",
+            "StudentCareProfile",
+            student.Id.ToString(),
+            $"{student.StudentCode} shared home location",
+            HttpContextHelper.GetIpAddress(HttpContext),
+            cancellationToken);
+
+        TempData["Success"] = "บันทึกพิกัดบ้านเรียบร้อย";
+        return RedirectToAction(nameof(Index));
     }
 
     [HttpGet]
@@ -100,6 +297,19 @@ public class StudentPortalController : Controller
             PhotoPaths = student.StudentPhotos
                 .OrderByDescending(x => x.CapturedAt)
                 .Select(x => x.FilePath)
+                .ToList(),
+            Photos = student.StudentPhotos
+                .OrderByDescending(x => x.IsPrimary)
+                .ThenByDescending(x => x.CapturedAt)
+                .Select(x => new StudentFaceEnrollmentPhotoViewModel
+                {
+                    PhotoId = x.Id,
+                    FilePath = x.FilePath,
+                    ContentType = x.ContentType,
+                    FileSizeBytes = ResolvePhotoFileSize(x.FilePath),
+                    IsPrimary = x.IsPrimary,
+                    CapturedAt = x.CapturedAt
+                })
                 .ToList()
         };
 
@@ -200,6 +410,95 @@ public class StudentPortalController : Controller
         {
             DisposeCapturedStreams(capturedFiles);
         }
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> DeleteFaceEnrollmentPhoto(int photoId, CancellationToken cancellationToken)
+    {
+        var student = await GetCurrentStudentWithRelatedDataAsync(cancellationToken);
+        if (student is null)
+        {
+            return Forbid();
+        }
+
+        var photo = student.StudentPhotos.FirstOrDefault(x => x.Id == photoId);
+        if (photo is null)
+        {
+            TempData["Error"] = "ไม่พบรูปที่ต้องการลบ";
+            return RedirectToAction(nameof(FaceEnrollment));
+        }
+
+        var filePath = photo.FilePath;
+        _dbContext.StudentPhotos.Remove(photo);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        await _fileStorageService.DeleteFileIfExistsAsync(filePath);
+
+        await NormalizePrimaryFacePhotoAsync(student.Id, cancellationToken);
+        var remainingPaths = await _dbContext.StudentPhotos
+            .AsNoTracking()
+            .Where(x => x.StudentId == student.Id)
+            .OrderByDescending(x => x.IsPrimary)
+            .ThenByDescending(x => x.CapturedAt)
+            .Select(x => x.FilePath)
+            .ToListAsync(cancellationToken);
+
+        if (remainingPaths.Count == 0)
+        {
+            await _faceRecognitionService.RemoveStudentProfileAsync(student.Id);
+        }
+        else
+        {
+            await _faceRecognitionService.EnrollStudentAsync(student.Id, remainingPaths);
+        }
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var ipAddress = HttpContextHelper.GetIpAddress(HttpContext);
+        await _auditLogService.LogAsync(
+            userId,
+            "StudentSelfDeleteFacePhoto",
+            "Student",
+            student.Id.ToString(),
+            $"ลบรูปใบหน้ารหัส {photoId}",
+            ipAddress,
+            cancellationToken);
+
+        TempData["Success"] = "ลบรูปใบหน้าเรียบร้อย";
+        return RedirectToAction(nameof(FaceEnrollment));
+    }
+
+    private async Task NormalizePrimaryFacePhotoAsync(int studentId, CancellationToken cancellationToken)
+    {
+        var photos = await _dbContext.StudentPhotos
+            .Where(x => x.StudentId == studentId)
+            .OrderByDescending(x => x.IsPrimary)
+            .ThenByDescending(x => x.CapturedAt)
+            .ToListAsync(cancellationToken);
+
+        if (photos.Count == 0)
+        {
+            return;
+        }
+
+        var primary = photos.FirstOrDefault(x => x.IsPrimary) ?? photos[0];
+        foreach (var photo in photos)
+        {
+            photo.IsPrimary = photo.Id == primary.Id;
+        }
+
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private long? ResolvePhotoFileSize(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(_environment.WebRootPath) || string.IsNullOrWhiteSpace(filePath))
+        {
+            return null;
+        }
+
+        var relativePath = filePath.TrimStart('/', '\\').Replace('/', Path.DirectorySeparatorChar);
+        var fullPath = Path.Combine(_environment.WebRootPath, relativePath);
+        return System.IO.File.Exists(fullPath) ? new FileInfo(fullPath).Length : null;
     }
 
     [HttpGet]

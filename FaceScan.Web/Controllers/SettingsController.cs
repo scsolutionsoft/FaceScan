@@ -128,6 +128,14 @@ public class SettingsController : Controller
         model.SaveSnapshots = source.SaveSnapshots;
         model.FaceConfidenceThreshold = source.FaceConfidenceThreshold;
         model.AllowManualOverride = source.AllowManualOverride;
+        model.EnableStudentCareModule = source.EnableStudentCareModule;
+        model.EnableBehaviorScoreModule = source.EnableBehaviorScoreModule;
+        model.EnableGoodnessBankModule = source.EnableGoodnessBankModule;
+        model.EnableHomeVisitModule = source.EnableHomeVisitModule;
+        model.EnableWasteBankModule = source.EnableWasteBankModule;
+        model.StudentCareInitialBehaviorScore = source.StudentCareInitialBehaviorScore;
+        model.StudentCareLowBehaviorScoreThreshold = source.StudentCareLowBehaviorScoreThreshold;
+        model.RequireStudentCareApproval = source.RequireStudentCareApproval;
         model.AcademicYearCurrentId = source.AcademicYearCurrentId;
         return model;
     }

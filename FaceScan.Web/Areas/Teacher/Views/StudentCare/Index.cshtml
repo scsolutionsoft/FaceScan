@@ -1,0 +1,1059 @@
+@model StudentCareDashboardViewModel
+@{
+    ViewData["Title"] = "ดูแลนักเรียนประจำชั้น";
+
+    string RiskLabel(StudentCareRiskLevel riskLevel) => riskLevel switch
+    {
+        StudentCareRiskLevel.Watch => "เฝ้าระวัง",
+        StudentCareRiskLevel.Risk => "เสี่ยง",
+        StudentCareRiskLevel.Urgent => "เร่งด่วน",
+        _ => "ปกติ"
+    };
+
+    string RiskClass(StudentCareRiskLevel riskLevel) => riskLevel switch
+    {
+        StudentCareRiskLevel.Watch => "text-bg-warning",
+        StudentCareRiskLevel.Risk => "text-bg-danger",
+        StudentCareRiskLevel.Urgent => "text-bg-dark",
+        _ => "text-bg-success"
+    };
+
+    string FollowUpStatusLabel(StudentCareFollowUpStatus status) => status switch
+    {
+        StudentCareFollowUpStatus.InProgress => "กำลังติดตาม",
+        StudentCareFollowUpStatus.Completed => "เสร็จแล้ว",
+        StudentCareFollowUpStatus.Canceled => "ยกเลิก",
+        _ => "เปิดเคส"
+    };
+
+    string PriorityLabel(StudentCareFollowUpPriority priority) => priority switch
+    {
+        StudentCareFollowUpPriority.Low => "ต่ำ",
+        StudentCareFollowUpPriority.High => "สูง",
+        StudentCareFollowUpPriority.Urgent => "เร่งด่วน",
+        _ => "ปกติ"
+    };
+
+    string PriorityClass(StudentCareFollowUpPriority priority) => priority switch
+    {
+        StudentCareFollowUpPriority.High => "text-bg-warning",
+        StudentCareFollowUpPriority.Urgent => "text-bg-danger",
+        StudentCareFollowUpPriority.Low => "text-bg-secondary",
+        _ => "text-bg-primary"
+    };
+}
+
+<div class="teacher-shell">
+    <section class="teacher-hero teacher-hero-teal mb-3">
+        <div class="teacher-hero-body">
+            <div class="teacher-hero-copy">
+                <div class="teacher-kicker">Student Care</div>
+                <h1 class="teacher-hero-title">ดูแลนักเรียนประจำชั้น</h1>
+                <p class="teacher-hero-text">
+                    ศูนย์รวมข้อมูลช่วยเหลือดูแลนักเรียนสำหรับครูที่ปรึกษา เริ่มจากภาพรวมรายห้องและสถานะความเสี่ยง ก่อนต่อยอดเป็นฟอร์มคะแนนพฤติกรรม ธนาคารความดี เยี่ยมบ้าน และธนาคารขยะ
+                </p>
+            </div>
+            <div class="teacher-hero-stack">
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">ครูที่ปรึกษา</span>
+                    <strong>@Model.TeacherName</strong>
+                </div>
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">ห้องเรียน</span>
+                    <strong>@Model.AssignedClassroomName</strong>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="teacher-stat-grid mb-3">
+        <article class="teacher-stat-card">
+            <div class="teacher-stat-label">นักเรียนในขอบเขตดูแล</div>
+            <div class="teacher-stat-value">@Model.StudentCount</div>
+            <div class="teacher-stat-meta">คน</div>
+        </article>
+        <article class="teacher-stat-card">
+            <div class="teacher-stat-label">มีแฟ้มดูแลแล้ว</div>
+            <div class="teacher-stat-value">@Model.ProfileCount</div>
+            <div class="teacher-stat-meta">รายการ</div>
+        </article>
+        <article class="teacher-stat-card">
+            <div class="teacher-stat-label">เยี่ยมบ้านแล้ว</div>
+            <div class="teacher-stat-value">@Model.HomeVisitedCount</div>
+            <div class="teacher-stat-meta">คน</div>
+        </article>
+        <article class="teacher-stat-card">
+            <div class="teacher-stat-label">พฤติกรรมเสี่ยง</div>
+            <div class="teacher-stat-value">@Model.RiskStudentCount</div>
+            <div class="teacher-stat-meta">เร่งด่วน @Model.UrgentRiskStudentCount คน</div>
+        </article>
+        @if (false && Model.IsWasteBankEnabled)
+        {
+            <article class="teacher-stat-card">
+                <div class="teacher-stat-label">ธนาคารขยะ</div>
+                <div class="teacher-stat-value">@Model.WasteBankTotalAmount.ToString("N2")</div>
+                <div class="teacher-stat-meta">@Model.WasteBankTotalWeightKg.ToString("N3") กก.</div>
+            </article>
+        }
+    </section>
+
+    <section class="teacher-section-card mb-3">
+        <div class="teacher-section-head">
+            <div>
+                <div class="teacher-section-kicker">Phase 9</div>
+                <h2 class="teacher-section-title">งานติดตามช่วยเหลือที่ต้องทำ</h2>
+                <div class="teacher-section-note">เคสที่ยังเปิดอยู่ เรียงตามวันนัดติดตามและความเร่งด่วน</div>
+            </div>
+            <a asp-action="Reports" class="btn btn-outline-primary">ดูรายงานติดตาม</a>
+        </div>
+
+        <div class="row g-2 mb-3">
+            <div class="col-md-4">
+                <div class="border rounded-3 p-3 h-100">
+                    <div class="text-muted small">เคสเปิดอยู่</div>
+                    <div class="fs-4 fw-bold">@Model.OpenFollowUpCaseCount</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="border rounded-3 p-3 h-100">
+                    <div class="text-muted small">เกินกำหนด</div>
+                    <div class="fs-4 fw-bold text-danger">@Model.OverdueFollowUpCaseCount</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="border rounded-3 p-3 h-100">
+                    <div class="text-muted small">ครบกำหนดวันนี้</div>
+                    <div class="fs-4 fw-bold text-warning">@Model.DueTodayFollowUpCaseCount</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>นักเรียน</th>
+                        <th>ห้อง</th>
+                        <th>เคส</th>
+                        <th>เร่งด่วน</th>
+                        <th>สถานะ</th>
+                        <th>วันนัด</th>
+                        <th>จัดการ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.FollowUpReminders.Count == 0)
+                    {
+                        <tr><td colspan="7" class="text-center text-muted py-4">ยังไม่มีงานติดตามที่ต้องเร่งจัดการ</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var item in Model.FollowUpReminders)
+                        {
+                            <tr class="@(item.IsOverdue ? "table-danger" : item.IsDueToday ? "table-warning" : "")">
+                                <td>
+                                    <div class="fw-semibold">@item.StudentCode</div>
+                                    <div>@item.FullName</div>
+                                </td>
+                                <td>@item.Classroom</td>
+                                <td>
+                                    @item.Title
+                                    <div class="small text-muted">เปิด @item.OpenedAt.ToLocalTime().ToString("dd/MM/yyyy")</div>
+                                </td>
+                                <td><span class="badge @PriorityClass(item.Priority)">@PriorityLabel(item.Priority)</span></td>
+                                <td>@FollowUpStatusLabel(item.Status)</td>
+                                <td>
+                                    @(item.DueDate.HasValue ? item.DueDate.Value.ToThaiDate("dd MMM yyyy") : "-")
+                                    @if (item.IsOverdue)
+                                    {
+                                        <span class="badge text-bg-danger ms-1">เกินกำหนด</span>
+                                    }
+                                    else if (item.IsDueToday)
+                                    {
+                                        <span class="badge text-bg-warning ms-1">วันนี้</span>
+                                    }
+                                </td>
+                                <td><a asp-action="Detail" asp-route-studentId="@item.StudentId" class="btn btn-sm btn-outline-primary">เปิดแฟ้ม</a></td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="teacher-section-card mb-3">
+        <div class="teacher-section-head">
+            <div>
+                <div class="teacher-section-kicker">Enabled Modules</div>
+                <h2 class="teacher-section-title">สถานะโมดูล</h2>
+            </div>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <span class="badge @(Model.IsBehaviorScoreEnabled ? "text-bg-success" : "text-bg-secondary")">คะแนนพฤติกรรม</span>
+            <span class="badge @(Model.IsGoodnessBankEnabled ? "text-bg-success" : "text-bg-secondary")">ธนาคารความดี</span>
+            <span class="badge @(Model.IsHomeVisitEnabled ? "text-bg-success" : "text-bg-secondary")">เยี่ยมบ้าน</span>
+        </div>
+    </section>
+
+    @if (Model.IsBehaviorScoreEnabled || Model.IsGoodnessBankEnabled)
+    {
+        <section class="teacher-section-card mb-3">
+            <div class="teacher-section-head">
+                <div>
+                    <div class="teacher-section-kicker">Phase 2</div>
+                    <h2 class="teacher-section-title">บันทึกคะแนน</h2>
+                </div>
+                <a asp-action="Reports" class="btn btn-outline-primary">
+                    <i class="bi bi-graph-up-arrow me-1"></i> รายงานคะแนน
+                </a>
+            </div>
+
+            <div class="row g-3">
+                @if (Model.IsBehaviorScoreEnabled)
+                {
+                    <div class="col-lg-6">
+                        <form asp-action="RecordBehavior" method="post" class="border rounded-4 p-3 h-100">
+                            @Html.AntiForgeryToken()
+                            <h3 class="fs-5 mb-3">คะแนนพฤติกรรม</h3>
+                            <div class="student-score-picker mb-3" data-student-picker>
+                                <div class="row g-2 mb-2">
+                                    <div class="col-md-4">
+                                        <label class="form-label">ระดับชั้น</label>
+                                        <select class="form-select" data-picker-grade>
+                                            <option value="">ทุกระดับชั้น</option>
+                                            @foreach (var grade in Model.GradeLevelOptions)
+                                            {
+                                                <option value="@grade.Value">@grade.Text</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">ห้อง</label>
+                                        <select class="form-select" data-picker-classroom>
+                                            <option value="">ทุกห้อง</option>
+                                            @foreach (var classroom in Model.ClassroomOptions)
+                                            {
+                                                <option value="@classroom.Value" data-grade="@classroom.GradeLevelId">@classroom.Text</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">ค้นหา</label>
+                                        <input type="search" class="form-control" data-picker-search placeholder="ชื่อ นามสกุล รหัส หรือเลขบัตร" />
+                                    </div>
+                                </div>
+                                <label asp-for="BehaviorInput.StudentId" class="form-label">นักเรียน</label>
+                                <select asp-for="BehaviorInput.StudentId" name="StudentId" class="form-select visually-hidden" data-picker-select tabindex="-1" aria-hidden="true">
+                                    <option value="">-- เลือกนักเรียน --</option>
+                                    @foreach (var student in Model.StudentOptions)
+                                    {
+                                        <option value="@student.Value"
+                                                data-grade="@student.GradeLevelId"
+                                                data-classroom="@student.ClassroomId"
+                                                data-photo="@student.PhotoPath"
+                                                data-label="@student.Text"
+                                                data-search="@($"{student.StudentCode} {student.FullName} {student.NationalId} {student.GuardianNationalId}".Trim())">
+                                            @student.Text
+                                        </option>
+                                    }
+                                </select>
+                                <div class="student-photo-select" data-photo-select>
+                                    <button type="button" class="student-photo-select-toggle" data-photo-select-toggle aria-haspopup="listbox" aria-expanded="false">
+                                        <span class="student-photo-select-avatar" data-photo-select-avatar>
+                                            <i class="bi bi-person"></i>
+                                        </span>
+                                        <span class="student-photo-select-text" data-photo-select-text>-- เลือกนักเรียน --</span>
+                                        <i class="bi bi-chevron-down ms-auto"></i>
+                                    </button>
+                                    <div class="student-photo-select-menu" data-photo-select-menu role="listbox"></div>
+                                </div>
+                                <div class="form-text" data-picker-count></div>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label asp-for="BehaviorInput.CategoryId" class="form-label">ประเภท</label>
+                                    <select asp-for="BehaviorInput.CategoryId" name="CategoryId" class="form-select" data-score-category>
+                                        <option value="">-- เลือกประเภท --</option>
+                                        @foreach (var category in Model.BehaviorCategoryOptions)
+                                        {
+                                            <option value="@category.Id" data-point="@category.Point" data-description="@category.Description">@category.Name (@category.Point)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label asp-for="BehaviorInput.ScoreChange" class="form-label">คะแนนเพิ่ม/ลด</label>
+                                    <input asp-for="BehaviorInput.ScoreChange" name="ScoreChange" type="number" class="form-control" placeholder="-5 หรือ 5" data-score-value readonly />
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <label asp-for="BehaviorInput.Description" class="form-label">เหตุผล</label>
+                                <textarea asp-for="BehaviorInput.Description" name="Description" class="form-control" rows="3"></textarea>
+                            </div>
+                            <div class="d-flex justify-content-end mt-3">
+                                <button type="submit" class="btn btn-primary">บันทึกคะแนนพฤติกรรม</button>
+                            </div>
+                        </form>
+                    </div>
+                }
+
+                @if (Model.IsGoodnessBankEnabled)
+                {
+                    <div class="col-lg-6">
+                        <form asp-action="RecordGoodness" method="post" class="border rounded-4 p-3 h-100">
+                            @Html.AntiForgeryToken()
+                            <h3 class="fs-5 mb-3">ธนาคารความดี</h3>
+                            <div class="student-score-picker mb-3" data-student-picker>
+                                <div class="row g-2 mb-2">
+                                    <div class="col-md-4">
+                                        <label class="form-label">ระดับชั้น</label>
+                                        <select class="form-select" data-picker-grade>
+                                            <option value="">ทุกระดับชั้น</option>
+                                            @foreach (var grade in Model.GradeLevelOptions)
+                                            {
+                                                <option value="@grade.Value">@grade.Text</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">ห้อง</label>
+                                        <select class="form-select" data-picker-classroom>
+                                            <option value="">ทุกห้อง</option>
+                                            @foreach (var classroom in Model.ClassroomOptions)
+                                            {
+                                                <option value="@classroom.Value" data-grade="@classroom.GradeLevelId">@classroom.Text</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">ค้นหา</label>
+                                        <input type="search" class="form-control" data-picker-search placeholder="ชื่อ นามสกุล รหัส หรือเลขบัตร" />
+                                    </div>
+                                </div>
+                                <label asp-for="GoodnessInput.StudentId" class="form-label">นักเรียน</label>
+                                <select asp-for="GoodnessInput.StudentId" name="StudentId" class="form-select visually-hidden" data-picker-select tabindex="-1" aria-hidden="true">
+                                    <option value="">-- เลือกนักเรียน --</option>
+                                    @foreach (var student in Model.StudentOptions)
+                                    {
+                                        <option value="@student.Value"
+                                                data-grade="@student.GradeLevelId"
+                                                data-classroom="@student.ClassroomId"
+                                                data-photo="@student.PhotoPath"
+                                                data-label="@student.Text"
+                                                data-search="@($"{student.StudentCode} {student.FullName} {student.NationalId} {student.GuardianNationalId}".Trim())">
+                                            @student.Text
+                                        </option>
+                                    }
+                                </select>
+                                <div class="student-photo-select" data-photo-select>
+                                    <button type="button" class="student-photo-select-toggle" data-photo-select-toggle aria-haspopup="listbox" aria-expanded="false">
+                                        <span class="student-photo-select-avatar" data-photo-select-avatar>
+                                            <i class="bi bi-person"></i>
+                                        </span>
+                                        <span class="student-photo-select-text" data-photo-select-text>-- เลือกนักเรียน --</span>
+                                        <i class="bi bi-chevron-down ms-auto"></i>
+                                    </button>
+                                    <div class="student-photo-select-menu" data-photo-select-menu role="listbox"></div>
+                                </div>
+                                <div class="form-text" data-picker-count></div>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label asp-for="GoodnessInput.CategoryId" class="form-label">ประเภทความดี</label>
+                                    <select asp-for="GoodnessInput.CategoryId" name="CategoryId" class="form-select" data-score-category>
+                                        <option value="">-- เลือกประเภทความดี --</option>
+                                        @foreach (var category in Model.GoodnessCategoryOptions)
+                                        {
+                                            <option value="@category.Id" data-point="@category.Point" data-description="@category.Description">@category.Name (+@category.Point)</option>
+                                        }
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label asp-for="GoodnessInput.Point" class="form-label">คะแนน</label>
+                                    <input asp-for="GoodnessInput.Point" name="Point" type="number" min="1" class="form-control" data-score-value readonly />
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <label asp-for="GoodnessInput.Description" class="form-label">รายละเอียด</label>
+                                <textarea asp-for="GoodnessInput.Description" name="Description" class="form-control" rows="3"></textarea>
+                            </div>
+                            <div class="d-flex justify-content-end mt-3">
+                                <button type="submit" class="btn btn-primary">บันทึกธนาคารความดี</button>
+                            </div>
+                        </form>
+                    </div>
+                }
+            </div>
+        </section>
+    }
+
+    @if (false && Model.IsWasteBankEnabled)
+    {
+        <section class="teacher-section-card mb-3">
+            <div class="teacher-section-head">
+                <div>
+                    <div class="teacher-section-kicker">Phase 4</div>
+                    <h2 class="teacher-section-title">ธนาคารขยะ</h2>
+                </div>
+                <a asp-action="Reports" class="btn btn-outline-primary">
+                    <i class="bi bi-recycle me-1"></i> รายงานธนาคารขยะ
+                </a>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-lg-5">
+                    <form asp-action="SaveWasteRate" method="post" class="border rounded-4 p-3 h-100">
+                        @Html.AntiForgeryToken()
+                        <h3 class="fs-5 mb-3">ตั้งราคารับซื้อ</h3>
+                        <div class="row g-2">
+                            <div class="col-md-7">
+                                <label asp-for="WasteRateInput.WasteType" class="form-label">ชนิดขยะ</label>
+                                <input asp-for="WasteRateInput.WasteType" name="WasteType" class="form-control" placeholder="เช่น ขวดพลาสติกใส" />
+                            </div>
+                            <div class="col-md-5">
+                                <label asp-for="WasteRateInput.PricePerKg" class="form-label">บาท/กก.</label>
+                                <input asp-for="WasteRateInput.PricePerKg" name="PricePerKg" type="number" step="0.01" min="0.01" class="form-control" />
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-end mt-3">
+                            <button type="submit" class="btn btn-primary">บันทึกราคา</button>
+                        </div>
+
+                        <hr />
+                        <div class="fw-semibold mb-2">ราคาปัจจุบัน</div>
+                        @if (Model.ActiveWasteRates.Count == 0)
+                        {
+                            <div class="text-muted small">ยังไม่ได้ตั้งราคารับซื้อ</div>
+                        }
+                        else
+                        {
+                            <div class="d-flex flex-column gap-2">
+                                @foreach (var rate in Model.ActiveWasteRates)
+                                {
+                                    <div class="d-flex justify-content-between border rounded-3 px-3 py-2">
+                                        <span>@rate.WasteType</span>
+                                        <strong>@rate.PricePerKg.ToString("N2") บาท/กก.</strong>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </form>
+                </div>
+
+                <div class="col-lg-7">
+                    <form asp-action="RecordWasteBank" method="post" class="border rounded-4 p-3 h-100">
+                        @Html.AntiForgeryToken()
+                        <h3 class="fs-5 mb-3">บันทึกฝากขยะ</h3>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label asp-for="WasteTransactionInput.StudentId" class="form-label">นักเรียน</label>
+                                <select asp-for="WasteTransactionInput.StudentId" name="StudentId" class="form-select">
+                                    <option value="">-- เลือกนักเรียน --</option>
+                                    @foreach (var student in Model.StudentOptions)
+                                    {
+                                        <option value="@student.Value">@student.Text</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="WasteTransactionInput.WasteType" class="form-label">ชนิดขยะ</label>
+                                <select asp-for="WasteTransactionInput.WasteType" name="WasteType" class="form-select">
+                                    <option value="">-- เลือกชนิดขยะ --</option>
+                                    @foreach (var rate in Model.ActiveWasteRates)
+                                    {
+                                        <option value="@rate.WasteType">@rate.WasteType (@rate.PricePerKg.ToString("N2") บาท/กก.)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="WasteTransactionInput.WeightKg" class="form-label">น้ำหนัก กก.</label>
+                                <input asp-for="WasteTransactionInput.WeightKg" name="WeightKg" type="number" step="0.001" min="0.001" class="form-control" />
+                            </div>
+                            <div class="col-md-8">
+                                <label asp-for="WasteTransactionInput.Note" class="form-label">หมายเหตุ</label>
+                                <input asp-for="WasteTransactionInput.Note" name="Note" class="form-control" />
+                            </div>
+                        </div>
+                        <div class="alert alert-light border small mt-3 mb-0">
+                            สูตรคำนวณ: ยอดเงิน = น้ำหนักกิโลกรัม x ราคาต่อกิโลกรัม โดยระบบจะบันทึกราคาที่ใช้ ณ วันที่ทำรายการไว้ในธุรกรรม
+                        </div>
+                        <div class="d-flex justify-content-end mt-3">
+                            <button type="submit" class="btn btn-primary">บันทึกฝากขยะ</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </section>
+    }
+
+    <section class="teacher-section-card">
+        <div class="teacher-section-head">
+            <div>
+                <div class="teacher-section-kicker">Students</div>
+                <h2 class="teacher-section-title">รายชื่อนักเรียน</h2>
+            </div>
+            <div class="teacher-section-note">Phase 1 แสดงภาพรวมก่อนเพิ่มฟอร์มบันทึกในเฟสถัดไป</div>
+        </div>
+
+        <form method="get" asp-action="Index" class="row g-2 align-items-end mb-3">
+            <div class="col-lg-4">
+                <label class="form-label">ค้นหาชื่อ / นามสกุล</label>
+                <input name="Keyword" value="@Model.Filter.Keyword" class="form-control" placeholder="พิมพ์ชื่อ นามสกุล หรือรหัสนักเรียน" />
+            </div>
+            @if (Model.CanFilterAllStudents)
+            {
+                <div class="col-lg-3">
+                    <label class="form-label">ระดับชั้น</label>
+                    <select name="GradeLevelId" class="form-select">
+                        <option value="">ทุกระดับชั้น</option>
+                        @foreach (var grade in Model.GradeLevelOptions)
+                        {
+                            <option value="@grade.Value" selected="@(Model.Filter.GradeLevelId == grade.Value)">@grade.Text</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-lg-3">
+                    <label class="form-label">ห้อง</label>
+                    <select name="ClassroomId" class="form-select">
+                        <option value="">ทุกห้อง</option>
+                        @foreach (var classroom in Model.ClassroomOptions)
+                        {
+                            <option value="@classroom.Value" data-grade="@classroom.GradeLevelId" selected="@(Model.Filter.ClassroomId == classroom.Value)">@classroom.Text</option>
+                        }
+                    </select>
+                </div>
+            }
+            <div class="col-lg-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-fill"><i class="bi bi-search me-1"></i>ค้นหา</button>
+                <a asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
+            </div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>รหัส</th>
+                        <th>ชื่อ-สกุล</th>
+                        <th>ห้อง</th>
+                        <th>คะแนนพฤติกรรม</th>
+                        <th>ธนาคารความดี</th>
+                        <th>ระดับความเสี่ยง</th>
+                        <th>อาศัยอยู่กับ</th>
+                        <th>พิกัดบ้าน</th>
+                        <th>เยี่ยมบ้านล่าสุด</th>
+                        <th>จัดการ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Students.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="10" class="text-center text-muted py-4">ยังไม่มีนักเรียนในขอบเขตที่รับผิดชอบ</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var student in Model.Students)
+                        {
+                            <tr>
+                                <td class="fw-semibold">@student.StudentCode</td>
+                                <td>@student.FullName</td>
+                                <td>@student.Classroom</td>
+                                <td class="fw-semibold">@student.BehaviorScore</td>
+                                <td class="fw-semibold">@student.GoodnessPoint</td>
+                                <td><span class="badge @RiskClass(student.RiskLevel)">@RiskLabel(student.RiskLevel)</span></td>
+                                <td>@(string.IsNullOrWhiteSpace(student.LivesWith) ? "-" : student.LivesWith)</td>
+                                <td>
+                                    @if (student.HasHomeLocation)
+                                    {
+                                        <div class="small text-muted mb-1">@student.HomeLatitude?.ToString("0.000000"), @student.HomeLongitude?.ToString("0.000000")</div>
+                                        @if (student.HomeLocationSharedAt.HasValue)
+                                        {
+                                            <div class="small text-muted mb-1">อัปเดต @student.HomeLocationSharedAt.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</div>
+                                        }
+                                        <span class="badge text-bg-success">มีพิกัด</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge text-bg-secondary">ยังไม่มี</span>
+                                    }
+                                </td>
+                                <td>@(student.LastHomeVisitAt.HasValue ? student.LastHomeVisitAt.Value.ToThaiDate("dd MMM yyyy") : "-")</td>
+                                <td>
+                                    <div class="d-flex flex-wrap gap-1">
+                                    @if (student.HasHomeLocation)
+                                    {
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-success"
+                                                data-location-map
+                                                data-student-name="@student.FullName"
+                                                data-lat="@student.HomeLatitude?.ToString("0.000000", System.Globalization.CultureInfo.InvariantCulture)"
+                                                data-lng="@student.HomeLongitude?.ToString("0.000000", System.Globalization.CultureInfo.InvariantCulture)">
+                                            <i class="bi bi-map me-1"></i>แผนที่
+                                        </button>
+                                        <button type="button"
+                                                class="btn btn-sm btn-outline-primary"
+                                                data-location-route
+                                                data-lat="@student.HomeLatitude?.ToString("0.000000", System.Globalization.CultureInfo.InvariantCulture)"
+                                                data-lng="@student.HomeLongitude?.ToString("0.000000", System.Globalization.CultureInfo.InvariantCulture)">
+                                            <i class="bi bi-signpost-2 me-1"></i>นำทาง
+                                        </button>
+                                    }
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-dark"
+                                            data-location-edit
+                                            data-student-id="@student.StudentId"
+                                            data-student-name="@student.FullName"
+                                            data-lat="@student.HomeLatitude?.ToString("0.000000", System.Globalization.CultureInfo.InvariantCulture)"
+                                            data-lng="@student.HomeLongitude?.ToString("0.000000", System.Globalization.CultureInfo.InvariantCulture)">
+                                        <i class="bi bi-geo-alt me-1"></i>พิกัด
+                                    </button>
+                                    @if (student.HasHomeLocation)
+                                    {
+                                        <form asp-action="DeleteHomeLocation" method="post" class="d-inline" data-location-delete>
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="studentId" value="@student.StudentId" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="bi bi-trash me-1"></i>ลบ
+                                            </button>
+                                        </form>
+                                    }
+                                    @if (Model.IsHomeVisitEnabled)
+                                    {
+                                        <a asp-action="HomeVisit" asp-route-studentId="@student.StudentId" class="btn btn-sm btn-outline-primary">เยี่ยมบ้าน</a>
+                                    }
+                                    <a asp-action="Detail" asp-route-studentId="@student.StudentId" class="btn btn-sm btn-outline-secondary">แฟ้ม</a>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<div class="modal fade" id="studentLocationMapModal" tabindex="-1" aria-labelledby="studentLocationMapTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <div class="teacher-section-kicker">Google Maps</div>
+                    <h2 class="modal-title fs-5" id="studentLocationMapTitle">พิกัดบ้านนักเรียน</h2>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="ratio ratio-16x9 rounded border overflow-hidden mb-3">
+                    <iframe id="studentLocationMapFrame" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
+                </div>
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <div class="small text-muted" id="studentLocationMapCoordinates">-</div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-outline-primary" id="studentLocationRouteButton">
+                            <i class="bi bi-signpost-2 me-1"></i>เลือกต้นทางและนำทาง
+                        </button>
+                        <a class="btn btn-outline-secondary" id="studentLocationExternalLink" href="#" target="_blank" rel="noopener">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>เปิดใน Google Maps
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="studentLocationEditModal" tabindex="-1" aria-labelledby="studentLocationEditTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form asp-action="SaveHomeLocation" method="post" class="modal-content">
+            @Html.AntiForgeryToken()
+            <div class="modal-header">
+                <div>
+                    <div class="teacher-section-kicker">GPS Location</div>
+                    <h2 class="modal-title fs-5" id="studentLocationEditTitle">เพิ่ม/แก้ไขพิกัดบ้านนักเรียน</h2>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="StudentId" id="locationStudentId" />
+                <div class="alert alert-light border py-2" id="locationStudentName">-</div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="locationLatitude">ละติจูด</label>
+                        <input class="form-control" id="locationLatitude" name="Latitude" inputmode="decimal" required />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="locationLongitude">ลองจิจูด</label>
+                        <input class="form-control" id="locationLongitude" name="Longitude" inputmode="decimal" required />
+                    </div>
+                </div>
+                <div class="d-flex flex-wrap gap-2 mt-3">
+                    <button type="button" class="btn btn-outline-primary" id="locationUseCurrentButton">
+                        <i class="bi bi-crosshair me-1"></i>ใช้พิกัดปัจจุบัน
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" id="locationPreviewButton">
+                        <i class="bi bi-map me-1"></i>ตรวจสอบบนแผนที่
+                    </button>
+                </div>
+                <div class="small text-muted mt-2" id="locationEditStatus">กรอกพิกัด หรือดึงพิกัดจากอุปกรณ์ที่อยู่บริเวณบ้านนักเรียน</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                <button type="submit" class="btn btn-primary">บันทึกพิกัด</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (() => {
+            const normalize = (value) => (value || '').toString().trim().toLowerCase();
+
+            document.querySelectorAll('[data-student-picker]').forEach((picker) => {
+                const gradeInput = picker.querySelector('[data-picker-grade]');
+                const classroomInput = picker.querySelector('[data-picker-classroom]');
+                const searchInput = picker.querySelector('[data-picker-search]');
+                const studentSelect = picker.querySelector('[data-picker-select]');
+                const countLabel = picker.querySelector('[data-picker-count]');
+                const photoSelect = picker.querySelector('[data-photo-select]');
+                const photoToggle = picker.querySelector('[data-photo-select-toggle]');
+                const photoMenu = picker.querySelector('[data-photo-select-menu]');
+                const photoAvatar = picker.querySelector('[data-photo-select-avatar]');
+                const photoText = picker.querySelector('[data-photo-select-text]');
+                const options = Array.from(studentSelect?.querySelectorAll('option[data-search]') || []);
+                const classroomOptions = Array.from(classroomInput?.querySelectorAll('option[data-grade]') || []);
+
+                const photoUrl = (path) => {
+                    if (!path) {
+                        return '';
+                    }
+
+                    return path.startsWith('/') ? path : `/${path}`;
+                };
+
+                const createAvatarContent = (path, label) => {
+                    const src = photoUrl(path);
+                    if (src) {
+                        const image = document.createElement('img');
+                        image.src = src;
+                        image.alt = label || 'student';
+                        image.loading = 'lazy';
+                        return image;
+                    }
+
+                    const icon = document.createElement('i');
+                    icon.className = 'bi bi-person';
+                    return icon;
+                };
+
+                const createAvatar = (path, label) => {
+                    const avatar = document.createElement('span');
+                    avatar.className = 'student-photo-select-avatar';
+                    avatar.appendChild(createAvatarContent(path, label));
+                    return avatar;
+                };
+
+                const setSelectedPreview = () => {
+                    const selected = studentSelect?.selectedOptions[0];
+                    const hasStudent = !!selected?.value;
+                    const label = hasStudent ? (selected.dataset.label || selected.textContent || '') : '-- เลือกนักเรียน --';
+
+                    if (photoText) {
+                        photoText.textContent = label;
+                    }
+
+                    if (photoAvatar) {
+                        photoAvatar.replaceChildren(createAvatarContent(hasStudent ? selected.dataset.photo : '', label));
+                    }
+                };
+
+                const closePhotoMenu = () => {
+                    photoSelect?.classList.remove('is-open');
+                    photoToggle?.setAttribute('aria-expanded', 'false');
+                };
+
+                const renderPhotoOptions = () => {
+                    if (!photoMenu) {
+                        return;
+                    }
+
+                    photoMenu.innerHTML = '';
+
+                    const emptyButton = document.createElement('button');
+                    emptyButton.type = 'button';
+                    emptyButton.className = 'student-photo-select-option';
+                    emptyButton.dataset.value = '';
+                    emptyButton.setAttribute('role', 'option');
+                    const emptyText = document.createElement('span');
+                    emptyText.className = 'student-photo-select-option-text';
+                    emptyText.textContent = '-- เลือกนักเรียน --';
+                    emptyButton.append(createAvatar('', ''), emptyText);
+                    photoMenu.appendChild(emptyButton);
+
+                    options
+                        .filter((option) => !option.disabled && !option.hidden)
+                        .forEach((option) => {
+                            const label = option.dataset.label || option.textContent || '';
+                            const button = document.createElement('button');
+                            button.type = 'button';
+                            button.className = 'student-photo-select-option';
+                            button.dataset.value = option.value;
+                            button.setAttribute('role', 'option');
+                            button.setAttribute('aria-selected', String(option.selected));
+                            const optionText = document.createElement('span');
+                            optionText.className = 'student-photo-select-option-text';
+                            optionText.textContent = label;
+                            button.append(createAvatar(option.dataset.photo, label), optionText);
+                            photoMenu.appendChild(button);
+                        });
+                };
+
+                const syncClassrooms = () => {
+                    const grade = gradeInput?.value || '';
+                    let selectedClassroomVisible = !classroomInput?.value;
+
+                    classroomOptions.forEach((option) => {
+                        const visible = !grade || option.dataset.grade === grade;
+                        option.hidden = !visible;
+                        option.disabled = !visible;
+                        if (visible && option.value === classroomInput?.value) {
+                            selectedClassroomVisible = true;
+                        }
+                    });
+
+                    if (classroomInput && !selectedClassroomVisible) {
+                        classroomInput.value = '';
+                    }
+                };
+
+                const applyFilter = () => {
+                    syncClassrooms();
+                    const grade = gradeInput?.value || '';
+                    const classroom = classroomInput?.value || '';
+                    const keyword = normalize(searchInput?.value);
+                    let visibleCount = 0;
+
+                    options.forEach((option) => {
+                        const matchedGrade = !grade || option.dataset.grade === grade;
+                        const matchedClassroom = !classroom || option.dataset.classroom === classroom;
+                        const matchedKeyword = !keyword || normalize(option.dataset.search).includes(keyword);
+                        const visible = matchedGrade && matchedClassroom && matchedKeyword;
+                        option.hidden = !visible;
+                        option.disabled = !visible;
+                        if (visible) visibleCount++;
+                    });
+
+                    if (studentSelect?.selectedOptions[0]?.disabled) {
+                        studentSelect.value = '';
+                    }
+
+                    renderPhotoOptions();
+                    setSelectedPreview();
+
+                    if (countLabel) {
+                        countLabel.textContent = visibleCount > 0
+                            ? `พบรายชื่อนักเรียน ${visibleCount} คน`
+                            : 'ไม่พบนักเรียนตามเงื่อนไข';
+                    }
+                };
+
+                gradeInput?.addEventListener('change', applyFilter);
+                classroomInput?.addEventListener('change', applyFilter);
+                searchInput?.addEventListener('input', applyFilter);
+                studentSelect?.addEventListener('change', setSelectedPreview);
+                photoToggle?.addEventListener('click', () => {
+                    const willOpen = !photoSelect?.classList.contains('is-open');
+                    document.querySelectorAll('[data-photo-select].is-open').forEach((openSelect) => {
+                        openSelect.classList.remove('is-open');
+                        openSelect.querySelector('[data-photo-select-toggle]')?.setAttribute('aria-expanded', 'false');
+                    });
+
+                    if (willOpen) {
+                        renderPhotoOptions();
+                        photoSelect?.classList.add('is-open');
+                        photoToggle.setAttribute('aria-expanded', 'true');
+                    }
+                });
+                photoMenu?.addEventListener('click', (event) => {
+                    const target = event.target;
+                    if (!(target instanceof HTMLElement)) {
+                        return;
+                    }
+
+                    const optionButton = target.closest('[data-value]');
+                    if (!(optionButton instanceof HTMLElement) || !studentSelect) {
+                        return;
+                    }
+
+                    studentSelect.value = optionButton.dataset.value || '';
+                    studentSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                    renderPhotoOptions();
+                    closePhotoMenu();
+                });
+                applyFilter();
+            });
+
+            document.addEventListener('click', (event) => {
+                const target = event.target;
+                if (!(target instanceof Node)) {
+                    return;
+                }
+
+                document.querySelectorAll('[data-photo-select].is-open').forEach((photoSelect) => {
+                    if (!photoSelect.contains(target)) {
+                        photoSelect.classList.remove('is-open');
+                        photoSelect.querySelector('[data-photo-select-toggle]')?.setAttribute('aria-expanded', 'false');
+                    }
+                });
+            });
+
+            const mapModalElement = document.getElementById('studentLocationMapModal');
+            const editModalElement = document.getElementById('studentLocationEditModal');
+            const mapModal = mapModalElement ? new bootstrap.Modal(mapModalElement) : null;
+            const editModal = editModalElement ? new bootstrap.Modal(editModalElement) : null;
+            const mapTitle = document.getElementById('studentLocationMapTitle');
+            const mapFrame = document.getElementById('studentLocationMapFrame');
+            const mapCoordinates = document.getElementById('studentLocationMapCoordinates');
+            const mapExternalLink = document.getElementById('studentLocationExternalLink');
+            const routeButton = document.getElementById('studentLocationRouteButton');
+            const editStudentId = document.getElementById('locationStudentId');
+            const editStudentName = document.getElementById('locationStudentName');
+            const editLatitude = document.getElementById('locationLatitude');
+            const editLongitude = document.getElementById('locationLongitude');
+            const useCurrentButton = document.getElementById('locationUseCurrentButton');
+            const previewButton = document.getElementById('locationPreviewButton');
+            const editStatus = document.getElementById('locationEditStatus');
+            let activeDestination = null;
+
+            const parseNumber = (value) => {
+                const number = Number((value || '').toString().replace(',', '.'));
+                return Number.isFinite(number) ? number : null;
+            };
+
+            const openRoute = (lat, lng) => {
+                const destination = `${lat},${lng}`;
+                const openWithOrigin = (origin) => {
+                    const originPart = origin ? `&origin=${encodeURIComponent(origin)}` : '';
+                    window.open(`https://www.google.com/maps/dir/?api=1${originPart}&destination=${destination}&travelmode=driving`, '_blank', 'noopener');
+                };
+
+                if (!navigator.geolocation) {
+                    openWithOrigin('');
+                    return;
+                }
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => openWithOrigin(`${position.coords.latitude},${position.coords.longitude}`),
+                    () => openWithOrigin(''),
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+            };
+
+            const showMap = (name, lat, lng) => {
+                activeDestination = { lat, lng };
+                const query = `${lat},${lng}`;
+                if (mapTitle) mapTitle.textContent = name ? `พิกัดบ้าน ${name}` : 'พิกัดบ้านนักเรียน';
+                if (mapCoordinates) mapCoordinates.textContent = `GPS: ${query}`;
+                if (mapFrame) mapFrame.src = `https://maps.google.com/maps?q=${query}&z=17&output=embed`;
+                if (mapExternalLink) mapExternalLink.href = `https://www.google.com/maps?q=${query}`;
+                mapModal?.show();
+            };
+
+            document.querySelectorAll('[data-location-map]').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const lat = parseNumber(button.dataset.lat);
+                    const lng = parseNumber(button.dataset.lng);
+                    if (lat === null || lng === null) return;
+                    showMap(button.dataset.studentName || '', lat, lng);
+                });
+            });
+
+            document.querySelectorAll('[data-location-route]').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const lat = parseNumber(button.dataset.lat);
+                    const lng = parseNumber(button.dataset.lng);
+                    if (lat === null || lng === null) return;
+                    openRoute(lat, lng);
+                });
+            });
+
+            routeButton?.addEventListener('click', () => {
+                if (!activeDestination) return;
+                openRoute(activeDestination.lat, activeDestination.lng);
+            });
+
+            document.querySelectorAll('[data-location-edit]').forEach((button) => {
+                button.addEventListener('click', () => {
+                    if (editStudentId) editStudentId.value = button.dataset.studentId || '';
+                    if (editStudentName) editStudentName.textContent = button.dataset.studentName || '-';
+                    if (editLatitude) editLatitude.value = button.dataset.lat || '';
+                    if (editLongitude) editLongitude.value = button.dataset.lng || '';
+                    if (editStatus) editStatus.textContent = 'กรอกพิกัด หรือดึงพิกัดจากอุปกรณ์ที่อยู่บริเวณบ้านนักเรียน';
+                    editModal?.show();
+                });
+            });
+
+            previewButton?.addEventListener('click', () => {
+                const lat = parseNumber(editLatitude?.value);
+                const lng = parseNumber(editLongitude?.value);
+                if (lat === null || lng === null) {
+                    if (editStatus) editStatus.textContent = 'กรุณากรอกละติจูดและลองจิจูดให้ถูกต้องก่อนตรวจสอบ';
+                    return;
+                }
+
+                showMap(editStudentName?.textContent || '', lat, lng);
+            });
+
+            useCurrentButton?.addEventListener('click', () => {
+                if (!navigator.geolocation) {
+                    if (editStatus) editStatus.textContent = 'อุปกรณ์นี้ไม่รองรับการดึงพิกัด GPS';
+                    return;
+                }
+
+                useCurrentButton.disabled = true;
+                if (editStatus) editStatus.textContent = 'กำลังดึงพิกัดจากอุปกรณ์...';
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        if (editLatitude) editLatitude.value = position.coords.latitude.toFixed(6);
+                        if (editLongitude) editLongitude.value = position.coords.longitude.toFixed(6);
+                        if (editStatus) editStatus.textContent = `ดึงพิกัดสำเร็จ ความคลาดเคลื่อนประมาณ ${Math.round(position.coords.accuracy)} เมตร`;
+                        useCurrentButton.disabled = false;
+                    },
+                    () => {
+                        if (editStatus) editStatus.textContent = 'ดึงพิกัดไม่สำเร็จ กรุณาอนุญาตตำแหน่งหรือกรอกเอง';
+                        useCurrentButton.disabled = false;
+                    },
+                    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+            });
+
+            document.querySelectorAll('[data-location-delete]').forEach((form) => {
+                form.addEventListener('submit', (event) => {
+                    if (!confirm('ยืนยันลบพิกัดบ้านนักเรียนคนนี้?')) {
+                        event.preventDefault();
+                    }
+                });
+            });
+
+            document.querySelectorAll('[data-score-category]').forEach((select) => {
+                const form = select.closest('form');
+                const scoreInput = form?.querySelector('[data-score-value]');
+                const descriptionInput = form?.querySelector('textarea[name="Description"]');
+
+                const applyCategory = () => {
+                    const selected = select.selectedOptions[0];
+                    if (scoreInput) {
+                        scoreInput.value = selected?.dataset.point || '';
+                    }
+                    if (descriptionInput && !descriptionInput.value.trim() && selected?.dataset.description) {
+                        descriptionInput.value = selected.dataset.description;
+                    }
+                };
+
+                select.addEventListener('change', applyCategory);
+                applyCategory();
+            });
+        })();
+    </script>
+}

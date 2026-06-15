@@ -20,6 +20,7 @@ public class StudentConfiguration : IEntityTypeConfiguration<Student>
         builder.Property(x => x.RoomNumber).HasMaxLength(20);
         builder.Property(x => x.StudentNo).HasMaxLength(20);
         builder.Property(x => x.GuardianName).HasMaxLength(200);
+        builder.Property(x => x.GuardianNationalId).HasMaxLength(20);
         builder.Property(x => x.GuardianPhone).HasMaxLength(20);
         builder.Property(x => x.Address).HasMaxLength(500);
         builder.Property(x => x.Notes).HasMaxLength(1000);
@@ -42,6 +43,7 @@ public class StudentConfiguration : IEntityTypeConfiguration<Student>
         builder.HasIndex(x => x.StudentCode).IsUnique();
         builder.HasIndex(x => x.ClassroomId);
         builder.HasIndex(x => x.NationalId);
+        builder.HasIndex(x => x.GuardianNationalId);
         builder.HasIndex(x => new { x.AcademicYearId, x.GradeLevelId, x.ClassroomId });
     }
 }

@@ -14,6 +14,7 @@ public class StudentImportRowPreviewViewModel
     public string Classroom { get; set; } = string.Empty;
     public string StudentNo { get; set; } = string.Empty;
     public string GuardianName { get; set; } = string.Empty;
+    public string GuardianNationalId { get; set; } = string.Empty;
     public string GuardianPhone { get; set; } = string.Empty;
     public string NationalId { get; set; } = string.Empty;
     public string Address { get; set; } = string.Empty;

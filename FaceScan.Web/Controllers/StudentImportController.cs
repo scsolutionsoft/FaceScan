@@ -23,10 +23,14 @@ public class StudentImportController : Controller
     }
 
     [HttpGet]
-    public IActionResult DownloadTemplate()
+    public IActionResult DownloadTemplate(ImportDataType importType = ImportDataType.Students)
     {
-        var bytes = _studentImportService.GenerateTemplateCsv();
-        return File(bytes, "text/csv", "students_template.csv");
+        var bytes = _studentImportService.GenerateTemplateWorkbook(importType);
+        var fileName = importType == ImportDataType.Teachers
+            ? "teachers_template.xlsx"
+            : "students_template.xlsx";
+
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
     }
 
     [HttpPost]
@@ -35,13 +39,13 @@ public class StudentImportController : Controller
     {
         if (!ModelState.IsValid || model.File is null)
         {
-            TempData["Error"] = "กรุณาเลือกไฟล์ซีเอสวี";
+            TempData["Error"] = "กรุณาเลือกไฟล์ Excel";
             return RedirectToAction(nameof(Index));
         }
 
         try
         {
-            var preview = await _studentImportService.PreviewAsync(model.File, cancellationToken);
+            var preview = await _studentImportService.PreviewAsync(model.ImportType, model.File, cancellationToken);
             return View("Index", preview);
         }
         catch (Exception ex)
@@ -59,7 +63,7 @@ public class StudentImportController : Controller
         var ip = HttpContextHelper.GetIpAddress(HttpContext);
 
         var result = await _studentImportService.ImportAsync(previewToken, userId, ip, cancellationToken);
-        if (result.BatchId <= 0)
+        if (result.TotalRows <= 0 && result.Errors.Count > 0)
         {
             TempData["Error"] = string.Join("; ", result.Errors);
             return RedirectToAction(nameof(Index));

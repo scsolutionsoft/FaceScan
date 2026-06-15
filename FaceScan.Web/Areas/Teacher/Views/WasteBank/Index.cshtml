@@ -1,0 +1,201 @@
+@model WasteBankDashboardViewModel
+@{
+    ViewData["Title"] = "ธนาคารขยะ";
+}
+
+<div class="teacher-shell">
+    <section class="teacher-hero teacher-hero-teal mb-3">
+        <div class="teacher-hero-body">
+            <div class="teacher-hero-copy">
+                <div class="teacher-kicker">Waste Bank</div>
+                <h1 class="teacher-hero-title">ธนาคารขยะ</h1>
+                <p class="teacher-hero-text">
+                    จัดการราคารับซื้อ บันทึกฝากขยะ และตรวจสอบยอดสะสมของนักเรียน แยกจากงานดูแลช่วยเหลือนักเรียน
+                </p>
+            </div>
+            <div class="teacher-hero-stack">
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">น้ำหนักรวม</span>
+                    <strong>@Model.TotalWeightKg.ToString("N3") กก.</strong>
+                </div>
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">ยอดเงินรวม</span>
+                    <strong>@Model.TotalAmount.ToString("N2") บาท</strong>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="teacher-section-card mb-3">
+        <div class="teacher-section-head">
+            <div>
+                <div class="teacher-section-kicker">Student Filter</div>
+                <h2 class="teacher-section-title">ค้นหานักเรียน</h2>
+            </div>
+        </div>
+        <form method="get" asp-action="Index" class="row g-2 align-items-end">
+            <div class="col-lg-4">
+                <label class="form-label">ชื่อ / นามสกุล / รหัสนักเรียน</label>
+                <input name="Keyword" value="@Model.Filter.Keyword" class="form-control" placeholder="ค้นหานักเรียน" />
+            </div>
+            <div class="col-lg-3">
+                <label class="form-label">ระดับชั้น</label>
+                <select name="GradeLevelId" class="form-select">
+                    <option value="">ทุกระดับชั้น</option>
+                    @foreach (var grade in Model.GradeLevelOptions)
+                    {
+                        <option value="@grade.Value" selected="@(Model.Filter.GradeLevelId == grade.Value)">@grade.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-lg-3">
+                <label class="form-label">ห้อง</label>
+                <select name="ClassroomId" class="form-select">
+                    <option value="">ทุกห้อง</option>
+                    @foreach (var classroom in Model.ClassroomOptions)
+                    {
+                        <option value="@classroom.Value" selected="@(Model.Filter.ClassroomId == classroom.Value)">@classroom.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-lg-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-fill"><i class="bi bi-search me-1"></i>ค้นหา</button>
+                <a asp-action="Index" class="btn btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
+            </div>
+        </form>
+    </section>
+
+    <div class="row g-3">
+        <div class="col-lg-5">
+            <section class="teacher-section-card h-100">
+                <div class="teacher-section-head">
+                    <div>
+                        <div class="teacher-section-kicker">Rates</div>
+                        <h2 class="teacher-section-title">ตั้งราคารับซื้อ</h2>
+                    </div>
+                </div>
+                <form asp-action="SaveRate" method="post" class="row g-2">
+                    @Html.AntiForgeryToken()
+                    <div class="col-md-7">
+                        <label asp-for="WasteRateInput.WasteType" class="form-label">ชนิดขยะ</label>
+                        <input asp-for="WasteRateInput.WasteType" name="WasteType" class="form-control" placeholder="เช่น ขวดพลาสติกใส" />
+                    </div>
+                    <div class="col-md-5">
+                        <label asp-for="WasteRateInput.PricePerKg" class="form-label">บาท/กก.</label>
+                        <input asp-for="WasteRateInput.PricePerKg" name="PricePerKg" type="number" step="0.01" min="0.01" class="form-control" />
+                    </div>
+                    <div class="col-12 d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>บันทึกราคา</button>
+                    </div>
+                </form>
+
+                <hr />
+                <div class="fw-semibold mb-2">ราคาปัจจุบัน</div>
+                @if (Model.ActiveWasteRates.Count == 0)
+                {
+                    <div class="text-muted small">ยังไม่ได้ตั้งราคารับซื้อ</div>
+                }
+                else
+                {
+                    <div class="d-flex flex-column gap-2">
+                        @foreach (var rate in Model.ActiveWasteRates)
+                        {
+                            <div class="d-flex justify-content-between border rounded-3 px-3 py-2">
+                                <span>@rate.WasteType</span>
+                                <strong>@rate.PricePerKg.ToString("N2") บาท/กก.</strong>
+                            </div>
+                        }
+                    </div>
+                }
+            </section>
+        </div>
+
+        <div class="col-lg-7">
+            <section class="teacher-section-card h-100">
+                <div class="teacher-section-head">
+                    <div>
+                        <div class="teacher-section-kicker">Deposit</div>
+                        <h2 class="teacher-section-title">บันทึกฝากขยะ</h2>
+                    </div>
+                </div>
+                <form asp-action="RecordTransaction" method="post" class="row g-2">
+                    @Html.AntiForgeryToken()
+                    <div class="col-md-6">
+                        <label asp-for="WasteTransactionInput.StudentId" class="form-label">นักเรียน</label>
+                        <select asp-for="WasteTransactionInput.StudentId" name="StudentId" class="form-select">
+                            <option value="">-- เลือกนักเรียน --</option>
+                            @foreach (var student in Model.StudentOptions)
+                            {
+                                <option value="@student.Value">@student.Text</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label asp-for="WasteTransactionInput.WasteType" class="form-label">ชนิดขยะ</label>
+                        <select asp-for="WasteTransactionInput.WasteType" name="WasteType" class="form-select">
+                            <option value="">-- เลือกชนิดขยะ --</option>
+                            @foreach (var rate in Model.ActiveWasteRates)
+                            {
+                                <option value="@rate.WasteType">@rate.WasteType (@rate.PricePerKg.ToString("N2") บาท/กก.)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="WasteTransactionInput.WeightKg" class="form-label">น้ำหนัก กก.</label>
+                        <input asp-for="WasteTransactionInput.WeightKg" name="WeightKg" type="number" step="0.001" min="0.001" class="form-control" />
+                    </div>
+                    <div class="col-md-8">
+                        <label asp-for="WasteTransactionInput.Note" class="form-label">หมายเหตุ</label>
+                        <input asp-for="WasteTransactionInput.Note" name="Note" class="form-control" />
+                    </div>
+                    <div class="col-12 d-flex justify-content-end">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-recycle me-1"></i>บันทึกฝากขยะ</button>
+                    </div>
+                </form>
+            </section>
+        </div>
+    </div>
+
+    <section class="teacher-section-card mt-3">
+        <div class="teacher-section-head">
+            <div>
+                <div class="teacher-section-kicker">Student Balances</div>
+                <h2 class="teacher-section-title">ยอดสะสมนักเรียน</h2>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>รหัส</th>
+                        <th>ชื่อ-สกุล</th>
+                        <th>ห้อง</th>
+                        <th>น้ำหนักรวม</th>
+                        <th>ยอดเงิน</th>
+                        <th>รายการ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Students.Count == 0)
+                    {
+                        <tr><td colspan="6" class="text-center text-muted py-4">ไม่พบนักเรียนตามเงื่อนไข</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var student in Model.Students)
+                        {
+                            <tr>
+                                <td class="fw-semibold">@student.StudentCode</td>
+                                <td>@student.FullName</td>
+                                <td>@student.Classroom</td>
+                                <td>@student.TotalWeightKg.ToString("N3") กก.</td>
+                                <td><span class="badge text-bg-success">@student.TotalAmount.ToString("N2") บาท</span></td>
+                                <td>@student.TransactionCount</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>

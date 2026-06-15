@@ -26,6 +26,8 @@ public class TeacherFaceEnrollmentPhotoViewModel
 {
     public int PhotoId { get; set; }
     public string FilePath { get; set; } = string.Empty;
+    public string ContentType { get; set; } = string.Empty;
+    public long? FileSizeBytes { get; set; }
     public bool IsPrimary { get; set; }
     public DateTime CapturedAt { get; set; }
 }

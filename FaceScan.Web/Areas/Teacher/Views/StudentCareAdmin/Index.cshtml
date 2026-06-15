@@ -1,0 +1,263 @@
+@model StudentCareAdminIndexViewModel
+@{
+    ViewData["Title"] = "แอดมินงานระบบดูแล";
+}
+
+<div class="teacher-shell">
+    <section class="teacher-hero teacher-hero-teal mb-3">
+        <div class="teacher-hero-body">
+            <div class="teacher-hero-copy">
+                <div class="teacher-kicker">Student Care Admin</div>
+                <h1 class="teacher-hero-title">แอดมินงานระบบดูแล</h1>
+                <p class="teacher-hero-text">จัดการข้อมูลตั้งต้นของระบบดูแลนักเรียน แยกจากแอดมินระบบหลัก</p>
+            </div>
+            <div class="teacher-hero-stack">
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">ประเภทพฤติกรรม</span>
+                    <strong>@Model.BehaviorCategories.Count รายการ</strong>
+                </div>
+                <div class="teacher-hero-chip">
+                    <span class="teacher-chip-label">ประเภทความดี</span>
+                    <strong>@Model.GoodnessCategories.Count รายการ</strong>
+                </div>
+                <a class="btn btn-light" asp-action="HomeroomTeachers">
+                    <i class="bi bi-person-workspace me-1"></i> ครูโฮมรูม
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <div class="row g-3">
+        <div class="col-xl-6">
+            <section class="teacher-section-card h-100">
+                <div class="teacher-section-head">
+                    <div>
+                        <div class="teacher-section-kicker">Behavior Score</div>
+                        <h2 class="teacher-section-title">ประเภทคะแนนพฤติกรรม</h2>
+                    </div>
+                </div>
+
+                <form asp-action="SaveBehaviorCategory" method="post" class="student-care-admin-form row g-2 mb-3" data-behavior-form>
+                    @Html.AntiForgeryToken()
+                    <input asp-for="BehaviorInput.Id" type="hidden" name="Id" data-input-id />
+                    <div class="col-md-6">
+                        <label asp-for="BehaviorInput.Name" class="form-label">ประเภท</label>
+                        <input asp-for="BehaviorInput.Name" name="Name" class="form-control" data-input-name />
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="BehaviorInput.ScoreChange" class="form-label">คะแนน</label>
+                        <input asp-for="BehaviorInput.ScoreChange" name="ScoreChange" type="number" class="form-control" data-input-point />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label d-block">สถานะ</label>
+                        <input asp-for="BehaviorInput.IsActive" name="IsActive" class="form-check-input" data-input-active />
+                        <label asp-for="BehaviorInput.IsActive" class="form-check-label">ใช้งาน</label>
+                    </div>
+                    <div class="col-12">
+                        <label asp-for="BehaviorInput.Description" class="form-label">รายละเอียด</label>
+                        <input asp-for="BehaviorInput.Description" name="Description" class="form-control" data-input-description />
+                    </div>
+                    <div class="col-12 d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary" data-reset-form>ล้างฟอร์ม</button>
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>บันทึกประเภท</button>
+                    </div>
+                </form>
+
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>ลำดับ</th>
+                                <th>ประเภท</th>
+                                <th>คะแนน</th>
+                                <th>สถานะ</th>
+                                <th class="text-end">จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.BehaviorCategories.Count == 0)
+                            {
+                                <tr><td colspan="5" class="text-center text-muted py-4">ยังไม่มีประเภทคะแนนพฤติกรรม</td></tr>
+                            }
+                            else
+                            {
+                                var behaviorIndex = 0;
+                                @foreach (var item in Model.BehaviorCategories)
+                                {
+                                    behaviorIndex++;
+                                    <tr>
+                                        <td class="text-muted fw-semibold">@behaviorIndex</td>
+                                        <td>
+                                            <div class="fw-semibold">@item.Name</div>
+                                            <div class="small text-muted">@item.Description</div>
+                                        </td>
+                                        <td>
+                                            <span class="badge @(item.ScoreChange < 0 ? "bg-danger" : "bg-success") text-white">
+                                                @(item.ScoreChange > 0 ? $"+{item.ScoreChange}" : item.ScoreChange)
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge @(item.IsActive ? "bg-success" : "bg-secondary") text-white">
+                                                @(item.IsActive ? "ใช้งาน" : "ปิดใช้งาน")
+                                            </span>
+                                        </td>
+                                        <td class="text-end">
+                                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                                    data-edit-behavior
+                                                    data-id="@item.Id"
+                                                    data-name="@item.Name"
+                                                    data-point="@item.ScoreChange"
+                                                    data-description="@item.Description"
+                                                    data-active="@item.IsActive.ToString().ToLowerInvariant()">
+                                                แก้ไข
+                                            </button>
+                                            <form asp-action="DeleteBehaviorCategory" method="post" class="d-inline" onsubmit="return confirm('ยืนยันลบประเภทคะแนนพฤติกรรมนี้?');">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@item.Id" />
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">ลบ</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <div class="col-xl-6">
+            <section class="teacher-section-card h-100">
+                <div class="teacher-section-head">
+                    <div>
+                        <div class="teacher-section-kicker">Goodness Bank</div>
+                        <h2 class="teacher-section-title">ประเภทธนาคารความดี</h2>
+                    </div>
+                </div>
+
+                <form asp-action="SaveGoodnessCategory" method="post" class="student-care-admin-form row g-2 mb-3" data-goodness-form>
+                    @Html.AntiForgeryToken()
+                    <input asp-for="GoodnessInput.Id" type="hidden" name="Id" data-input-id />
+                    <div class="col-md-6">
+                        <label asp-for="GoodnessInput.Name" class="form-label">ประเภทความดี</label>
+                        <input asp-for="GoodnessInput.Name" name="Name" class="form-control" data-input-name />
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="GoodnessInput.Point" class="form-label">คะแนน</label>
+                        <input asp-for="GoodnessInput.Point" name="Point" type="number" min="1" class="form-control" data-input-point />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label d-block">สถานะ</label>
+                        <input asp-for="GoodnessInput.IsActive" name="IsActive" class="form-check-input" data-input-active />
+                        <label asp-for="GoodnessInput.IsActive" class="form-check-label">ใช้งาน</label>
+                    </div>
+                    <div class="col-12">
+                        <label asp-for="GoodnessInput.Description" class="form-label">รายละเอียด</label>
+                        <input asp-for="GoodnessInput.Description" name="Description" class="form-control" data-input-description />
+                    </div>
+                    <div class="col-12 d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-outline-secondary" data-reset-form>ล้างฟอร์ม</button>
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-check2-circle me-1"></i>บันทึกประเภท</button>
+                    </div>
+                </form>
+
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>ลำดับ</th>
+                                <th>ประเภท</th>
+                                <th>คะแนน</th>
+                                <th>สถานะ</th>
+                                <th class="text-end">จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.GoodnessCategories.Count == 0)
+                            {
+                                <tr><td colspan="5" class="text-center text-muted py-4">ยังไม่มีประเภทธนาคารความดี</td></tr>
+                            }
+                            else
+                            {
+                                var goodnessIndex = 0;
+                                @foreach (var item in Model.GoodnessCategories)
+                                {
+                                    goodnessIndex++;
+                                    <tr>
+                                        <td class="text-muted fw-semibold">@goodnessIndex</td>
+                                        <td>
+                                            <div class="fw-semibold">@item.Name</div>
+                                            <div class="small text-muted">@item.Description</div>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-success text-white">+@item.Point</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge @(item.IsActive ? "bg-success" : "bg-secondary") text-white">
+                                                @(item.IsActive ? "ใช้งาน" : "ปิดใช้งาน")
+                                            </span>
+                                        </td>
+                                        <td class="text-end">
+                                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                                    data-edit-goodness
+                                                    data-id="@item.Id"
+                                                    data-name="@item.Name"
+                                                    data-point="@item.Point"
+                                                    data-description="@item.Description"
+                                                    data-active="@item.IsActive.ToString().ToLowerInvariant()">
+                                                แก้ไข
+                                            </button>
+                                            <form asp-action="DeleteGoodnessCategory" method="post" class="d-inline" onsubmit="return confirm('ยืนยันลบประเภทธนาคารความดีนี้?');">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@item.Id" />
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">ลบ</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (() => {
+            const bindEditor = (buttonSelector, formSelector) => {
+                const form = document.querySelector(formSelector);
+                if (!form) return;
+
+                const setValue = (selector, value) => {
+                    const input = form.querySelector(selector);
+                    if (input) input.value = value || '';
+                };
+
+                document.querySelectorAll(buttonSelector).forEach((button) => {
+                    button.addEventListener('click', () => {
+                        setValue('[data-input-id]', button.dataset.id);
+                        setValue('[data-input-name]', button.dataset.name);
+                        setValue('[data-input-point]', button.dataset.point);
+                        setValue('[data-input-description]', button.dataset.description);
+                        const active = form.querySelector('[data-input-active]');
+                        if (active) active.checked = button.dataset.active === 'true';
+                        form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    });
+                });
+
+                form.querySelector('[data-reset-form]')?.addEventListener('click', () => {
+                    form.reset();
+                    setValue('[data-input-id]', '');
+                    const active = form.querySelector('[data-input-active]');
+                    if (active) active.checked = true;
+                });
+            };
+
+            bindEditor('[data-edit-behavior]', '[data-behavior-form]');
+            bindEditor('[data-edit-goodness]', '[data-goodness-form]');
+        })();
+    </script>
+}

@@ -3,6 +3,34 @@
     ViewData["Title"] = "ลงทะเบียนใบหน้า";
 }
 
+@functions {
+    private static string FormatFileSize(long? bytes)
+    {
+        if (bytes is null || bytes < 0)
+        {
+            return "-";
+        }
+
+        if (bytes < 1024)
+        {
+            return $"{bytes:N0} B";
+        }
+
+        var kilobytes = bytes.Value / 1024d;
+        if (kilobytes < 1024)
+        {
+            return $"{kilobytes:N1} KB";
+        }
+
+        return $"{kilobytes / 1024d:N2} MB";
+    }
+
+    private static string FormatContentType(string contentType)
+    {
+        return string.IsNullOrWhiteSpace(contentType) ? "-" : contentType;
+    }
+}
+
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2 class="mb-0">ลงทะเบียนใบหน้า</h2>
     <a asp-action="Index" class="btn btn-outline-secondary">กลับหน้าหลัก</a>
@@ -83,17 +111,63 @@
 <div class="card">
     <div class="card-header">รูปที่อัปโหลดแล้ว</div>
     <div class="card-body">
-        @if (Model.PhotoPaths.Count == 0)
+        @if (Model.Photos.Count == 0)
         {
             <div class="text-muted">ยังไม่มีรูป</div>
         }
         else
         {
-            <div class="row g-2">
-                @foreach (var path in Model.PhotoPaths)
+            <div class="face-photo-grid">
+                @foreach (var photo in Model.Photos)
                 {
-                    <div class="col-6 col-md-3">
-                        <img src="~/@path" class="img-fluid rounded border" alt="face-photo" />
+                    var photoModalId = $"studentPortalFacePhotoModal{photo.PhotoId}";
+
+                    <div class="face-photo-card">
+                        <button type="button" class="face-photo-preview-btn" data-bs-toggle="modal" data-bs-target="#@photoModalId" aria-label="ดูรูปใหญ่">
+                            <img src="~/@photo.FilePath" class="face-photo-square" alt="face-photo-@photo.PhotoId" />
+                        </button>
+                        <div class="face-photo-body">
+                            <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+                                <span class="badge @(photo.IsPrimary ? "bg-success" : "bg-secondary")">
+                                    @(photo.IsPrimary ? "รูปหลัก" : "รูปทั่วไป")
+                                </span>
+                            </div>
+                            <dl class="face-photo-report">
+                                <div>
+                                    <dt>วันที่อัพโหลด</dt>
+                                    <dd>@photo.CapturedAt.ToLocalTime().ToThaiDate("dd/MM/yyyy HH:mm")</dd>
+                                </div>
+                                <div>
+                                    <dt>ขนาดไฟล์</dt>
+                                    <dd>@FormatFileSize(photo.FileSizeBytes)</dd>
+                                </div>
+                                <div>
+                                    <dt>ประเภท</dt>
+                                    <dd>@FormatContentType(photo.ContentType)</dd>
+                                </div>
+                            </dl>
+                            <form asp-action="DeleteFaceEnrollmentPhoto" method="post" onsubmit="return confirm('ลบรูปนี้ใช่หรือไม่?');">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="photoId" value="@photo.PhotoId" />
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-trash3 me-1"></i>ลบ
+                                </button>
+                            </form>
+                        </div>
+
+                        <div class="modal fade" id="@photoModalId" tabindex="-1" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered modal-xl">
+                                <div class="modal-content face-photo-modal">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">รูปใบหน้า</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="ปิด"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <img src="~/@photo.FilePath" class="face-photo-large" alt="face-photo-large-@photo.PhotoId" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 }
             </div>
@@ -143,7 +217,7 @@
                     col.className = 'col-6';
                     col.innerHTML = `
                         <div class="border rounded p-1">
-                            <img src="${imageData}" class="img-fluid rounded" alt="captured-${index}" />
+                            <img src="${imageData}" class="face-photo-square" alt="captured-${index}" />
                             <button type="button" class="btn btn-sm btn-outline-danger w-100 mt-1" data-index="${index}">
                                 ลบภาพนี้
                             </button>
@@ -296,4 +370,3 @@
         })();
     </script>
 }
-

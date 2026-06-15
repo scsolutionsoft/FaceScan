@@ -15,6 +15,7 @@ public class StudentDetailViewModel
     public string ClassroomName { get; set; } = string.Empty;
     public string? StudentNo { get; set; }
     public string? GuardianName { get; set; }
+    public string? GuardianNationalId { get; set; }
     public string? GuardianPhone { get; set; }
     public string? Address { get; set; }
     public string? Notes { get; set; }

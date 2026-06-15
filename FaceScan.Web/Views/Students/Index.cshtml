@@ -90,6 +90,7 @@
                         <td class="text-end">
                             <a asp-action="Details" asp-route-id="@student.Id" class="btn btn-sm btn-outline-info">รายละเอียด</a>
                             <a asp-action="Edit" asp-route-id="@student.Id" class="btn btn-sm btn-outline-primary">แก้ไข</a>
+                            <a asp-controller="StudentGuardians" asp-action="Index" asp-route-studentId="@student.Id" class="btn btn-sm btn-outline-success">ครอบครัว</a>
                             <form asp-action="Delete" asp-route-id="@student.Id" method="post" class="d-inline" onsubmit="return confirm('ยืนยันปิดการใช้งาน?');">
                                 @Html.AntiForgeryToken()
                                 <button type="submit" class="btn btn-sm btn-outline-danger">ปิดใช้งาน</button>

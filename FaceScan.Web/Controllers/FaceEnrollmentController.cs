@@ -23,17 +23,20 @@ public class FaceEnrollmentController : Controller
     };
 
     private readonly ApplicationDbContext _dbContext;
+    private readonly IWebHostEnvironment _environment;
     private readonly IFileStorageService _fileStorageService;
     private readonly IFaceRecognitionService _faceRecognitionService;
     private readonly IAuditLogService _auditLogService;
 
     public FaceEnrollmentController(
         ApplicationDbContext dbContext,
+        IWebHostEnvironment environment,
         IFileStorageService fileStorageService,
         IFaceRecognitionService faceRecognitionService,
         IAuditLogService auditLogService)
     {
         _dbContext = dbContext;
+        _environment = environment;
         _fileStorageService = fileStorageService;
         _faceRecognitionService = faceRecognitionService;
         _auditLogService = auditLogService;
@@ -252,33 +255,52 @@ public class FaceEnrollmentController : Controller
 
     private async Task<FaceUploadViewModel?> BuildUploadViewModelAsync(int studentId, CancellationToken cancellationToken)
     {
-        return await _dbContext.Students
+        var student = await _dbContext.Students
             .AsNoTracking()
             .Include(x => x.Classroom)
             .Include(x => x.FaceProfile)
             .Include(x => x.StudentPhotos)
-            .Where(x => x.Id == studentId && x.IsActive)
-            .Select(x => new FaceUploadViewModel
-            {
-                StudentId = x.Id,
-                StudentCode = x.StudentCode,
-                StudentName = x.FullName,
-                ClassroomName = x.Classroom != null ? x.Classroom.Name : "-",
-                EnrollmentStatus = x.FaceProfile != null ? x.FaceProfile.EnrollmentStatus : EnrollmentStatus.NotRegistered,
-                CurrentPhotoCount = x.StudentPhotos.Count,
-                ExistingPhotos = x.StudentPhotos
-                    .OrderByDescending(p => p.IsPrimary)
-                    .ThenByDescending(p => p.CapturedAt)
-                    .Select(p => new FaceEnrollmentPhotoViewModel
-                    {
-                        PhotoId = p.Id,
-                        FilePath = p.FilePath,
-                        IsPrimary = p.IsPrimary,
-                        CapturedAt = p.CapturedAt
-                    })
-                    .ToList()
-            })
-            .FirstOrDefaultAsync(cancellationToken);
+            .FirstOrDefaultAsync(x => x.Id == studentId && x.IsActive, cancellationToken);
+
+        if (student is null)
+        {
+            return null;
+        }
+
+        return new FaceUploadViewModel
+        {
+            StudentId = student.Id,
+            StudentCode = student.StudentCode,
+            StudentName = student.FullName,
+            ClassroomName = student.Classroom?.Name ?? "-",
+            EnrollmentStatus = student.FaceProfile?.EnrollmentStatus ?? EnrollmentStatus.NotRegistered,
+            CurrentPhotoCount = student.StudentPhotos.Count,
+            ExistingPhotos = student.StudentPhotos
+                .OrderByDescending(p => p.IsPrimary)
+                .ThenByDescending(p => p.CapturedAt)
+                .Select(p => new FaceEnrollmentPhotoViewModel
+                {
+                    PhotoId = p.Id,
+                    FilePath = p.FilePath,
+                    ContentType = p.ContentType,
+                    FileSizeBytes = ResolvePhotoFileSize(p.FilePath),
+                    IsPrimary = p.IsPrimary,
+                    CapturedAt = p.CapturedAt
+                })
+                .ToList()
+        };
+    }
+
+    private long? ResolvePhotoFileSize(string filePath)
+    {
+        if (string.IsNullOrWhiteSpace(_environment.WebRootPath) || string.IsNullOrWhiteSpace(filePath))
+        {
+            return null;
+        }
+
+        var relativePath = filePath.TrimStart('/', '\\').Replace('/', Path.DirectorySeparatorChar);
+        var fullPath = Path.Combine(_environment.WebRootPath, relativePath);
+        return System.IO.File.Exists(fullPath) ? new FileInfo(fullPath).Length : null;
     }
 
     private async Task NormalizePrimaryPhotoAsync(int studentId, CancellationToken cancellationToken)

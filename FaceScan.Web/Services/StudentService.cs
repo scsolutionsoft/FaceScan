@@ -73,6 +73,7 @@ public class StudentService : IStudentService
             StudentNo = student.StudentNo,
             Status = student.Status,
             GuardianName = student.GuardianName,
+            GuardianNationalId = student.GuardianNationalId,
             GuardianPhone = student.GuardianPhone,
             Address = student.Address,
             Notes = student.Notes,
@@ -116,6 +117,7 @@ public class StudentService : IStudentService
             StudentNo = model.StudentNo?.Trim(),
             Status = model.Status,
             GuardianName = model.GuardianName?.Trim(),
+            GuardianNationalId = model.GuardianNationalId?.Trim(),
             GuardianPhone = model.GuardianPhone?.Trim(),
             Address = model.Address?.Trim(),
             Notes = model.Notes?.Trim(),
@@ -192,6 +194,7 @@ public class StudentService : IStudentService
         student.StudentNo = model.StudentNo?.Trim();
         student.Status = model.Status;
         student.GuardianName = model.GuardianName?.Trim();
+        student.GuardianNationalId = model.GuardianNationalId?.Trim();
         student.GuardianPhone = model.GuardianPhone?.Trim();
         student.Address = model.Address?.Trim();
         student.Notes = model.Notes?.Trim();

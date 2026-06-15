@@ -76,6 +76,15 @@
                 </a>
             }
 
+            @if (Model.CanUseStudentCare)
+            {
+                <a asp-area="Teacher" asp-controller="StudentCare" asp-action="Index" class="teacher-shortcut-card">
+                    <span class="teacher-shortcut-icon"><i class="bi bi-clipboard2-heart"></i></span>
+                    <span class="teacher-shortcut-title">ดูแลนักเรียนประจำชั้น</span>
+                    <span class="teacher-shortcut-text">ดูภาพรวมแฟ้มช่วยเหลือนักเรียน สถานะเยี่ยมบ้าน และเด็กพฤติกรรมเสี่ยงในห้องที่รับผิดชอบ</span>
+                </a>
+            }
+
             @if (Model.CanViewTeacherReports)
             {
                 <a asp-area="" asp-controller="TeacherAttendance" asp-action="Daily" class="teacher-shortcut-card">

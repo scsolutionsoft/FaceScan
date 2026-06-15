@@ -29,6 +29,16 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<ScanDevice> ScanDevices => Set<ScanDevice>();
     public DbSet<EdgeAgentHeartbeat> EdgeAgentHeartbeats => Set<EdgeAgentHeartbeat>();
     public DbSet<SystemSetting> SystemSettings => Set<SystemSetting>();
+    public DbSet<StudentCareProfile> StudentCareProfiles => Set<StudentCareProfile>();
+    public DbSet<StudentGuardian> StudentGuardians => Set<StudentGuardian>();
+    public DbSet<BehaviorScoreTransaction> BehaviorScoreTransactions => Set<BehaviorScoreTransaction>();
+    public DbSet<GoodnessBankTransaction> GoodnessBankTransactions => Set<GoodnessBankTransaction>();
+    public DbSet<HomeVisitRecord> HomeVisitRecords => Set<HomeVisitRecord>();
+    public DbSet<StudentCareFollowUpCase> StudentCareFollowUpCases => Set<StudentCareFollowUpCase>();
+    public DbSet<BehaviorScoreCategory> BehaviorScoreCategories => Set<BehaviorScoreCategory>();
+    public DbSet<GoodnessBankCategory> GoodnessBankCategories => Set<GoodnessBankCategory>();
+    public DbSet<WasteBankRate> WasteBankRates => Set<WasteBankRate>();
+    public DbSet<WasteBankTransaction> WasteBankTransactions => Set<WasteBankTransaction>();
     public DbSet<ImportBatch> ImportBatches => Set<ImportBatch>();
     public DbSet<ImportBatchItem> ImportBatchItems => Set<ImportBatchItem>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();

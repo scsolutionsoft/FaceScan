@@ -53,6 +53,14 @@
         homeArea = "Teacher";
         homeController = "Home";
     }
+
+    var successMessage = TempData["Success"] as string;
+    var errorMessage = TempData["Error"] as string;
+    var hasStatusMessage = !string.IsNullOrWhiteSpace(successMessage) || !string.IsNullOrWhiteSpace(errorMessage);
+    var statusMessage = successMessage ?? errorMessage ?? string.Empty;
+    var statusKind = string.IsNullOrWhiteSpace(errorMessage) ? "success" : "danger";
+    var statusTitle = statusKind == "success" ? "บันทึกสำเร็จ" : "บันทึกไม่สำเร็จ";
+    var statusIcon = statusKind == "success" ? "bi-check2-circle" : "bi-exclamation-triangle";
 }
 <!DOCTYPE html>
 <html lang="th">
@@ -122,21 +130,6 @@
 
             <main class="content-wrapper">
                 <div class="container-fluid px-0">
-                    @if (TempData["Success"] is string success)
-                    {
-                        <div class="alert alert-success alert-dismissible fade show" role="alert">
-                            @success
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
-                    }
-                    @if (TempData["Error"] is string error)
-                    {
-                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                            @error
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
-                    }
-
                     @RenderBody()
                 </div>
             </main>
@@ -166,6 +159,34 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    @if (hasStatusMessage)
+    {
+        <div class="toast-container position-fixed top-0 end-0 p-3 app-status-toast-container">
+            <div id="appStatusToast" class="toast app-status-toast app-status-toast-@statusKind border-0" role="status" aria-live="polite" aria-atomic="true">
+                <div class="toast-body">
+                    <div class="app-status-icon">
+                        <i class="bi @statusIcon"></i>
+                    </div>
+                    <div class="app-status-copy">
+                        <div class="app-status-title">@statusTitle</div>
+                        <div class="app-status-message">@statusMessage</div>
+                    </div>
+                    <button type="button" class="btn-close app-status-close" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        </div>
+        <script>
+            (() => {
+                const toastElement = document.getElementById('appStatusToast');
+                if (!toastElement || !window.bootstrap) {
+                    return;
+                }
+
+                const toast = new bootstrap.Toast(toastElement, { delay: 4800 });
+                toast.show();
+            })();
+        </script>
+    }
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

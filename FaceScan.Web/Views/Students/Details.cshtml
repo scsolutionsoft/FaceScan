@@ -6,6 +6,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h2 class="mb-0">รายละเอียดนักเรียน</h2>
     <div class="d-flex gap-2">
+        <a asp-controller="StudentGuardians" asp-action="Index" asp-route-studentId="@Model.Id" class="btn btn-success">ข้อมูลครอบครัว</a>
         <a asp-action="Edit" asp-route-id="@Model.Id" class="btn btn-primary">แก้ไข</a>
         <a asp-action="Index" class="btn btn-outline-secondary">กลับ</a>
     </div>
@@ -24,6 +25,7 @@
                     <dt class="col-sm-4">ปีการศึกษา</dt><dd class="col-sm-8">@Model.AcademicYearName</dd>
                     <dt class="col-sm-4">ชั้น/ห้อง</dt><dd class="col-sm-8">@Model.GradeLevelName / @Model.ClassroomName</dd>
                     <dt class="col-sm-4">ผู้ปกครอง</dt><dd class="col-sm-8">@Model.GuardianName (@Model.GuardianPhone)</dd>
+                    <dt class="col-sm-4">เลขบัตรประชาชนผู้ปกครอง</dt><dd class="col-sm-8">@(Model.GuardianNationalId ?? "-")</dd>
                     <dt class="col-sm-4">ที่อยู่</dt><dd class="col-sm-8">@Model.Address</dd>
                     <dt class="col-sm-4">หมายเหตุ</dt><dd class="col-sm-8">@Model.Notes</dd>
                     <dt class="col-sm-4">สถานะใบหน้า</dt><dd class="col-sm-8"><span class="badge bg-secondary">@Model.EnrollmentStatus.GetDisplayName()</span></dd>
@@ -45,7 +47,7 @@
                         @foreach (var photo in Model.Photos)
                         {
                             <div class="col-6">
-                                <img src="~/@photo.FilePath" class="img-fluid rounded border" alt="photo" />
+                                <img src="~/@photo.FilePath" class="student-photo-avatar lg" alt="photo" />
                             </div>
                         }
                     </div>

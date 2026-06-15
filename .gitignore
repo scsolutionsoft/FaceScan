@@ -10,11 +10,13 @@ publish-*/
 *.7z
 *.nupkg
 *.snupkg
+*.apk
 
 # Local Android SDK/tooling bundles
 tools/edge-agent-android/android-sdk/
 tools/edge-agent-android/.gradle/
 tools/edge-agent-android/**/build/
+tools/edge-agent-android/app/local-*.properties
 
 # Web publish artifacts
 FaceScan.Web/publish/
@@ -22,6 +24,7 @@ FaceScan.Web/publish-*/
 
 # User and IDE files
 .vs/
+.vscode/
 *.user
 *.suo
 *.userosscache
@@ -34,6 +37,7 @@ Logs/
 tmp-load/
 run.stdout.log
 run.stderr.log
+final_fix.py
 
 # Local tool/runtime folders
 .dotnet/

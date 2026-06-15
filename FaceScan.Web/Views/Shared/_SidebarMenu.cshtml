@@ -1,6 +1,11 @@
+@using FaceScan.Web.Services.Interfaces
+@inject ISystemSettingService SidebarSystemSettingService
 @{
+    var sidebarSettings = await SidebarSystemSettingService.GetSettingsAsync();
     var controller = (ViewContext.RouteData.Values["controller"]?.ToString() ?? string.Empty).ToLowerInvariant();
     var action = (ViewContext.RouteData.Values["action"]?.ToString() ?? string.Empty).ToLowerInvariant();
+    var canUseStudentCareMenu = User.IsInRole("Teacher") || User.IsInRole("HomeroomHead") || User.IsInRole("StudentCareAdmin") || User.IsInRole("SuperAdmin") || User.IsInRole("Admin");
+    var canUseWasteBankMenu = User.IsInRole("WasteBankStaff") || User.IsInRole("SuperAdmin") || User.IsInRole("Admin");
 
     string Active(string targetController, string? targetAction = null)
     {
@@ -45,12 +50,12 @@
                 <span>แดชบอร์ด</span>
             </a>
 
-            @if (User.IsInRole("Teacher") || User.IsInRole("HomeroomHead") || User.IsInRole("SuperAdmin") || User.IsInRole("Admin") || User.IsInRole("Staff"))
+            @if (User.IsInRole("Teacher") || User.IsInRole("HomeroomHead") || User.IsInRole("StudentCareAdmin") || User.IsInRole("WasteBankStaff") || User.IsInRole("SuperAdmin") || User.IsInRole("Admin") || User.IsInRole("Staff"))
             {
                 <div class="sidebar-section-label">เมนูครู</div>
             }
 
-            @if (User.IsInRole("Teacher") || User.IsInRole("HomeroomHead") || User.IsInRole("SuperAdmin") || User.IsInRole("Admin"))
+            @if (User.IsInRole("Teacher") || User.IsInRole("HomeroomHead") || User.IsInRole("StudentCareAdmin") || User.IsInRole("WasteBankStaff") || User.IsInRole("SuperAdmin") || User.IsInRole("Admin"))
             {
                 <a class="sidebar-link @Active("Home")" asp-area="Teacher" asp-controller="Home" asp-action="Index">
                     <span class="sidebar-icon"><i class="bi bi-grid-1x2"></i></span>
@@ -60,6 +65,31 @@
                     <span class="sidebar-icon"><i class="bi bi-journal-check"></i></span>
                     <span>เช็คเวลาเรียนรายคาบ</span>
                 </a>
+                @if (sidebarSettings.EnableStudentCareModule && canUseStudentCareMenu)
+                {
+                    <a class="sidebar-link @Active("StudentCare", "Index")" asp-area="Teacher" asp-controller="StudentCare" asp-action="Index">
+                        <span class="sidebar-icon"><i class="bi bi-clipboard2-heart"></i></span>
+                        <span>ดูแลนักเรียนประจำชั้น</span>
+                    </a>
+                }
+                @if (sidebarSettings.EnableStudentCareModule && (User.IsInRole("StudentCareAdmin") || User.IsInRole("SuperAdmin") || User.IsInRole("Admin")))
+                {
+                    <a class="sidebar-link @Active("StudentCareAdmin", "Index")" asp-area="Teacher" asp-controller="StudentCareAdmin" asp-action="Index">
+                        <span class="sidebar-icon"><i class="bi bi-sliders"></i></span>
+                        <span>แอดมินงานระบบดูแล</span>
+                    </a>
+                    <a class="sidebar-link @Active("StudentCareAdmin", "HomeroomTeachers")" asp-area="Teacher" asp-controller="StudentCareAdmin" asp-action="HomeroomTeachers">
+                        <span class="sidebar-icon"><i class="bi bi-person-workspace"></i></span>
+                        <span>ครูโฮมรูม</span>
+                    </a>
+                }
+                @if (sidebarSettings.EnableWasteBankModule && canUseWasteBankMenu)
+                {
+                    <a class="sidebar-link @Active("WasteBank", "Index")" asp-area="Teacher" asp-controller="WasteBank" asp-action="Index">
+                        <span class="sidebar-icon"><i class="bi bi-recycle"></i></span>
+                        <span>ธนาคารขยะ</span>
+                    </a>
+                }
             }
 
             @if (User.IsInRole("Teacher") || User.IsInRole("HomeroomHead") || User.IsInRole("SuperAdmin") || User.IsInRole("Admin") || User.IsInRole("Staff"))
@@ -101,6 +131,13 @@
                     <span class="sidebar-icon"><i class="bi bi-graph-up-arrow"></i></span>
                     <span>รายงานผู้บริหาร</span>
                 </a>
+                @if (sidebarSettings.EnableStudentCareModule)
+                {
+                    <a class="sidebar-link @Active("StudentCareReports", "Index")" asp-area="Executive" asp-controller="StudentCareReports" asp-action="Index">
+                        <span class="sidebar-icon"><i class="bi bi-clipboard2-pulse"></i></span>
+                        <span>รายงานดูแลนักเรียน</span>
+                    </a>
+                }
             }
 
             <div class="sidebar-section-label">นักเรียน</div>
@@ -117,7 +154,7 @@
                 </a>
                 <a class="sidebar-link @Active("StudentImport")" asp-area="" asp-controller="StudentImport" asp-action="Index">
                     <span class="sidebar-icon"><i class="bi bi-file-earmark-arrow-up"></i></span>
-                    <span>นำเข้าข้อมูลนักเรียน</span>
+                    <span>นำเข้าข้อมูล Excel</span>
                 </a>
             }
 

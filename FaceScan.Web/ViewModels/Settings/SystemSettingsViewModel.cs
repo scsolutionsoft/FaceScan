@@ -26,6 +26,19 @@ public class SystemSettingsViewModel
     public decimal FaceConfidenceThreshold { get; set; }
 
     public bool AllowManualOverride { get; set; }
+    public bool EnableStudentCareModule { get; set; }
+    public bool EnableBehaviorScoreModule { get; set; }
+    public bool EnableGoodnessBankModule { get; set; }
+    public bool EnableHomeVisitModule { get; set; }
+    public bool EnableWasteBankModule { get; set; }
+
+    [Range(1, 500)]
+    public int StudentCareInitialBehaviorScore { get; set; } = 100;
+
+    [Range(0, 500)]
+    public int StudentCareLowBehaviorScoreThreshold { get; set; } = 60;
+
+    public bool RequireStudentCareApproval { get; set; }
 
     [Required]
     [MaxLength(200)]

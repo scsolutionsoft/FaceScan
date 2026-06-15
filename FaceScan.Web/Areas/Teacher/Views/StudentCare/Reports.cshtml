@@ -1,0 +1,377 @@
+@model StudentCareReportViewModel
+@{
+    ViewData["Title"] = "รายงานคะแนนดูแลนักเรียน";
+
+    string RiskLabel(StudentCareRiskLevel riskLevel) => riskLevel switch
+    {
+        StudentCareRiskLevel.Watch => "เฝ้าระวัง",
+        StudentCareRiskLevel.Risk => "เสี่ยง",
+        StudentCareRiskLevel.Urgent => "เร่งด่วน",
+        _ => "ปกติ"
+    };
+
+    string RiskClass(StudentCareRiskLevel riskLevel) => riskLevel switch
+    {
+        StudentCareRiskLevel.Watch => "text-bg-warning",
+        StudentCareRiskLevel.Risk => "text-bg-danger",
+        StudentCareRiskLevel.Urgent => "text-bg-dark",
+        _ => "text-bg-success"
+    };
+
+    string FollowUpStatusLabel(StudentCareFollowUpStatus status) => status switch
+    {
+        StudentCareFollowUpStatus.InProgress => "กำลังติดตาม",
+        StudentCareFollowUpStatus.Completed => "เสร็จแล้ว",
+        StudentCareFollowUpStatus.Canceled => "ยกเลิก",
+        _ => "เปิดเคส"
+    };
+
+    string PriorityLabel(StudentCareFollowUpPriority priority) => priority switch
+    {
+        StudentCareFollowUpPriority.Low => "ต่ำ",
+        StudentCareFollowUpPriority.High => "สูง",
+        StudentCareFollowUpPriority.Urgent => "เร่งด่วน",
+        _ => "ปกติ"
+    };
+
+    string PriorityClass(StudentCareFollowUpPriority priority) => priority switch
+    {
+        StudentCareFollowUpPriority.High => "text-bg-warning",
+        StudentCareFollowUpPriority.Urgent => "text-bg-danger",
+        StudentCareFollowUpPriority.Low => "text-bg-secondary",
+        _ => "text-bg-primary"
+    };
+}
+
+<div class="teacher-shell">
+    <section class="teacher-section-card mb-3">
+        <div class="teacher-section-head">
+            <div>
+                <div class="teacher-section-kicker">Student Care Reports</div>
+                <h1 class="teacher-section-title">รายงานคะแนนดูแลนักเรียน</h1>
+                <div class="teacher-section-note">ขอบเขตข้อมูล: @Model.AssignedClassroomName</div>
+            </div>
+            <a asp-action="Index" class="btn btn-outline-secondary">กลับหน้าดูแลนักเรียน</a>
+        </div>
+    </section>
+
+    <div class="row g-3">
+        <div class="col-lg-6">
+            <section class="teacher-section-card h-100">
+                <div class="teacher-section-head">
+                    <div>
+                        <div class="teacher-section-kicker">Behavior Risk</div>
+                        <h2 class="teacher-section-title">คะแนนพฤติกรรมต่ำกว่า @Model.BehaviorLowThreshold</h2>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>รหัส</th>
+                                <th>ชื่อ-สกุล</th>
+                                <th>ห้อง</th>
+                                <th>คะแนน</th>
+                                <th>รายการ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.LowBehaviorScoreStudents.Count == 0)
+                            {
+                                <tr><td colspan="5" class="text-center text-muted py-4">ไม่พบนักเรียนคะแนนต่ำกว่าเกณฑ์</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var row in Model.LowBehaviorScoreStudents)
+                                {
+                                    <tr>
+                                        <td class="fw-semibold">@row.StudentCode</td>
+                                        <td><a asp-action="Detail" asp-route-studentId="@row.StudentId">@row.FullName</a></td>
+                                        <td>@row.Classroom</td>
+                                        <td><span class="badge text-bg-danger">@row.BehaviorScore</span></td>
+                                        <td>@row.TransactionCount</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <div class="col-lg-6">
+            <section class="teacher-section-card h-100">
+                <div class="teacher-section-head">
+                    <div>
+                        <div class="teacher-section-kicker">Goodness Bank</div>
+                        <h2 class="teacher-section-title">คะแนนธนาคารความดีสูงสุด</h2>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>รหัส</th>
+                                <th>ชื่อ-สกุล</th>
+                                <th>ห้อง</th>
+                                <th>คะแนน</th>
+                                <th>รายการ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.TopGoodnessStudents.Count == 0)
+                            {
+                                <tr><td colspan="5" class="text-center text-muted py-4">ยังไม่มีรายการธนาคารความดี</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var row in Model.TopGoodnessStudents)
+                                {
+                                    <tr>
+                                        <td class="fw-semibold">@row.StudentCode</td>
+                                        <td><a asp-action="Detail" asp-route-studentId="@row.StudentId">@row.FullName</a></td>
+                                        <td>@row.Classroom</td>
+                                        <td><span class="badge text-bg-success">@row.GoodnessPoint</span></td>
+                                        <td>@row.TransactionCount</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <div class="row g-3 mt-1">
+        <div class="col-lg-6">
+            <section class="teacher-section-card h-100">
+                <div class="teacher-section-head">
+                    <div>
+                        <div class="teacher-section-kicker">Home Visit</div>
+                        <h2 class="teacher-section-title">ยังไม่ได้เยี่ยมบ้าน</h2>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>รหัส</th>
+                                <th>ชื่อ-สกุล</th>
+                                <th>ห้อง</th>
+                                <th>ความเสี่ยง</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.NotVisitedStudents.Count == 0)
+                            {
+                                <tr><td colspan="4" class="text-center text-muted py-4">เยี่ยมบ้านครบตามข้อมูลที่มีแล้ว</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var row in Model.NotVisitedStudents)
+                                {
+                                    <tr>
+                                        <td class="fw-semibold">@row.StudentCode</td>
+                                        <td><a asp-action="Detail" asp-route-studentId="@row.StudentId">@row.FullName</a></td>
+                                        <td>@row.Classroom</td>
+                                        <td><span class="badge @RiskClass(row.RiskLevel)">@RiskLabel(row.RiskLevel)</span></td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <div class="col-lg-6">
+            <section class="teacher-section-card h-100">
+                <div class="teacher-section-head">
+                    <div>
+                        <div class="teacher-section-kicker">Risk Students</div>
+                        <h2 class="teacher-section-title">เด็กพฤติกรรมเสี่ยงจากแฟ้มดูแล</h2>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>รหัส</th>
+                                <th>ชื่อ-สกุล</th>
+                                <th>ห้อง</th>
+                                <th>ความเสี่ยง</th>
+                                <th>ปัญหาที่พบ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.RiskStudents.Count == 0)
+                            {
+                                <tr><td colspan="5" class="text-center text-muted py-4">ยังไม่มีนักเรียนที่ถูกจัดเป็นกลุ่มเสี่ยง</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var row in Model.RiskStudents)
+                                {
+                                    <tr>
+                                        <td class="fw-semibold">@row.StudentCode</td>
+                                        <td><a asp-action="Detail" asp-route-studentId="@row.StudentId">@row.FullName</a></td>
+                                        <td>@row.Classroom</td>
+                                        <td><span class="badge @RiskClass(row.RiskLevel)">@RiskLabel(row.RiskLevel)</span></td>
+                                        <td>@(string.IsNullOrWhiteSpace(row.ProblemsFound) ? "-" : row.ProblemsFound)</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <div class="row g-3 mt-1">
+        <div class="col-lg-6">
+            <section class="teacher-section-card h-100">
+                <div class="teacher-section-head">
+                    <div>
+                        <div class="teacher-section-kicker">Behavior Deductions</div>
+                        <h2 class="teacher-section-title">รายการตัดคะแนนล่าสุด</h2>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>นักเรียน</th>
+                                <th>ห้อง</th>
+                                <th>วันที่</th>
+                                <th>รายการ</th>
+                                <th>คะแนน</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.BehaviorDeductionTransactions.Count == 0)
+                            {
+                                <tr><td colspan="5" class="text-center text-muted py-4">ยังไม่มีรายการตัดคะแนน</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var row in Model.BehaviorDeductionTransactions)
+                                {
+                                    <tr>
+                                        <td>
+                                            <a asp-action="Detail" asp-route-studentId="@row.StudentId">@row.FullName</a>
+                                            <div class="small text-muted">@row.StudentCode</div>
+                                        </td>
+                                        <td>@row.Classroom</td>
+                                        <td>@row.RecordedAt.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                                        <td>@row.Category<div class="small text-muted">@(string.IsNullOrWhiteSpace(row.Description) ? "-" : row.Description)</div></td>
+                                        <td><span class="badge text-bg-danger">@row.Point</span></td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <div class="col-lg-6">
+            <section class="teacher-section-card h-100">
+                <div class="teacher-section-head">
+                    <div>
+                        <div class="teacher-section-kicker">Goodness Activities</div>
+                        <h2 class="teacher-section-title">กิจกรรมความดีล่าสุด</h2>
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>นักเรียน</th>
+                                <th>ห้อง</th>
+                                <th>วันที่</th>
+                                <th>กิจกรรม</th>
+                                <th>คะแนน</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Model.RecentGoodnessTransactions.Count == 0)
+                            {
+                                <tr><td colspan="5" class="text-center text-muted py-4">ยังไม่มีกิจกรรมความดี</td></tr>
+                            }
+                            else
+                            {
+                                @foreach (var row in Model.RecentGoodnessTransactions)
+                                {
+                                    <tr>
+                                        <td>
+                                            <a asp-action="Detail" asp-route-studentId="@row.StudentId">@row.FullName</a>
+                                            <div class="small text-muted">@row.StudentCode</div>
+                                        </td>
+                                        <td>@row.Classroom</td>
+                                        <td>@row.RecordedAt.ToLocalTime().ToString("dd/MM/yyyy")</td>
+                                        <td>@row.Category<div class="small text-muted">@(string.IsNullOrWhiteSpace(row.Description) ? "-" : row.Description)</div></td>
+                                        <td><span class="badge text-bg-success">+@row.Point</span></td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <section class="teacher-section-card mt-3">
+        <div class="teacher-section-head">
+            <div>
+                <div class="teacher-section-kicker">Follow-up Cases</div>
+                <h2 class="teacher-section-title">เคสติดตามช่วยเหลือที่ยังเปิดอยู่</h2>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>รหัส</th>
+                        <th>ชื่อ-สกุล</th>
+                        <th>ห้อง</th>
+                        <th>เคส</th>
+                        <th>เร่งด่วน</th>
+                        <th>สถานะ</th>
+                        <th>นัดติดตาม</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.OpenFollowUpCases.Count == 0)
+                    {
+                        <tr><td colspan="7" class="text-center text-muted py-4">ยังไม่มีเคสติดตามที่เปิดอยู่</td></tr>
+                    }
+                    else
+                    {
+                        @foreach (var row in Model.OpenFollowUpCases)
+                        {
+                            <tr class="@(row.IsOverdue ? "table-danger" : "")">
+                                <td class="fw-semibold">@row.StudentCode</td>
+                                <td><a asp-action="Detail" asp-route-studentId="@row.StudentId">@row.FullName</a></td>
+                                <td>@row.Classroom</td>
+                                <td>@row.Title<div class="small text-muted">เปิด @row.OpenedAt.ToLocalTime().ToString("dd/MM/yyyy")</div></td>
+                                <td><span class="badge @PriorityClass(row.Priority)">@PriorityLabel(row.Priority)</span></td>
+                                <td>@FollowUpStatusLabel(row.Status)</td>
+                                <td>
+                                    @(row.DueDate.HasValue ? row.DueDate.Value.ToThaiDate("dd MMM yyyy") : "-")
+                                    @if (row.IsOverdue)
+                                    {
+                                        <span class="badge text-bg-danger ms-1">เกินกำหนด</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+</div>

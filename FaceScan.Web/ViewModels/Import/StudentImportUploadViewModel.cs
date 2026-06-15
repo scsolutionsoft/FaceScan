@@ -6,5 +6,8 @@ namespace FaceScan.Web.ViewModels.Import;
 public class StudentImportUploadViewModel
 {
     [Required]
+    public ImportDataType ImportType { get; set; } = ImportDataType.Students;
+
+    [Required]
     public IFormFile? File { get; set; }
 }

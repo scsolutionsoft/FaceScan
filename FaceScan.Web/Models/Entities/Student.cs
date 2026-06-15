@@ -20,6 +20,7 @@ public class Student : BaseEntity
     public string? StudentNo { get; set; }
     public StudentStatus Status { get; set; } = StudentStatus.Active;
     public string? GuardianName { get; set; }
+    public string? GuardianNationalId { get; set; }
     public string? GuardianPhone { get; set; }
     public string? Address { get; set; }
     public string? Notes { get; set; }

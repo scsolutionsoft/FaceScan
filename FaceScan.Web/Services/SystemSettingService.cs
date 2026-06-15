@@ -99,6 +99,14 @@ public class SystemSettingService : ISystemSettingService
             SaveSnapshots = settings.SaveSnapshots,
             FaceConfidenceThreshold = settings.FaceConfidenceThreshold,
             AllowManualOverride = settings.AllowManualOverride,
+            EnableStudentCareModule = settings.EnableStudentCareModule,
+            EnableBehaviorScoreModule = settings.EnableBehaviorScoreModule,
+            EnableGoodnessBankModule = settings.EnableGoodnessBankModule,
+            EnableHomeVisitModule = settings.EnableHomeVisitModule,
+            EnableWasteBankModule = settings.EnableWasteBankModule,
+            StudentCareInitialBehaviorScore = settings.StudentCareInitialBehaviorScore,
+            StudentCareLowBehaviorScoreThreshold = settings.StudentCareLowBehaviorScoreThreshold,
+            RequireStudentCareApproval = settings.RequireStudentCareApproval,
             SchoolName = settings.SchoolName,
             ApplicationDisplayName = settings.ApplicationDisplayName,
             ApplicationTagline = settings.ApplicationTagline,
@@ -209,6 +217,14 @@ public class SystemSettingService : ISystemSettingService
         settings.SaveSnapshots = model.SaveSnapshots;
         settings.FaceConfidenceThreshold = model.FaceConfidenceThreshold;
         settings.AllowManualOverride = model.AllowManualOverride;
+        settings.EnableStudentCareModule = model.EnableStudentCareModule;
+        settings.EnableBehaviorScoreModule = model.EnableStudentCareModule && model.EnableBehaviorScoreModule;
+        settings.EnableGoodnessBankModule = model.EnableStudentCareModule && model.EnableGoodnessBankModule;
+        settings.EnableHomeVisitModule = model.EnableStudentCareModule && model.EnableHomeVisitModule;
+        settings.EnableWasteBankModule = model.EnableStudentCareModule && model.EnableWasteBankModule;
+        settings.StudentCareInitialBehaviorScore = model.StudentCareInitialBehaviorScore;
+        settings.StudentCareLowBehaviorScoreThreshold = model.StudentCareLowBehaviorScoreThreshold;
+        settings.RequireStudentCareApproval = model.EnableStudentCareModule && model.RequireStudentCareApproval;
         settings.AcademicYearCurrentId = model.AcademicYearCurrentId;
 
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -542,6 +558,14 @@ public class SystemSettingService : ISystemSettingService
         builder.AppendLine($"เกณฑ์ความมั่นใจใบหน้า: {model.FaceConfidenceThreshold}");
         builder.AppendLine($"บันทึกภาพสแนปช็อต: {(model.SaveSnapshots ? "เปิด" : "ปิด")}");
         builder.AppendLine($"อนุญาตแก้ไขด้วยมือ: {(model.AllowManualOverride ? "เปิด" : "ปิด")}");
+        builder.AppendLine($"Student Care: {(model.EnableStudentCareModule ? "Enabled" : "Disabled")}");
+        builder.AppendLine($"Behavior Score: {(model.EnableBehaviorScoreModule ? "Enabled" : "Disabled")}");
+        builder.AppendLine($"Goodness Bank: {(model.EnableGoodnessBankModule ? "Enabled" : "Disabled")}");
+        builder.AppendLine($"Home Visit: {(model.EnableHomeVisitModule ? "Enabled" : "Disabled")}");
+        builder.AppendLine($"Waste Bank: {(model.EnableWasteBankModule ? "Enabled" : "Disabled")}");
+        builder.AppendLine($"Student Care Initial Behavior Score: {model.StudentCareInitialBehaviorScore}");
+        builder.AppendLine($"Student Care Low Threshold: {model.StudentCareLowBehaviorScoreThreshold}");
+        builder.AppendLine($"Student Care Approval: {(model.RequireStudentCareApproval ? "Required" : "Not required")}");
         return builder.ToString().Trim();
     }
 
@@ -559,6 +583,14 @@ public class SystemSettingService : ISystemSettingService
             SaveSnapshots = true,
             FaceConfidenceThreshold = 0.8m,
             AllowManualOverride = false,
+            EnableStudentCareModule = false,
+            EnableBehaviorScoreModule = false,
+            EnableGoodnessBankModule = false,
+            EnableHomeVisitModule = false,
+            EnableWasteBankModule = false,
+            StudentCareInitialBehaviorScore = 100,
+            StudentCareLowBehaviorScoreThreshold = 60,
+            RequireStudentCareApproval = false,
             SchoolName = "โรงเรียนตัวอย่าง FaceScan",
             ApplicationDisplayName = "FaceScan",
             ApplicationTagline = "ระบบเช็กเวลาเข้า-ออกด้วยการสแกนใบหน้า",
@@ -588,6 +620,14 @@ public class SystemSettingService : ISystemSettingService
             SaveSnapshots = source.SaveSnapshots,
             FaceConfidenceThreshold = source.FaceConfidenceThreshold,
             AllowManualOverride = source.AllowManualOverride,
+            EnableStudentCareModule = source.EnableStudentCareModule,
+            EnableBehaviorScoreModule = source.EnableBehaviorScoreModule,
+            EnableGoodnessBankModule = source.EnableGoodnessBankModule,
+            EnableHomeVisitModule = source.EnableHomeVisitModule,
+            EnableWasteBankModule = source.EnableWasteBankModule,
+            StudentCareInitialBehaviorScore = source.StudentCareInitialBehaviorScore,
+            StudentCareLowBehaviorScoreThreshold = source.StudentCareLowBehaviorScoreThreshold,
+            RequireStudentCareApproval = source.RequireStudentCareApproval,
             SchoolName = source.SchoolName,
             ApplicationDisplayName = source.ApplicationDisplayName,
             ApplicationTagline = source.ApplicationTagline,

@@ -1,0 +1,335 @@
+@using FaceScan.Web.Models.Enums
+@model ExecutiveStudentCareDashboardViewModel
+@{
+    ViewData["Title"] = "รายงานระบบดูแลนักเรียน";
+
+    string RiskLabel(StudentCareRiskLevel riskLevel) => riskLevel switch
+    {
+        StudentCareRiskLevel.Watch => "เฝ้าระวัง",
+        StudentCareRiskLevel.Risk => "เสี่ยง",
+        StudentCareRiskLevel.Urgent => "เร่งด่วน",
+        _ => "ปกติ"
+    };
+
+    string RiskClass(StudentCareRiskLevel riskLevel) => riskLevel switch
+    {
+        StudentCareRiskLevel.Watch => "text-bg-warning",
+        StudentCareRiskLevel.Risk => "text-bg-danger",
+        StudentCareRiskLevel.Urgent => "text-bg-dark",
+        _ => "text-bg-success"
+    };
+}
+
+<div class="card mb-3">
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div>
+            <h2 class="mb-1">รายงานระบบดูแลนักเรียน</h2>
+            <div class="text-muted small">ภาพรวมคะแนนพฤติกรรม ธนาคารความดี เยี่ยมบ้าน ความเสี่ยง และธนาคารขยะ</div>
+        </div>
+        <a class="btn btn-outline-success" asp-action="ExportCsv"
+           asp-route-AcademicYearId="@Model.Filter.AcademicYearId"
+           asp-route-GradeLevelId="@Model.Filter.GradeLevelId"
+           asp-route-ClassroomId="@Model.Filter.ClassroomId"
+           asp-route-RiskLevel="@Model.Filter.RiskLevel"
+           asp-route-StudentKeyword="@Model.Filter.StudentKeyword">
+            ส่งออก CSV
+        </a>
+    </div>
+    <div class="card-body">
+        <form method="get" class="row g-2">
+            <div class="col-md-2">
+                <select class="form-select" name="AcademicYearId">
+                    <option value="">ปีการศึกษา</option>
+                    @foreach (var x in Model.AcademicYears)
+                    {
+                        <option value="@x.Value" selected="@(Model.Filter.AcademicYearId == x.Value ? "selected" : null)">@x.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" name="GradeLevelId">
+                    <option value="">ระดับชั้น</option>
+                    @foreach (var x in Model.GradeLevels)
+                    {
+                        <option value="@x.Value" selected="@(Model.Filter.GradeLevelId == x.Value ? "selected" : null)">@x.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" name="ClassroomId">
+                    <option value="">ห้อง</option>
+                    @foreach (var x in Model.Classrooms)
+                    {
+                        <option value="@x.Value" selected="@(Model.Filter.ClassroomId == x.Value ? "selected" : null)">@x.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" name="RiskLevel">
+                    <option value="">ทุกความเสี่ยง</option>
+                    @foreach (var value in Enum.GetValues<StudentCareRiskLevel>())
+                    {
+                        <option value="@value" selected="@(Model.Filter.RiskLevel == value ? "selected" : null)">@RiskLabel(value)</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <input type="text" class="form-control" name="StudentKeyword" value="@Model.Filter.StudentKeyword" placeholder="รหัส/ชื่อ-สกุล" />
+            </div>
+            <div class="col-md-1 d-grid">
+                <button class="btn btn-primary" type="submit">กรอง</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="studentLocationMapModal" tabindex="-1" aria-labelledby="studentLocationMapTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <div class="text-muted small text-uppercase">Google Maps</div>
+                    <h2 class="modal-title fs-5" id="studentLocationMapTitle">พิกัดบ้านนักเรียน</h2>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="ratio ratio-16x9 rounded border overflow-hidden mb-3">
+                    <iframe id="studentLocationMapFrame" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>
+                </div>
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <div class="small text-muted" id="studentLocationMapCoordinates">-</div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-outline-primary" id="studentLocationRouteButton">
+                            <i class="bi bi-signpost-2 me-1"></i>เลือกต้นทางและนำทาง
+                        </button>
+                        <a class="btn btn-outline-secondary" id="studentLocationExternalLink" href="#" target="_blank" rel="noopener">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>เปิดใน Google Maps
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (() => {
+            const mapModalElement = document.getElementById('studentLocationMapModal');
+            const mapModal = mapModalElement ? new bootstrap.Modal(mapModalElement) : null;
+            const mapTitle = document.getElementById('studentLocationMapTitle');
+            const mapFrame = document.getElementById('studentLocationMapFrame');
+            const mapCoordinates = document.getElementById('studentLocationMapCoordinates');
+            const mapExternalLink = document.getElementById('studentLocationExternalLink');
+            const routeButton = document.getElementById('studentLocationRouteButton');
+            let activeDestination = null;
+
+            const parseNumber = (value) => {
+                const number = Number((value || '').toString().replace(',', '.'));
+                return Number.isFinite(number) ? number : null;
+            };
+
+            const openRoute = (lat, lng) => {
+                const destination = `${lat},${lng}`;
+                const openWithOrigin = (origin) => {
+                    const originPart = origin ? `&origin=${encodeURIComponent(origin)}` : '';
+                    window.open(`https://www.google.com/maps/dir/?api=1${originPart}&destination=${destination}&travelmode=driving`, '_blank', 'noopener');
+                };
+
+                if (!navigator.geolocation) {
+                    openWithOrigin('');
+                    return;
+                }
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => openWithOrigin(`${position.coords.latitude},${position.coords.longitude}`),
+                    () => openWithOrigin(''),
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+            };
+
+            const showMap = (name, lat, lng) => {
+                activeDestination = { lat, lng };
+                const query = `${lat},${lng}`;
+                if (mapTitle) mapTitle.textContent = name ? `พิกัดบ้าน ${name}` : 'พิกัดบ้านนักเรียน';
+                if (mapCoordinates) mapCoordinates.textContent = `GPS: ${query}`;
+                if (mapFrame) mapFrame.src = `https://maps.google.com/maps?q=${query}&z=17&output=embed`;
+                if (mapExternalLink) mapExternalLink.href = `https://www.google.com/maps?q=${query}`;
+                mapModal?.show();
+            };
+
+            document.querySelectorAll('[data-location-map]').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const lat = parseNumber(button.dataset.lat);
+                    const lng = parseNumber(button.dataset.lng);
+                    if (lat === null || lng === null) return;
+                    showMap(button.dataset.studentName || '', lat, lng);
+                });
+            });
+
+            document.querySelectorAll('[data-location-route]').forEach((button) => {
+                button.addEventListener('click', () => {
+                    const lat = parseNumber(button.dataset.lat);
+                    const lng = parseNumber(button.dataset.lng);
+                    if (lat === null || lng === null) return;
+                    openRoute(lat, lng);
+                });
+            });
+
+            routeButton?.addEventListener('click', () => {
+                if (!activeDestination) return;
+                openRoute(activeDestination.lat, activeDestination.lng);
+            });
+        })();
+    </script>
+}
+
+<div class="row g-3 mb-3">
+    <div class="col-md-6 col-xl-2"><div class="card h-100"><div class="card-body"><div class="text-muted small">นักเรียน</div><div class="fs-4 fw-bold">@Model.TotalStudents</div></div></div></div>
+    <div class="col-md-6 col-xl-2"><div class="card h-100"><div class="card-body"><div class="text-muted small">มีแฟ้มดูแล</div><div class="fs-4 fw-bold">@Model.ProfileCount</div></div></div></div>
+    <div class="col-md-6 col-xl-2"><div class="card h-100"><div class="card-body"><div class="text-muted small">เยี่ยมบ้านแล้ว</div><div class="fs-4 fw-bold">@Model.HomeVisitedCount</div></div></div></div>
+    <div class="col-md-6 col-xl-2"><div class="card h-100"><div class="card-body"><div class="text-muted small">กลุ่มเสี่ยง</div><div class="fs-4 fw-bold">@Model.RiskStudentCount</div></div></div></div>
+    <div class="col-md-6 col-xl-2"><div class="card h-100"><div class="card-body"><div class="text-muted small">ธนาคารขยะ</div><div class="fs-4 fw-bold">@Model.WasteBankTotalAmount.ToString("N2")</div><div class="small text-muted">@Model.WasteBankTotalWeightKg.ToString("N3") กก.</div></div></div></div>
+    <div class="col-md-6 col-xl-2"><div class="card h-100"><div class="card-body"><div class="text-muted small">รออนุมัติ</div><div class="fs-4 fw-bold">@Model.PendingApprovalCount</div></div></div></div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">สรุปตามห้องเรียน</div>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead><tr><th>ห้อง</th><th>นักเรียน</th><th>เยี่ยมบ้าน</th><th>เสี่ยง</th><th>ขยะ/เงิน</th></tr></thead>
+                    <tbody>
+                        @foreach (var row in Model.ClassroomSummaries)
+                        {
+                            <tr>
+                                <td>@row.Classroom</td>
+                                <td>@row.StudentCount</td>
+                                <td>@row.HomeVisitedCount</td>
+                                <td>@row.RiskStudentCount</td>
+                                <td>@row.WasteWeightKg.ToString("N3") กก. / @row.WasteAmount.ToString("N2") บาท</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">คิวอนุมัติ</div>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead><tr><th>รายการ</th><th>นักเรียน</th><th>รายละเอียด</th><th></th></tr></thead>
+                    <tbody>
+                        @if (Model.PendingApprovals.Count == 0)
+                        {
+                            <tr><td colspan="4" class="text-center text-muted py-4">ไม่มีรายการรออนุมัติ</td></tr>
+                        }
+                        else
+                        {
+                            @foreach (var item in Model.PendingApprovals)
+                            {
+                                <tr>
+                                    <td><span class="badge text-bg-secondary">@item.ItemType</span><div class="small text-muted">@item.SubmittedAt.ToLocalTime().ToString("dd/MM/yyyy")</div></td>
+                                    <td><div class="fw-semibold">@item.StudentCode</div><div>@item.StudentName</div><div class="small text-muted">@item.Classroom</div></td>
+                                    <td><div class="fw-semibold">@item.Title</div><div class="small">@item.Detail</div></td>
+                                    <td class="text-end">
+                                        <form asp-action="Approve" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="itemType" value="@item.ItemType" />
+                                            <input type="hidden" name="id" value="@item.Id" />
+                                            <button type="submit" class="btn btn-sm btn-success">อนุมัติ</button>
+                                        </form>
+                                        <form asp-action="Reject" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="itemType" value="@item.ItemType" />
+                                            <input type="hidden" name="id" value="@item.Id" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">ปฏิเสธ</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header">รายละเอียดรายคน</div>
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>รหัส</th>
+                    <th>ชื่อ-สกุล</th>
+                    <th>ชั้น/ห้อง</th>
+                    <th>พฤติกรรม</th>
+                    <th>ความดี</th>
+                    <th>ความเสี่ยง</th>
+                    <th>เยี่ยมบ้าน</th>
+                    <th>พิกัด</th>
+                    <th>ธนาคารขยะ</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.Rows.Count == 0)
+                {
+                    <tr><td colspan="10" class="text-center text-muted py-4">ไม่พบข้อมูล</td></tr>
+                }
+                else
+                {
+                    @foreach (var row in Model.Rows)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@row.StudentCode</td>
+                            <td><a asp-action="Detail" asp-route-studentId="@row.StudentId">@row.StudentName</a></td>
+                            <td>@row.GradeLevel / @row.Classroom</td>
+                            <td>@row.BehaviorScore</td>
+                            <td>@row.GoodnessPoint</td>
+                            <td><span class="badge @RiskClass(row.RiskLevel)">@RiskLabel(row.RiskLevel)</span></td>
+                            <td>@(row.LastHomeVisitAt.HasValue ? row.LastHomeVisitAt.Value.ToThaiDate("dd MMM yyyy") : "-")</td>
+                            <td>
+                                @if (row.HasHomeLocation)
+                                {
+                                    <div class="d-flex flex-column gap-1">
+                                        <span class="badge text-bg-success align-self-start">มี</span>
+                                        <span class="small text-muted">@row.HomeLatitude?.ToString("0.000000"), @row.HomeLongitude?.ToString("0.000000")</span>
+                                        <div class="d-flex flex-wrap gap-1 mt-1">
+                                            <button type="button"
+                                                    class="btn btn-sm btn-outline-success"
+                                                    data-location-map
+                                                    data-student-name="@row.StudentName"
+                                                    data-lat="@row.HomeLatitude?.ToString("0.000000", System.Globalization.CultureInfo.InvariantCulture)"
+                                                    data-lng="@row.HomeLongitude?.ToString("0.000000", System.Globalization.CultureInfo.InvariantCulture)">
+                                                <i class="bi bi-map me-1"></i>แผนที่
+                                            </button>
+                                            <button type="button"
+                                                    class="btn btn-sm btn-outline-primary"
+                                                    data-location-route
+                                                    data-lat="@row.HomeLatitude?.ToString("0.000000", System.Globalization.CultureInfo.InvariantCulture)"
+                                                    data-lng="@row.HomeLongitude?.ToString("0.000000", System.Globalization.CultureInfo.InvariantCulture)">
+                                                <i class="bi bi-signpost-2 me-1"></i>นำทาง
+                                            </button>
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">-</span>
+                                }
+                            </td>
+                            <td>@row.WasteWeightKg.ToString("N3") กก. / @row.WasteAmount.ToString("N2") บาท</td>
+                            <td class="text-end"><a class="btn btn-sm btn-outline-primary" asp-action="Detail" asp-route-studentId="@row.StudentId">แฟ้ม</a></td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>

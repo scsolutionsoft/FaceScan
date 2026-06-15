@@ -97,6 +97,16 @@ public class AccountController : Controller
             return RedirectToAction("Index", "Reports", new { area = "Executive" });
         }
 
+        if (await _userManager.IsInRoleAsync(user, "WasteBankStaff"))
+        {
+            return RedirectToAction("Index", "WasteBank", new { area = "Teacher" });
+        }
+
+        if (await _userManager.IsInRoleAsync(user, "StudentCareAdmin"))
+        {
+            return RedirectToAction("Index", "StudentCare", new { area = "Teacher" });
+        }
+
         if (await _userManager.IsInRoleAsync(user, TeacherRoleName) || await _userManager.IsInRoleAsync(user, "HomeroomHead"))
         {
             return RedirectToAction("Index", "Home", new { area = "Teacher" });

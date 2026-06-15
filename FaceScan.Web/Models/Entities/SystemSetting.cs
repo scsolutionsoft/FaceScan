@@ -10,6 +10,14 @@ public class SystemSetting : BaseEntity
     public bool SaveSnapshots { get; set; } = true;
     public decimal FaceConfidenceThreshold { get; set; } = 0.80m;
     public bool AllowManualOverride { get; set; }
+    public bool EnableStudentCareModule { get; set; }
+    public bool EnableBehaviorScoreModule { get; set; }
+    public bool EnableGoodnessBankModule { get; set; }
+    public bool EnableHomeVisitModule { get; set; }
+    public bool EnableWasteBankModule { get; set; }
+    public int StudentCareInitialBehaviorScore { get; set; } = 100;
+    public int StudentCareLowBehaviorScoreThreshold { get; set; } = 60;
+    public bool RequireStudentCareApproval { get; set; }
     public string SchoolName { get; set; } = "FaceScan School";
     public string ApplicationDisplayName { get; set; } = "FaceScan";
     public string ApplicationTagline { get; set; } = "ระบบเช็กเวลาเข้า-ออกด้วยการสแกนใบหน้า";

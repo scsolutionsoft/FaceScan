@@ -23,6 +23,14 @@ public class SystemSettingConfiguration : IEntityTypeConfiguration<SystemSetting
         builder.Property(x => x.ThemeSurfaceColor).HasMaxLength(7).IsRequired();
         builder.Property(x => x.ThemeSidebarStartColor).HasMaxLength(7).IsRequired();
         builder.Property(x => x.ThemeSidebarEndColor).HasMaxLength(7).IsRequired();
+        builder.Property(x => x.EnableStudentCareModule).HasDefaultValue(false);
+        builder.Property(x => x.EnableBehaviorScoreModule).HasDefaultValue(false);
+        builder.Property(x => x.EnableGoodnessBankModule).HasDefaultValue(false);
+        builder.Property(x => x.EnableHomeVisitModule).HasDefaultValue(false);
+        builder.Property(x => x.EnableWasteBankModule).HasDefaultValue(false);
+        builder.Property(x => x.StudentCareInitialBehaviorScore).HasDefaultValue(100);
+        builder.Property(x => x.StudentCareLowBehaviorScoreThreshold).HasDefaultValue(60);
+        builder.Property(x => x.RequireStudentCareApproval).HasDefaultValue(false);
 
         builder.HasOne(x => x.AcademicYearCurrent)
             .WithMany()

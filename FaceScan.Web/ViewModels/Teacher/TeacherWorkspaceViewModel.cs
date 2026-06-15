@@ -11,4 +11,6 @@ public class TeacherWorkspaceViewModel
     public bool CanViewTeacherReports { get; set; }
     public bool CanUseTeacherScan { get; set; } = true;
     public bool CanUsePeriodAttendance { get; set; } = true;
+    public bool CanUseStudentCare { get; set; }
+    public bool CanUseWasteBank { get; set; }
 }

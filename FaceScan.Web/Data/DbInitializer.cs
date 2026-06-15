@@ -16,7 +16,9 @@ public static class DbInitializer
         "Student",
         "Executive",
         "Teacher",
-        "HomeroomHead"
+        "HomeroomHead",
+        "StudentCareAdmin",
+        "WasteBankStaff"
     ];
 
     public static async Task SeedAsync(IServiceProvider serviceProvider)
@@ -74,6 +76,7 @@ public static class DbInitializer
         var classrooms = await SeedClassroomsAsync(dbContext, academicYear.Id, gradeLevels);
 
         await SeedSystemSettingsAsync(dbContext, academicYear.Id);
+        await SeedStudentCareCategoriesAsync(dbContext);
         await SeedClassPeriodsAsync(dbContext);
         await SeedScanDevicesAsync(dbContext);
         await SeedStudentsAsync(dbContext, academicYear.Id, gradeLevels, classrooms);
@@ -90,7 +93,9 @@ public static class DbInitializer
             new { Username = "viewer", Email = "viewer@school.local", Password = "Viewer@123456", Role = "Viewer", FullName = "Report Viewer" },
             new { Username = "executive", Email = "executive@school.local", Password = "Executive@123", Role = "Executive", FullName = "School Executive" },
             new { Username = "teacher", Email = "teacher@school.local", Password = "Teacher@123", Role = "Teacher", FullName = "Class Teacher" },
-            new { Username = "homeroom", Email = "homeroom@school.local", Password = "Homeroom@123", Role = "HomeroomHead", FullName = "Homeroom Head" }
+            new { Username = "homeroom", Email = "homeroom@school.local", Password = "Homeroom@123", Role = "HomeroomHead", FullName = "Homeroom Head" },
+            new { Username = "careadmin", Email = "careadmin@school.local", Password = "CareAdmin@123", Role = "StudentCareAdmin", FullName = "Student Care Admin" },
+            new { Username = "wastebank", Email = "wastebank@school.local", Password = "Wastebank@123", Role = "WasteBankStaff", FullName = "Waste Bank Staff" }
         };
 
         foreach (var item in users)
@@ -119,6 +124,27 @@ public static class DbInitializer
                 await userManager.AddToRoleAsync(user, item.Role);
             }
         }
+    }
+
+    private static async Task SeedStudentCareCategoriesAsync(ApplicationDbContext dbContext)
+    {
+        if (!await dbContext.BehaviorScoreCategories.AnyAsync())
+        {
+            dbContext.BehaviorScoreCategories.AddRange(
+                new BehaviorScoreCategory { Name = "มาสาย", ScoreChange = -5, SortOrder = 10, Description = "มาสายโดยไม่มีเหตุอันควร" },
+                new BehaviorScoreCategory { Name = "ขาดเรียน", ScoreChange = -10, SortOrder = 20, Description = "ขาดเรียนหรือไม่เข้าเรียน" },
+                new BehaviorScoreCategory { Name = "ช่วยเหลือกิจกรรม", ScoreChange = 5, SortOrder = 30, Description = "ช่วยเหลืองานห้องเรียนหรือกิจกรรมโรงเรียน" });
+        }
+
+        if (!await dbContext.GoodnessBankCategories.AnyAsync())
+        {
+            dbContext.GoodnessBankCategories.AddRange(
+                new GoodnessBankCategory { Name = "จิตอาสา", Point = 5, SortOrder = 10, Description = "ช่วยงานจิตอาสาหรือกิจกรรมสาธารณะ" },
+                new GoodnessBankCategory { Name = "เก็บของคืน", Point = 3, SortOrder = 20, Description = "เก็บของได้และส่งคืนเจ้าของ" },
+                new GoodnessBankCategory { Name = "ช่วยเหลือเพื่อน", Point = 3, SortOrder = 30, Description = "ช่วยเหลือเพื่อนหรือครูในสถานการณ์เหมาะสม" });
+        }
+
+        await dbContext.SaveChangesAsync();
     }
 
     private static async Task<AcademicYear> SeedAcademicYearAsync(ApplicationDbContext dbContext)
